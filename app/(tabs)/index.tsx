@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Image, View, Text, Modal, Linking, Platform, ActivityIndicator, AppState, BackHandler, Share, Pressable } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Alert, Image, View, Text, Modal, Linking, Platform, ActivityIndicator, AppState, BackHandler, Share, Pressable, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -8,7 +8,6 @@ import { WebView } from 'react-native-webview';
 import type { Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
 import { Colors } from '@/constants/theme';
 import { CITIES, distanceMeters } from '@/constants/cities';
 import { useThemeMode } from '@/hooks/use-theme-mode';
@@ -24,6 +23,9 @@ interface PetPost {
   images: string[];
   latitude: number;
   longitude: number;
+  reported?: boolean;
+  reportReason?: string;
+  reportedBy?: string;
 }
 
 const normalizePhone = (value: string) => {
@@ -72,6 +74,20 @@ export default function HomeScreen() {
   const [locationEnabled, setLocationEnabled] = useState<boolean | null>(null);
   const [now, setNow] = useState(new Date());
   const isDay = now.getHours() >= 6 && now.getHours() < 18;
+
+  const bubbleOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const blink = () => {
+      Animated.sequence([
+        Animated.timing(bubbleOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.delay(2200),
+        Animated.timing(bubbleOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        Animated.delay(1200),
+      ]).start(() => blink());
+    };
+    blink();
+    return () => bubbleOpacity.stopAnimation();
+  }, [bubbleOpacity]);
 
   const getCityForLocation = (loc: { latitude: number; longitude: number } | null): import('@/constants/cities').City => {
     if (loc) {
@@ -153,6 +169,7 @@ export default function HomeScreen() {
 
   const [selectedDemo, setSelectedDemo] = useState<number | null>(null);
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
+  const [reportTarget, setReportTarget] = useState<PetPost | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -375,8 +392,23 @@ export default function HomeScreen() {
     );
   };
 
+  const reportPet = (pet: PetPost) => {
+    setReportTarget(pet);
+  };
+
+  const submitReport = (pet: PetPost, reason: string) => {
+    const reporter = myPhone || normalizePhone(pet.contact);
+    setPets((prev) =>
+      prev.map((p) =>
+        p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter } : p
+      )
+    );
+    setReportTarget(null);
+    setSelectedPet(null);
+    Alert.alert('Denúncia enviada', 'Obrigado. Nossa equipe irá analisar este alerta.');
+  };
+
   const openReport = async () => {
-    playClickSound();
     if (!canReport) return;
     if (!location) {
       const coords = userLocation ?? { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
@@ -394,6 +426,9 @@ export default function HomeScreen() {
         setLocation(selectedCity.name);
       }
     }
+    if (myPhone) {
+      setContact(formatPhone(myPhone));
+    }
     setReportModalVisible(true);
   };
 
@@ -409,18 +444,6 @@ export default function HomeScreen() {
       ? `whatsapp://send?phone=${phoneNumber}&text=${message}`
       : `https://wa.me/${phoneNumber}?text=${message}`;
     Linking.openURL(url).catch(() => Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.'));
-  };
-
-  const playClickSound = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require('../../assets/sounds/click_fofo.wav')
-      );
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
-      });
-    } catch {}
   };
 
   return (
@@ -464,7 +487,7 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={[styles.sideToolbar, { zIndex: 10 }]}>
+        <View style={[styles.sideToolbar, { zIndex: 20 }]}>
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={toggleTheme}>
             <Ionicons name={theme === 'dark' ? 'sunny' : 'moon'} size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -473,9 +496,15 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => {
             Share.share({
-              message: 'Conheça o iFujão! Ajude a encontrar pets perdidos. Baixe o app e reporte pets desaparecidos perto de você.',
+              message: '🐾 iFujão — ajude a encontrar pets perdidos!\nCadastre e veja alertas de pets perto de você.\nhttps://ifujao.app',
               title: 'iFujão - Pets Perdidos',
-            }).catch(() => {});
+            }).then((r) => {
+              if (r.action === Share.dismissedAction) {
+                Alert.alert('Compartilhar', 'A janela foi fechada sem compartilhar.');
+              }
+            }).catch((e) => {
+              Alert.alert('Erro ao compartilhar', String(e?.message ?? e));
+            });
           }}>
             <Ionicons name="share-social" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -494,9 +523,10 @@ export default function HomeScreen() {
         </View>
 
         <SafeAreaView style={[styles.floatingButtonContainer, { bottom: insets.bottom + 4 }]}>
-          <View style={styles.speechBubble}>
+          <Animated.View style={[styles.speechBubble, { opacity: bubbleOpacity }]}>
             <Text style={styles.speechBubbleText}>Toque para{'\n'}reportar um pet perdido</Text>
-          </View>
+            <View style={styles.speechBubbleArrow} />
+          </Animated.View>
           <TouchableOpacity
             style={[styles.floatingButton, !canReport && styles.floatingButtonDisabled]}
             disabled={!canReport}
@@ -522,7 +552,12 @@ export default function HomeScreen() {
         onRequestClose={fecharModal}
       >
         <SafeAreaView style={styles.modalContainer}>
-          <ScrollView contentContainerStyle={styles.modalScrollView}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          >
+          <ScrollView contentContainerStyle={styles.modalScrollView} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Reportar Pet Perdido</Text>
               <TouchableOpacity style={styles.roundClose} onPress={fecharModal}>
@@ -615,6 +650,7 @@ export default function HomeScreen() {
               <Text style={styles.submitButtonText}>Publicar Alerta</Text>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -650,9 +686,10 @@ export default function HomeScreen() {
       >
         <TouchableOpacity style={styles.aboutOverlay} activeOpacity={1} onPress={() => setIsAboutVisible(false)}>
           <View style={styles.aboutCard}>
+            <Image source={require('../../assets/images/logo.png')} style={{ width: 72, height: 72, marginBottom: 8, resizeMode: 'contain' }} />
             <Text style={styles.aboutTitle}>iFujão</Text>
             <Text style={styles.aboutText}>
-              App para ajudar a encontrar pets perdidos. Registre um pet, informe a localização e o contato para quem encontrá-lo entrar em contato pelo WhatsApp.
+              App para ajudar a encontrar pets perdidos. Registre um pet, informe a localização e o seu número para quem encontrá-lo entrar em contato pelo WhatsApp.
             </Text>
             <Text style={styles.aboutVersion}>Versão 1.0.0</Text>
             <TouchableOpacity style={styles.aboutClose} onPress={() => setIsAboutVisible(false)}>
@@ -781,7 +818,14 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.demoClose} onPress={() => setSelectedPet(null)}>
                 <Ionicons name="close" size={22} color="#FFFFFF" />
               </TouchableOpacity>
-              <ImageCarousel images={selectedPet.images} />
+              <View style={styles.reportImageWrap}>
+                <ImageCarousel images={selectedPet.images} blurRadius={selectedPet.reported ? 18 : 0} />
+                {selectedPet.reported ? (
+                  <View style={styles.reportedBanner}>
+                    <Text style={styles.reportedBannerText}>DENUNCIA</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text style={styles.demoName}>{selectedPet.species}</Text>
               <View style={styles.demoRow}>
                 <Ionicons name="location" size={16} color={themeColors.primaryButton} />
@@ -791,7 +835,8 @@ export default function HomeScreen() {
                 <Text style={styles.demoDescription}>{selectedPet.description}</Text>
               ) : null}
               <TouchableOpacity
-                style={styles.demoContactBtn}
+                style={[styles.demoContactBtn, selectedPet.reported && styles.disabledBtn]}
+                disabled={selectedPet.reported}
                 onPress={() => {
                   const contact = selectedPet.contact;
                   setSelectedPet(null);
@@ -800,6 +845,13 @@ export default function HomeScreen() {
               >
                 <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
                 <Text style={styles.demoContactText}>Entrar em contato</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.demoReportBtn}
+                onPress={() => reportPet(selectedPet)}
+              >
+                <Ionicons name="flag" size={20} color="#FFFFFF" />
+                <Text style={styles.demoContactText}>Denunciar</Text>
               </TouchableOpacity>
               {normalizePhone(selectedPet.ownerPhone) === myPhone && myPhone !== '' && (
                 <TouchableOpacity
@@ -810,10 +862,52 @@ export default function HomeScreen() {
                   <Text style={styles.demoContactText}>Apagar alerta</Text>
                 </TouchableOpacity>
               )}
+              {selectedPet.reported && (normalizePhone(selectedPet.ownerPhone) === myPhone || normalizePhone(selectedPet.reportedBy ?? '') === myPhone) && myPhone !== '' && (
+                <TouchableOpacity
+                  style={styles.demoUndoReportBtn}
+                  onPress={() => {
+                    setPets((prev) =>
+                      prev.map((p) =>
+                        p.id === selectedPet.id ? { ...p, reported: false, reportReason: undefined, reportedBy: undefined } : p
+                      )
+                    );
+                    setSelectedPet(null);
+                  }}
+                >
+                  <Ionicons name="flag" size={20} color="#FFFFFF" />
+                  <Text style={styles.demoContactText}>Apagar denúncia</Text>
+                </TouchableOpacity>
+              )}
               </View>
             </View>
           </Modal>
         )}
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={reportTarget !== null}
+        onRequestClose={() => setReportTarget(null)}
+      >
+        <View style={styles.reportOverlay}>
+          <View style={styles.reportCard}>
+            <TouchableOpacity style={styles.reportClose} onPress={() => setReportTarget(null)}>
+              <Ionicons name="close" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.reportTitle}>Denunciar alerta</Text>
+            <Text style={styles.reportSubtitle}>Selecione o motivo da denúncia:</Text>
+            {['Conteúdo impróprio ou ofensivo', 'Foto inadequada', 'Informação falsa/engano', 'Spam', 'Outro'].map((m) => (
+              <TouchableOpacity
+                key={m}
+                style={styles.reportOption}
+                onPress={() => reportTarget && submitReport(reportTarget, m)}
+              >
+                <Text style={styles.reportOptionText}>{m}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </Modal>
 
 
     </View>
@@ -900,7 +994,7 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
 
   return (
     <WebView
-      style={StyleSheet.absoluteFillObject}
+      style={[StyleSheet.absoluteFillObject, { zIndex: 0 }]}
       originWhitelist={['*']}
       source={source}
       onMessage={(e) => {
@@ -914,7 +1008,7 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
   );
 };
 
-const ImageCarousel = ({ images }: { images: string[] }) => {
+const ImageCarousel = ({ images, blurRadius = 0 }: { images: string[]; blurRadius?: number }) => {
   const [index, setIndex] = useState(0);
   const clamped = Math.max(0, Math.min(index, images.length - 1));
   const btn = (disabled: boolean): any => ({
@@ -928,7 +1022,7 @@ const ImageCarousel = ({ images }: { images: string[] }) => {
   });
   return (
     <View style={{ width: '100%', height: 180, marginBottom: 14, position: 'relative' }}>
-      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12 }} resizeMode="cover" />
+      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12 }} resizeMode="cover" blurRadius={blurRadius} />
       {images.length > 1 && (
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8 }}>
           <TouchableOpacity
@@ -983,28 +1077,35 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   speechBubble: {
-    backgroundColor: 'rgba(10,132,255,0.9)',
-    borderRadius: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: '#000000',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   speechBubbleText: {
-    color: '#FFFFFF',
+    color: '#000000',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
     textAlign: 'center',
     lineHeight: 17,
   },
   speechBubbleArrow: {
     position: 'absolute',
-    bottom: -9,
+    bottom: -10,
     alignSelf: 'center',
     width: 0,
     height: 0,
-    borderLeftWidth: 9,
-    borderRightWidth: 9,
-    borderTopWidth: 9,
+    borderLeftWidth: 10,
+    borderRightWidth: 10,
+    borderTopWidth: 10,
     borderStyle: 'solid',
     backgroundColor: 'transparent',
     borderLeftColor: 'transparent',
@@ -1326,7 +1427,8 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     top: '38%',
     right: 16,
     gap: 18,
-    zIndex: 10,
+    zIndex: 20,
+    elevation: 20,
   },
   sideToolbarBtn: {
     width: 46,
@@ -1580,5 +1682,100 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  disabledBtn: {
+    opacity: 0.4,
+  },
+  demoReportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF9500',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  demoUndoReportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0A84FF',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  reportImageWrap: {
+    width: '100%',
+    position: 'relative',
+  },
+  reportedBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportedBannerText: {
+    color: '#FF3B30',
+    fontSize: 22,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  reportOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  reportCard: {
+    width: '100%',
+    backgroundColor: c.card,
+    borderRadius: 18,
+    padding: 24,
+    alignItems: 'stretch',
+    position: 'relative',
+  },
+  reportClose: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  reportTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: c.text,
+    marginBottom: 6,
+  },
+  reportSubtitle: {
+    fontSize: 14,
+    color: c.text,
+    opacity: 0.7,
+    marginBottom: 16,
+  },
+  reportOption: {
+    backgroundColor: c.background,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: c.cardStroke,
+  },
+  reportOptionText: {
+    fontSize: 15,
+    color: c.text,
+    fontWeight: '600',
   },
 });

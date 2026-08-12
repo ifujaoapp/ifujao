@@ -425,22 +425,24 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.titleBar, { paddingTop: insets.top }]}>
-        <Ionicons style={styles.clockIcon} name={isDay ? 'sunny' : 'moon'} size={22} color={isDay ? '#FFD60A' : '#E6E6FA'} />
-        <View style={styles.clockText}>
-          <Text style={styles.clockTime}>
-            {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-          </Text>
-          <Text style={styles.clockDate}>
-            {now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
-          </Text>
+      <View style={{ paddingTop: insets.top }}>
+        <View style={styles.titleBar}>
+          <Ionicons style={styles.clockIcon} name={isDay ? 'sunny' : 'moon'} size={22} color={isDay ? '#FFD60A' : '#E6E6FA'} />
+          <View style={styles.clockText}>
+            <Text style={styles.clockTime}>
+              {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </Text>
+            <Text style={styles.clockDate}>
+              {now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsAboutVisible(true)}>
+            <Ionicons name="information-circle" size={24} color={themeColors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsPrivacyVisible(true)}>
+            <Ionicons name="shield-checkmark" size={24} color={themeColors.text} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsAboutVisible(true)}>
-          <Ionicons name="information-circle" size={24} color={themeColors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsPrivacyVisible(true)}>
-          <Ionicons name="shield-checkmark" size={24} color={themeColors.text} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.mapArea}>

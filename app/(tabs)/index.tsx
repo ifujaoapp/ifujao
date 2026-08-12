@@ -1,10 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Image, SafeAreaView, View, Text, Modal, Linking, Platform, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert, Image, View, Text, Modal, Linking, Platform, ActivityIndicator, AppState, BackHandler, Share, Pressable } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
-import MapView, { Marker, Region, UrlTile } from 'react-native-maps';
+import { WebView } from 'react-native-webview';
+import type { Region } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Colors } from '@/constants/theme'; 
+import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
+import { Colors } from '@/constants/theme';
+import { CITIES, distanceMeters } from '@/constants/cities';
+import { useThemeMode } from '@/hooks/use-theme-mode';
+import * as SecureStore from 'expo-secure-store';
 
 interface PetPost {
   id: string;
@@ -12,57 +20,227 @@ interface PetPost {
   location: string;
   description: string;
   contact: string;
+  ownerPhone: string;
   images: string[];
   latitude: number;
   longitude: number;
 }
 
-const MAX_IMAGES = 3;
-
-const SOROCABA_REGION = {
-  latitude: -23.5019,
-  longitude: -47.4581,
-  latitudeDelta: 0.01,
-  longitudeDelta: 0.01,
+const normalizePhone = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  return digits.startsWith('55') ? digits.slice(2) : digits;
 };
 
+const MAX_IMAGES = 3;
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const { theme, toggleTheme } = useThemeMode();
+  const themeColors = Colors[theme];
+  const styles = makeStyles(themeColors);
   const [pets, setPets] = useState<PetPost[]>([]);
+  const [myPhone, setMyPhone] = useState('');
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
+  const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
   const [species, setSpecies] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [contact, setContact] = useState('');
+  const [contactError, setContactError] = useState('');
   const [images, setImages] = useState<string[]>([]);
+  const speciesRef = useRef<TextInput>(null);
+  const locationRef = useRef<TextInput>(null);
+  const descriptionRef = useRef<TextInput>(null);
+  const contactRef = useRef<TextInput>(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [isPhotoSourceVisible, setIsPhotoSourceVisible] = useState(false);
   const [facing, setFacing] = useState<CameraType>('back');
   const [cameraReady, setCameraReady] = useState(false);
   const [zoom, setZoom] = useState(0);
   const [flash, setFlash] = useState<'off' | 'on' | 'auto'>('off');
   const cameraRef = useRef<CameraView>(null);
   const [, requestCameraPermission] = useCameraPermissions();
-  const [mapRegion, setMapRegion] = useState<Region>(SOROCABA_REGION);
+  const [mapRegion, setMapRegion] = useState<Region>({
+    latitude: CITIES[0].latitude,
+    longitude: CITIES[0].longitude,
+    latitudeDelta: 0.08,
+    longitudeDelta: 0.08,
+  });
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const initialCenterRef = useRef<{ latitude: number; longitude: number } | null>(null);
+  const [locationEnabled, setLocationEnabled] = useState<boolean | null>(null);
+  const [now, setNow] = useState(new Date());
+  const isDay = now.getHours() >= 6 && now.getHours() < 18;
+
+  const getCityForLocation = (loc: { latitude: number; longitude: number } | null): import('@/constants/cities').City => {
+    if (loc) {
+      const inside = CITIES.find(
+        (c) => distanceMeters(loc.latitude, loc.longitude, c.latitude, c.longitude) <= c.radiusMeters
+      );
+      if (inside) return inside;
+      let nearest = CITIES[0];
+      let nearestDist = Infinity;
+      CITIES.forEach((c) => {
+        const d = distanceMeters(loc.latitude, loc.longitude, c.latitude, c.longitude);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = c;
+        }
+      });
+      return nearest;
+    }
+    return CITIES[0];
+  };
+
+  const selectedCity = getCityForLocation(userLocation);
+
+  const insideRadius =
+    userLocation != null &&
+    distanceMeters(
+      userLocation.latitude,
+      userLocation.longitude,
+      selectedCity.latitude,
+      selectedCity.longitude
+    ) <= selectedCity.radiusMeters;
+
+  const canReport = locationEnabled === true && insideRadius === true;
+
+  const demoSpotsLocations = [
+    'Parque da Biquinha', 'Praça Coronel', 'Bairro Jardim', 'Votorantim Centro',
+    'Av. da Liberdade', 'Marginal Botujuru', 'Estação Sorocaba', 'Bairro Barcelona',
+    'Lagoa dos Patriotas', 'Cidade Universitária'
+  ];
+  const demoNames = [
+    'Bob', 'Luna', 'Thor', 'Mel', 'Rex',
+    'Nina', 'Toby', 'Lola', 'Max', 'Pituca'
+  ];
+  const demoSpecies = [
+    'Cachorro - Vira-lata', 'Gato - Siames', 'Cachorro - Golden', 'Gato - Rajado',
+    'Cachorro - Poodle', 'Cachorro - Bully', 'Gato - Preto', 'Cachorro - Pastor',
+    'Gato - Laranja', 'Cachorro - Beagle'
+  ];
+  const demoContacts = [
+    '15991234567', '15982345678', '15973456789', '15964567890', '15955678901',
+    '15946789012', '15937890123', '15928901234', '15919012345', '15900123456'
+  ];
+  const demoDescriptions = [
+    'Sumiu durante a tarde, muito dócil, responde por Bob.',
+    'Fugiu pelo portão, castrada, mancha nos olhos.',
+    'Perdido desde ontem, adora crianças, coleira azul.',
+    'Saiu e não voltou, medrosa com estranhos.',
+    'Escapou no parque, muito agitado, carinhoso.',
+    'Desapareceu de casa, cicatriz na orelha.',
+    'Gata arisca, sumiu na chuva, mia bastante.',
+    'Cão idoso, não enxerga bem de longe.',
+    'Gato de rua que virou de casa, não volta.',
+    'Filhote curioso, saiu pela janela.'
+  ];
+
+  const generateDemoData = (id: number) => ({
+    id,
+    name: demoNames[id],
+    species: demoSpecies[id],
+    location: demoSpotsLocations[id],
+    contact: demoContacts[id],
+    description: demoDescriptions[id],
+    images: [
+      `https://picsum.photos/seed/if${id}a/400/400`,
+      `https://picsum.photos/seed/if${id}b/400/400`,
+      `https://picsum.photos/seed/if${id}c/400/400`,
+    ],
+  });
+
+  const [selectedDemo, setSelectedDemo] = useState<number | null>(null);
+  const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     (async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão negada', 'Precisamos de permissão para acessar sua localização para mostrar o mapa corretamente.');
-        return;
-      }
-
-      let location = await Location.getCurrentPositionAsync({});
-      setMapRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      });
+      try {
+        const saved = await SecureStore.getItemAsync('ifujao_my_phone');
+        if (saved) setMyPhone(saved);
+      } catch {}
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await SecureStore.getItemAsync('ifujao_pets');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) setPets(parsed as PetPost[]);
+        }
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    SecureStore.setItemAsync('ifujao_pets', JSON.stringify(pets)).catch(() => {});
+  }, [pets]);
+
+  const checkPermissionAndServices = useCallback(async () => {
+    let { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      status = (await Location.requestForegroundPermissionsAsync()).status;
+    }
+    if (status !== 'granted') return false;
+
+    const servicesEnabled = await Location.hasServicesEnabledAsync().catch(() => false);
+    return servicesEnabled;
+  }, []);
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const getOnce = async () => {
+      const ok = await checkPermissionAndServices();
+      if (!ok) {
+        setLocationEnabled(false);
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch(() => null);
+      if (cancelled || !location) return;
+      const coords = { latitude: location.coords.latitude, longitude: location.coords.longitude };
+      setUserLocation(coords);
+      if (!initialCenterRef.current) {
+        initialCenterRef.current = coords;
+        setMapRegion({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        });
+      }
+      setLocationEnabled(true);
+    };
+
+    getOnce();
+
+    const poll = setInterval(async () => {
+      const ok = await checkPermissionAndServices();
+      if (!ok) setLocationEnabled(false);
+    }, 3000);
+
+    const appStateSub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') getOnce();
+    });
+
+    return () => {
+      cancelled = true;
+      appStateSub.remove();
+      clearInterval(poll);
+    };
+  }, [checkPermissionAndServices]);
+
   const abrirCamera = async () => {
+    fecharFonte();
     const { granted } = await requestCameraPermission();
     if (!granted) {
       Alert.alert('Permissão Negada', 'Precisamos de permissão para acessar a câmera.');
@@ -71,6 +249,33 @@ export default function HomeScreen() {
     setCameraReady(false);
     setZoom(0);
     setIsCameraOpen(true);
+  };
+
+  const escolherFonte = () => setIsPhotoSourceVisible(true);
+
+  const fecharFonte = () => setIsPhotoSourceVisible(false);
+
+  const abrirGaleria = async () => {
+    fecharFonte();
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      Alert.alert('Permissão Negada', 'Precisamos de permissão para acessar sua galeria.');
+      return;
+    }
+    if (images.length >= MAX_IMAGES) {
+      Alert.alert('Limite atingido', `Você pode adicionar no máximo ${MAX_IMAGES} fotos.`);
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_IMAGES - images.length,
+    });
+    if (!result.canceled) {
+      const uris = result.assets.map(a => a.uri);
+      setImages(prev => [...prev, ...uris].slice(0, MAX_IMAGES));
+    }
   };
 
   const zoomStep = 0.2;
@@ -99,9 +304,32 @@ export default function HomeScreen() {
     setReportModalVisible(false);
   };
 
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 2) return digits.replace(/(\d{0,2})/, '($1');
+    if (digits.length <= 6) return digits.replace(/(\d{2})(\d{0,4})/, '($1) $2');
+    if (digits.length <= 10) return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+    return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+  };
+
+  const isValidPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    const national = digits.startsWith('55') ? digits.slice(2) : digits;
+    if (!/^\d{10,11}$/.test(national)) return false;
+    const ddd = national.slice(0, 2);
+    if (Number(ddd) < 11) return false;
+    if (national.length === 11 && national[2] !== '9') return false;
+    return true;
+  };
+
   const handleAddPet = async () => {
     if (images.length === 0 || !species || !location || !contact) {
       Alert.alert('Atenção', 'Preencha todos os campos e adicione ao menos uma foto.');
+      return;
+    }
+    if (!isValidPhone(contact)) {
+      setContactError('Número de WhatsApp inválido (use DDD + 9 dígitos).');
+      Alert.alert('Atenção', 'Digite um número de WhatsApp válido (com DDD, 10 ou 11 dígitos).');
       return;
     }
     let latitude = mapRegion.latitude;
@@ -113,59 +341,177 @@ export default function HomeScreen() {
         longitude = last.coords.longitude;
       }
     } catch {}
+    const ownerPhone = normalizePhone(contact);
+    SecureStore.setItemAsync('ifujao_my_phone', ownerPhone).catch(() => {});
+    setMyPhone(ownerPhone);
     const newPet: PetPost = {
       id: Date.now().toString(),
-      species, location, description, contact, images,
+      species, location, description, contact, ownerPhone, images,
       latitude,
       longitude,
     };
     setPets([newPet, ...pets]);
-    setSpecies(''); setLocation(''); setDescription(''); setContact(''); setImages([]);
+    setSpecies(''); setLocation(''); setDescription(''); setContact(''); setContactError(''); setImages([]);
     setIsCameraOpen(false);
     setReportModalVisible(false);
     Alert.alert('Sucesso!', 'Alerta publicado!');
   };
 
+  const deletePet = (petId: string) => {
+    Alert.alert(
+      'Apagar alerta',
+      'Tem certeza que deseja apagar este alerta? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Apagar',
+          style: 'destructive',
+          onPress: () => {
+            setPets((prev) => prev.filter((p) => p.id !== petId));
+            setSelectedPet(null);
+          },
+        },
+      ]
+    );
+  };
+
+  const openReport = async () => {
+    playClickSound();
+    if (!canReport) return;
+    if (!location) {
+      const coords = userLocation ?? { latitude: mapRegion.latitude, longitude: mapRegion.longitude };
+      try {
+        const geo = await Location.reverseGeocodeAsync({ latitude: coords.latitude, longitude: coords.longitude });
+        if (geo.length > 0) {
+          const g = geo[0];
+          const partes = [g.street, g.district].filter(Boolean);
+          const endereco = partes.length > 0 ? partes.join(', ') : (g.city || g.region || selectedCity.name);
+          setLocation(endereco);
+        } else {
+          setLocation(selectedCity.name);
+        }
+      } catch {
+        setLocation(selectedCity.name);
+      }
+    }
+    setReportModalVisible(true);
+  };
+
   const openWhatsApp = (contactNumber: string) => {
-    const phoneNumber = contactNumber.replace(/\D/g, '');
-    const url = Platform.OS === 'android' ? `whatsapp://send?phone=55${phoneNumber}` : `https://wa.me/55${phoneNumber}`;
+    let phoneNumber = contactNumber.replace(/\D/g, '');
+    if (!isValidPhone(phoneNumber)) {
+      Alert.alert('Atenção', 'O contato informado não é um número de WhatsApp válido.');
+      return;
+    }
+    if (!phoneNumber.startsWith('55')) phoneNumber = `55${phoneNumber}`;
+    const message = encodeURIComponent('Olá! Vi seu alerta de pet perdido no iFujão. Posso ajudar a encontrá-lo?');
+    const url = Platform.OS === 'android'
+      ? `whatsapp://send?phone=${phoneNumber}&text=${message}`
+      : `https://wa.me/${phoneNumber}?text=${message}`;
     Linking.openURL(url).catch(() => Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.'));
+  };
+
+  const playClickSound = async () => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require('../../assets/sounds/click_fofo.wav')
+      );
+      await sound.playAsync();
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+      });
+    } catch {}
   };
 
   return (
     <View style={styles.container}>
-      <MapView 
-        style={styles.map} 
-        region={mapRegion}
-        showsUserLocation={true}
-      >
-        <UrlTile
-          urlTemplate="https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
-          maximumZ={19}
-        />
-        {pets.map(pet => (
-          <Marker
-            key={pet.id}
-            coordinate={{ latitude: pet.latitude, longitude: pet.longitude }}
-            title={pet.species}
-            description={pet.location}
-            image={pet.images.length > 0 ? { uri: pet.images[0] } : undefined}
-            onCalloutPress={() => openWhatsApp(pet.contact)}
-          />
-      ))}
-      </MapView>
-
-      <SafeAreaView style={styles.aboutButtonContainer}>
-        <TouchableOpacity style={styles.aboutButton} onPress={() => setIsAboutVisible(true)}>
-          <Ionicons name="information-circle" size={24} color="#FFFFFF" />
+      <View style={[styles.titleBar, { paddingTop: insets.top }]}>
+        <Ionicons style={styles.clockIcon} name={isDay ? 'sunny' : 'moon'} size={22} color={isDay ? '#FFD60A' : '#E6E6FA'} />
+        <View style={styles.clockText}>
+          <Text style={styles.clockTime}>
+            {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </Text>
+          <Text style={styles.clockDate}>
+            {now.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+          </Text>
+        </View>
+        <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsAboutVisible(true)}>
+          <Ionicons name="information-circle" size={24} color={themeColors.text} />
         </TouchableOpacity>
-      </SafeAreaView>
-
-      <SafeAreaView style={styles.floatingButtonContainer}>
-        <TouchableOpacity style={styles.floatingButton} onPress={() => setReportModalVisible(true)}>
-          <Text style={styles.floatingButtonText}>Reportar Pet Perdido</Text>
+        <TouchableOpacity style={styles.titleInfoBtn} onPress={() => setIsPrivacyVisible(true)}>
+          <Ionicons name="shield-checkmark" size={24} color={themeColors.text} />
         </TouchableOpacity>
-      </SafeAreaView>
+      </View>
+
+      <View style={styles.mapArea}>
+        {initialCenterRef.current && (
+          <MapLeaflet key={`${theme}-${selectedCity.id}`} initialCenter={initialCenterRef.current} region={mapRegion} userLocation={userLocation} pets={pets} onMarkerPress={(petId) => { const pet = pets.find((p) => p.id === petId); if (pet) setSelectedPet(pet); }} onDemoPress={(id) => setSelectedDemo(id)} theme={theme} city={selectedCity} />
+        )}
+
+        {locationEnabled === false && (
+          <View style={styles.locationWarning}>
+            <Ionicons name="location-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.locationWarningText}>Ative a localização para reportar um pet perdido.</Text>
+          </View>
+        )}
+
+        {locationEnabled === true && insideRadius === false && (
+          <View style={styles.locationWarning}>
+            <Ionicons name="location-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.locationWarningText}>Você está fora da área de {selectedCity.name}. O app funciona apenas dentro do raio da cidade.</Text>
+          </View>
+        )}
+
+        <View style={[styles.sideToolbar, { zIndex: 10 }]}>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={toggleTheme}>
+            <Ionicons name={theme === 'dark' ? 'sunny' : 'moon'} size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => Alert.alert('Buscar', 'Funcionalidade de busca em breve.')}>
+            <Ionicons name="search" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => {
+            Share.share({
+              message: 'Conheça o iFujão! Ajude a encontrar pets perdidos. Baixe o app e reporte pets desaparecidos perto de você.',
+              title: 'iFujão - Pets Perdidos',
+            }).catch(() => {});
+          }}>
+            <Ionicons name="share-social" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => {
+            if (Platform.OS === 'android') {
+              Alert.alert('Sair', 'Deseja realmente sair do app?', [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Sair', style: 'destructive', onPress: () => BackHandler.exitApp() },
+              ]);
+            } else {
+              Alert.alert('Sair', 'Não é possível fechar o app no iOS. Encerre-o manualmente.');
+            }
+          }}>
+            <Ionicons name="log-out" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <SafeAreaView style={[styles.floatingButtonContainer, { bottom: insets.bottom + 4 }]}>
+          <View style={styles.speechBubble}>
+            <Text style={styles.speechBubbleText}>Toque para{'\n'}reportar um pet perdido</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.floatingButton, !canReport && styles.floatingButtonDisabled]}
+            disabled={!canReport}
+            activeOpacity={0.8}
+            onPress={() => openReport()}
+          >
+            <MaterialCommunityIcons name="paw" size={42} color="#FFFFFF" />
+          </TouchableOpacity>
+        </SafeAreaView>
+
+        <SafeAreaView style={[styles.cityBox, { bottom: insets.bottom + 16, left: 16 }]}>
+          <View style={styles.cityButton}>
+            <Ionicons name="location" size={14} color="#FFFFFF" />
+            <Text style={styles.cityButtonText}>{selectedCity.name}</Text>
+          </View>
+        </SafeAreaView>
+      </View>
 
       <Modal
         animationType="slide"
@@ -247,8 +593,8 @@ export default function HomeScreen() {
                     </View>
                   ))}
                   {images.length < MAX_IMAGES && (
-                    <TouchableOpacity style={styles.photoAdd} onPress={abrirCamera}>
-                      <Ionicons name="camera" size={40} color={Colors.light.primaryButton} />
+                    <TouchableOpacity style={styles.photoAdd} onPress={escolherFonte}>
+                      <Ionicons name="camera" size={40} color={themeColors.primaryButton} />
                       <Text style={styles.bigCameraButtonText}>Adicionar</Text>
                     </TouchableOpacity>
                   )}
@@ -257,16 +603,41 @@ export default function HomeScreen() {
               </View>
             )}
 
-            <TextInput style={styles.input} placeholder="Espécie / Raça" placeholderTextColor="#8E8E93" value={species} onChangeText={setSpecies} />
-            <TextInput style={styles.input} placeholder="Última Localização Vista" placeholderTextColor="#8E8E93" value={location} onChangeText={setLocation} />
-            <TextInput style={[styles.input, styles.textArea]} placeholder="Descrição Adicional" placeholderTextColor="#8E8E93" value={description} onChangeText={setDescription} multiline />
-            <TextInput style={styles.input} placeholder="Contato (WhatsApp)" placeholderTextColor="#8E8E93" value={contact} onChangeText={setContact} keyboardType="phone-pad" />
+            <TextInput ref={speciesRef} style={styles.input} placeholder="Espécie / Raça" placeholderTextColor="#8E8E93" value={species} onChangeText={setSpecies} returnKeyType="next" onSubmitEditing={() => locationRef.current?.focus()} />
+            <TextInput ref={locationRef} style={styles.input} placeholder="Última Localização Vista" placeholderTextColor="#8E8E93" value={location} onChangeText={setLocation} returnKeyType="next" onSubmitEditing={() => descriptionRef.current?.focus()} />
+            <TextInput ref={descriptionRef} style={[styles.input, styles.textArea]} placeholder="Descrição Adicional (opcional)" placeholderTextColor="#8E8E93" value={description} onChangeText={setDescription} multiline returnKeyType="next" onSubmitEditing={() => contactRef.current?.focus()} />
+            <TextInput ref={contactRef} style={[styles.input, contactError ? styles.inputError : null]} placeholder="Contato (WhatsApp)" placeholderTextColor="#8E8E93" value={contact} onChangeText={(t) => { const f = formatPhone(t); setContact(f); setContactError(f && !isValidPhone(f) ? 'Número de WhatsApp inválido (use DDD + 9 dígitos).' : ''); }} keyboardType="phone-pad" returnKeyType="done" maxLength={16} />
+            {contactError ? <Text style={styles.fieldError}>{contactError}</Text> : null}
 
             <TouchableOpacity style={styles.submitButton} onPress={handleAddPet}>
               <Text style={styles.submitButtonText}>Publicar Alerta</Text>
             </TouchableOpacity>
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isPhotoSourceVisible}
+        onRequestClose={fecharFonte}
+      >
+        <TouchableOpacity style={styles.actionSheetOverlay} activeOpacity={1} onPress={fecharFonte}>
+          <View style={styles.actionSheet}>
+            <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
+            <TouchableOpacity style={styles.actionSheetOption} onPress={abrirCamera}>
+              <Ionicons name="camera" size={22} color={themeColors.text} />
+              <Text style={styles.actionSheetOptionText}>Câmera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionSheetOption} onPress={abrirGaleria}>
+              <Ionicons name="images" size={22} color={themeColors.text} />
+              <Text style={styles.actionSheetOptionText}>Galeria</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.actionSheetOption, styles.actionSheetCancel]} onPress={fecharFonte}>
+              <Text style={[styles.actionSheetOptionText, styles.actionSheetCancelText]}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       <Modal
@@ -288,32 +659,379 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isPrivacyVisible}
+        onRequestClose={() => setIsPrivacyVisible(false)}
+      >
+        <View style={styles.aboutOverlay}>
+          <View style={styles.aboutCard}>
+            <Text style={styles.aboutTitle}>Política de Privacidade</Text>
+            <ScrollView style={styles.privacyScroll} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+              <Text style={styles.privacyText}>
+                <Text style={{ fontWeight: 'bold' }}>Política de Privacidade e Tratamento de Dados Pessoais{'\n'}</Text>
+                Esta Política de Privacidade descreve como o iFujão ("aplicativo", "nós") coleta, utiliza, armazena, compartilha e protege as informações dos usuários, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD), com o Marco Civil da Internet (Lei nº 12.965/2014) e com boas práticas inspiradas em políticas de grandes plataformas como WhatsApp, Instagram e Facebook.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>1. Quem somos{'\n'}</Text>
+                O iFujão é um aplicativo cujo propósito é ajudar pessoas a encontrarem pets perdidos, permitindo o registro de alertas com localização e contato para reencontro. Esta política aplica-se a todos os usuários do app, independentemente da plataforma (Android ou iOS).{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>2. Dados que coletamos{'\n'}</Text>
+                Coletamos apenas os dados estritamente necessários ao funcionamento:{'\n'}
+                • Dados do pet: espécie/raça, localização informada, descrição e fotografias.{'\n'}
+                • Dados de contato: número de WhatsApp informado como forma de contato pelo responsável.{'\n'}
+                • Identificador de dispositivo: utilizamos um identificador local para reconhecer os alertas criados por você neste aparelho.{'\n'}
+                • Dados de localização: obtidos com sua permissão, apenas para posicionar o alerta no mapa e verificar a área de cobertura da cidade.{'\n'}
+                Não coletamos dados sensíveis (origem racial, religião, opinião política, dados de saúde ou biometricos) nem lemos sua agenda ou mensagens de outros aplicativos.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>3. Como usamos seus dados{'\n'}</Text>
+                Utilizamos os dados exclusivamente para: (a) exibir os alertas de pets perdidos no mapa; (b) permitir o contato entre quem encontrou o pet e o responsável via WhatsApp; (c) identificar e permitir a exclusão dos seus próprios alertas; e (d) melhorar a experiência e a segurança do app. Não utilizamos seus dados para publicidade comportamental ou venda a anunciantes.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>4. Armazenamento e criptografia{'\n'}</Text>
+                No estado atual, os alertas e o seu identificador de dispositivo são armazenados localmente neste aparelho por meio do SecureStore, um cofre criptografado nativo do sistema operacional (Keychain no iOS e Keystore/SharedPreferences criptografado no Android). Os dados sensíveis permanecem protegidos em repouso pela criptografia do próprio dispositivo.{'\n'}
+                Quando os dados passarem a ser sincronizados com servidores, eles serão transmitidos exclusivamente por canais seguros (TLS 1.2 ou superior) e armazenados em bases criptografadas, seguindo os mesmos padrões de proteção adotados por grandes plataformas de mensageria. O número de WhatsApp é tratado como dado de contato e não é exposto publicamente além do necessário para o reencontro.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>5. Compartilhamento e terceiros{'\n'}</Text>
+                Não vendemos, alugamos ou comercializamos seus dados pessoais. O número de contato é exibido apenas dentro do alerta, para que terceiros possam entrar em contato pelo WhatsApp e ajudar no reencontro. Poderemos compartilhar dados somente: (a) com seu consentimento; (b) para cumprimento de obrigação legal ou decisão judicial; ou (c) com prestadores de serviço essenciais (como hospedagem e infraestrutura), sob obrigações de confidencialidade. Ao utilizar o WhatsApp para contato, aplica-se também a Política de Privacidade da Meta/WhatsApp.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>6. Retenção{'\n'}</Text>
+                Mantemos seus dados apenas pelo tempo necessário às finalidades descritas ou conforme exigido por lei. Você pode remover seus próprios alertas a qualquer momento; ao desinstalar o app, os dados locais são apagados junto com o armazenamento do dispositivo.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>7. Segurança{'\n'}</Text>
+                Adotamos medidas técnicas e organizacionais razoáveis para proteger seus dados contra acesso não autorizado, perda ou alteração, incluindo criptografia em repouso (SecureStore), transmissão segura e princípio de minimização de dados. Contudo, nenhum sistema é infalível, e recomendamos cautela ao divulgar informações de contato em espaços públicos.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>8. Seus direitos (LGPD){'\n'}</Text>
+                Nos termos da LGPD, você pode, a qualquer momento, solicitar: confirmação da existência de tratamento; acesso; correção; anonimização, bloqueio ou eliminação de dados desnecessários; portabilidade; revogação do consentimento; e eliminação dos dados tratados com base no seu consentimento. No app, você exerce parte desses direitos diretamente: apagando seus alertas e desinstalando o aplicativo para remover dados locais. Para demais solicitações, use nossos canais oficiais.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>9. Menores de idade{'\n'}</Text>
+                O app pode ser utilizado por menores com autorização dos pais ou responsáveis. Não coletamos conscientemente dados de crianças sem o consentimento dos responsáveis.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>10. Alterações nesta política{'\n'}</Text>
+                Poderemos atualizar esta Política de tempos em tempos. A versão vigente estará sempre disponível no app, e alterações relevantes serão comunicadas antes de entrarem em vigor.{'\n\n'}
+
+                <Text style={{ fontWeight: 'bold' }}>11. Contato{'\n'}</Text>
+                Em caso de dúvidas, solicitações relativas aos seus dados ou questões sobre privacidade, entre em contato pelos canais oficiais do iFujão. Última atualização: 2026.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.aboutClose} onPress={() => setIsPrivacyVisible(false)}>
+              <Text style={styles.aboutCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {selectedDemo !== null && (() => {
+        const demo = generateDemoData(selectedDemo);
+        return (
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={true}
+            onRequestClose={() => setSelectedDemo(null)}
+          >
+            <View style={styles.demoOverlay} onStartShouldSetResponder={() => true} onTouchStart={() => setSelectedDemo(null)}>
+              <View
+                style={styles.demoCard}
+                onStartShouldSetResponder={() => true}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                <TouchableOpacity style={styles.demoClose} onPress={() => setSelectedDemo(null)}>
+                  <Ionicons name="close" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+                <ImageCarousel images={demo.images} />
+                <Text style={styles.demoName}>{demo.name}</Text>
+                <Text style={styles.demoSpecies}>{demo.species}</Text>
+                <View style={styles.demoRow}>
+                  <Ionicons name="location" size={16} color={themeColors.primaryButton} />
+                  <Text style={styles.demoLocation}>{demo.location}</Text>
+                </View>
+                <Text style={styles.demoDescription}>{demo.description}</Text>
+                <TouchableOpacity
+                  style={styles.demoContactBtn}
+                  onPress={() => {
+                    setSelectedDemo(null);
+                    openWhatsApp(demo.contact);
+                  }}
+                >
+                  <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                  <Text style={styles.demoContactText}>Entrar em contato</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
+
+      {selectedPet !== null && (
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={true}
+          onRequestClose={() => setSelectedPet(null)}
+        >
+          <View style={styles.demoOverlay} onStartShouldSetResponder={() => true} onTouchStart={() => setSelectedPet(null)}>
+            <View
+              style={styles.demoCard}
+              onStartShouldSetResponder={() => true}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              <TouchableOpacity style={styles.demoClose} onPress={() => setSelectedPet(null)}>
+                <Ionicons name="close" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              <ImageCarousel images={selectedPet.images} />
+              <Text style={styles.demoName}>{selectedPet.species}</Text>
+              <View style={styles.demoRow}>
+                <Ionicons name="location" size={16} color={themeColors.primaryButton} />
+                <Text style={styles.demoLocation}>{selectedPet.location}</Text>
+              </View>
+              {selectedPet.description ? (
+                <Text style={styles.demoDescription}>{selectedPet.description}</Text>
+              ) : null}
+              <TouchableOpacity
+                style={styles.demoContactBtn}
+                onPress={() => {
+                  const contact = selectedPet.contact;
+                  setSelectedPet(null);
+                  openWhatsApp(contact);
+                }}
+              >
+                <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
+                <Text style={styles.demoContactText}>Entrar em contato</Text>
+              </TouchableOpacity>
+              {normalizePhone(selectedPet.ownerPhone) === myPhone && myPhone !== '' && (
+                <TouchableOpacity
+                  style={styles.demoDeleteBtn}
+                  onPress={() => deletePet(selectedPet.id)}
+                >
+                  <Ionicons name="trash" size={20} color="#FFFFFF" />
+                  <Text style={styles.demoContactText}>Apagar alerta</Text>
+                </TouchableOpacity>
+              )}
+              </View>
+            </View>
+          </Modal>
+        )}
+
+
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
+const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, onDemoPress, theme, city }: { initialCenter: { latitude: number; longitude: number } | null; region: Region; userLocation: { latitude: number; longitude: number } | null; pets: PetPost[]; onMarkerPress: (petId: string) => void; onDemoPress: (id: number) => void; theme: 'light' | 'dark'; city: import('@/constants/cities').City }) => {
+  const insets = useSafeAreaInsets();
+  const center = initialCenter ?? { latitude: city.latitude, longitude: city.longitude };
+  const isDark = theme === 'dark';
+  const mapFilter = isDark ? 'filter: invert(1) hue-rotate(180deg) brightness(0.95);' : '';
+  const html = useMemo(() => `
+  <!DOCTYPE html>
+  <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>html,body,#map{height:100%;margin:0;padding:0;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;}</style>
+    </head>
+    <body>
+      <div id="map"></div>
+      <script>
+        var city_lat = ${city.latitude};
+        var city_lng = ${city.longitude};
+        var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], ${initialCenter ? 17 : 13});
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19
+        }).addTo(map);
+        L.circle([${city.latitude}, ${city.longitude}], { radius: ${city.radiusMeters}, color: '#0A84FF', weight: 2, fillColor: '#0A84FF', fillOpacity: 0.12 }).addTo(map);
+        ${userLocation ? `L.circleMarker([${userLocation.latitude}, ${userLocation.longitude}], { radius: 8, color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map);` : ''}
+
+        var pawIcon = L.divIcon({
+          className: 'paw-pin',
+          html: '<div style="position:relative;width:30px;height:40px;">' +
+            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#0A84FF" stroke-width="2"/>' +
+            '</svg>' +
+            '<div class="paw-emoji">🐾</div>' +
+            '</div>',
+          iconSize: [30, 40],
+          iconAnchor: [15, 40],
+          popupAnchor: [0, -36],
+        });
+
+        var demoSpots = [
+          { lat:  0.018, lng: -0.012, name: 'Parque da Biquinha' },
+          { lat: -0.015, lng:  0.020, name: 'Praça Coronel' },
+          { lat:  0.008, lng:  0.025, name: 'Bairro Jardim' },
+          { lat: -0.022, lng: -0.018, name: 'Votorantim Centro' },
+          { lat:  0.026, lng:  0.006, name: 'Av. da Liberdade' },
+          { lat: -0.010, lng: -0.028, name: 'Marginal Botujuru' },
+          { lat:  0.012, lng: -0.022, name: 'Estação Sorocaba' },
+          { lat: -0.028, lng:  0.010, name: 'Bairro Barcelona' },
+          { lat:  0.004, lng:  0.032, name: 'Lagoa dos Patriotas' },
+          { lat: -0.004, lng: -0.034, name: 'Cidade Universitária' }
+        ];
+        var demoPets = demoSpots.map(function(s, i){
+          var jitterLat = (Math.sin(i * 91.7) * 0.0015);
+          var jitterLng = (Math.cos(i * 47.3) * 0.0015);
+          return {
+            latitude: city_lat + s.lat + jitterLat,
+            longitude: city_lng + s.lng + jitterLng,
+            species: 'Pet perdido ' + (i + 1),
+            location: s.name
+          };
+        });
+
+        demoPets.forEach(function(p, i){
+          var m = L.marker([p.latitude, p.longitude], { icon: pawIcon }).addTo(map);
+          m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ demoId: i })); });
+        });
+
+        var pets = ${JSON.stringify(pets)};
+        pets.forEach(function(p){
+          var m = L.marker([p.latitude, p.longitude], { icon: pawIcon }).addTo(map);
+          m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+        });
+      </script>
+    </body>
+  </html>`, [initialCenter, city, pets, center.latitude, center.longitude, mapFilter, userLocation]);
+
+  const source = useMemo(() => ({ html }), [html]);
+
+  return (
+    <WebView
+      style={StyleSheet.absoluteFillObject}
+      originWhitelist={['*']}
+      source={source}
+      onMessage={(e) => {
+        try {
+          const data = JSON.parse(e.nativeEvent.data);
+          if (data.petId) onMarkerPress(data.petId);
+          else if (typeof data.demoId === 'number') onDemoPress(data.demoId);
+        } catch {}
+      }}
+    />
+  );
+};
+
+const ImageCarousel = ({ images }: { images: string[] }) => {
+  const [index, setIndex] = useState(0);
+  const clamped = Math.max(0, Math.min(index, images.length - 1));
+  const btn = (disabled: boolean): any => ({
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: disabled ? 0.3 : 1,
+  });
+  return (
+    <View style={{ width: '100%', height: 180, marginBottom: 14, position: 'relative' }}>
+      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12 }} resizeMode="cover" />
+      {images.length > 1 && (
+        <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8 }}>
+          <TouchableOpacity
+            style={btn(clamped === 0)}
+            disabled={clamped === 0}
+            onPress={() => setIndex(clamped - 1)}
+          >
+            <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: 'bold', backgroundColor: 'rgba(0,0,0,0.5)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+            {clamped + 1} / {images.length}
+          </Text>
+          <TouchableOpacity
+            style={btn(clamped === images.length - 1)}
+            disabled={clamped === images.length - 1}
+            onPress={() => setIndex(clamped + 1)}
+          >
+            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
+
+const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
+  container: { flex: 1, flexDirection: 'column', backgroundColor: c.background },
+  mapArea: { flex: 1, position: 'relative' },
   map: { ...StyleSheet.absoluteFillObject },
   floatingButtonContainer: {
     position: 'absolute',
+    left: 0,
+    right: 0,
     bottom: 40,
-    alignSelf: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
   floatingButton: {
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    borderRadius: 30,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: c.primaryButton,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
-  floatingButtonText: {
+  floatingButtonDisabled: {
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  speechBubble: {
+    backgroundColor: 'rgba(10,132,255,0.9)',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  speechBubbleText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    lineHeight: 17,
+  },
+  speechBubbleArrow: {
+    position: 'absolute',
+    bottom: -9,
+    alignSelf: 'center',
+    width: 0,
+    height: 0,
+    borderLeftWidth: 9,
+    borderRightWidth: 9,
+    borderTopWidth: 9,
+    borderStyle: 'solid',
+    backgroundColor: 'transparent',
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: '#FFFFFF',
+  },
+  locationWarning: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(200,30,30,0.85)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+  locationWarningText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: c.background,
   },
   modalScrollView: { padding: 20 },
   modalHeader: {
@@ -325,7 +1043,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: Colors.light.text,
+    color: c.text,
   },
   roundClose: {
     width: 40,
@@ -336,7 +1054,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bigCameraButtonText: {
-    color: Colors.light.primaryButton,
+    color: c.primaryButton,
     fontWeight: 'bold',
     fontSize: 16,
   },
@@ -353,7 +1071,7 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: Colors.light.secondaryButton,
+    backgroundColor: c.secondaryButton,
   },
   photoThumbImage: {
     width: '100%',
@@ -374,7 +1092,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     left: 4,
-    backgroundColor: Colors.light.primaryButton,
+    backgroundColor: c.primaryButton,
     borderRadius: 6,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -390,10 +1108,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: Colors.light.primaryButton,
+    borderColor: c.primaryButton,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.secondaryButton,
+    backgroundColor: c.secondaryButton,
   },
   photoHint: {
     marginTop: 10,
@@ -510,22 +1228,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: Colors.light.cardStroke,
+    borderColor: c.cardStroke,
     borderRadius: 12,
     paddingHorizontal: 15,
     paddingVertical: 15,
     fontSize: 16,
-    color: Colors.light.text,
+    color: c.text,
     marginBottom: 15,
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+  },
+  fieldError: {
+    color: '#FF3B30',
+    fontSize: 13,
+    marginBottom: 12,
+    marginTop: -8,
   },
   textArea: {
     height: 100,
     textAlignVertical: 'top',
   },
   submitButton: {
-    backgroundColor: Colors.light.primaryButton,
+    backgroundColor: c.primaryButton,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
@@ -536,10 +1263,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  titleBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    backgroundColor: c.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: c.cardStroke,
+  },
+  clockIcon: {
+    marginRight: 8,
+  },
+  clockText: {
+    alignItems: 'flex-start',
+  },
+  clockTime: {
+    color: c.text,
+    fontSize: 18,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  clockDate: {
+    color: c.text,
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+    marginTop: 2,
+  },
+  titleInfoBtn: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
+  cityBox: {
+    position: 'absolute',
+    left: 16,
+    bottom: 16,
+    zIndex: 10,
+  },
+  cityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  cityButtonText: {
+    color: c.text,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   aboutButtonContainer: {
     position: 'absolute',
     top: 50,
     right: 16,
+    zIndex: 10,
+  },
+  sideToolbar: {
+    position: 'absolute',
+    top: '38%',
+    right: 16,
+    gap: 18,
+    zIndex: 10,
+  },
+  sideToolbarBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   aboutButton: {
     width: 44,
@@ -556,9 +1349,58 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
+  actionSheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  actionSheet: {
+    backgroundColor: c.card,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingBottom: 24,
+    paddingHorizontal: 16,
+  },
+  actionSheetTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
+    textAlign: 'center',
+    paddingVertical: 14,
+    textTransform: 'uppercase',
+  },
+  actionSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  actionSheetSelected: {
+    backgroundColor: 'rgba(10,132,255,0.12)',
+  },
+  actionSheetCheck: {
+    marginLeft: 'auto',
+  },
+  actionSheetOptionText: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: c.text,
+  },
+  actionSheetCancel: {
+    justifyContent: 'center',
+    marginTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: c.cardStroke,
+  },
+  actionSheetCancelText: {
+    color: c.primaryButton,
+    fontWeight: '600',
+  },
   aboutCard: {
     width: '100%',
-    backgroundColor: Colors.light.card,
+    backgroundColor: c.card,
     borderRadius: 18,
     padding: 24,
     alignItems: 'center',
@@ -566,12 +1408,12 @@ const styles = StyleSheet.create({
   aboutTitle: {
     fontSize: 26,
     fontWeight: 'bold',
-    color: Colors.light.text,
+    color: c.text,
     marginBottom: 12,
   },
   aboutText: {
     fontSize: 15,
-    color: Colors.light.text,
+    color: c.text,
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 16,
@@ -582,12 +1424,157 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   aboutClose: {
-    backgroundColor: Colors.light.primaryButton,
+    backgroundColor: c.primaryButton,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 32,
   },
   aboutCloseText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  privacyScroll: {
+    width: '100%',
+    maxHeight: '70%',
+    marginBottom: 16,
+  },
+  privacyText: {
+    fontSize: 14,
+    color: c.text,
+    textAlign: 'left',
+    lineHeight: 20,
+  },
+  demoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  demoCard: {
+    width: '100%',
+    backgroundColor: c.card,
+    borderRadius: 18,
+    padding: 18,
+    position: 'relative',
+  },
+  demoClose: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  demoImages: {
+    height: 160,
+    width: '100%',
+    flexGrow: 0,
+    marginBottom: 14,
+  },
+  demoImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 12,
+    marginRight: 10,
+    flexShrink: 0,
+  },
+  carousel: {
+    width: '100%',
+    height: 180,
+    marginBottom: 14,
+    position: 'relative',
+  },
+  carouselImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 12,
+    backgroundColor: c.secondaryButton,
+  },
+  carouselControls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingBottom: 8,
+  },
+  carouselBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  carouselBtnDisabled: {
+    opacity: 0.3,
+  },
+  carouselCount: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  demoName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: c.text,
+    marginBottom: 2,
+  },
+  demoSpecies: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: c.primaryButton,
+    marginBottom: 8,
+  },
+  demoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  demoLocation: {
+    fontSize: 14,
+    color: c.text,
+  },
+  demoDescription: {
+    fontSize: 14,
+    color: c.text,
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  demoContactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#25D366',
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  demoDeleteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 12,
+    paddingVertical: 14,
+    marginTop: 10,
+  },
+  demoContactText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',

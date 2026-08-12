@@ -13,10 +13,6 @@
       "bundleIdentifier": "com.ifujao.app"
     },
     "android": {
-        "adaptiveIcon": {
-          "backgroundColor": "#D3D3D3",
-          "foregroundImage": "./assets/images/logo.png"
-        },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ifujao.app",
@@ -44,7 +40,8 @@
           "locationAlwaysAndWhenInUsePermission": "O iFujão precisa da sua localização para mostrar o mapa e encontrar pets perdidos perto de você."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,6 +1,6 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-13
+Última atualização: 2026-08-13 (noite)
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
@@ -71,6 +71,23 @@ Branch: `master` (sem push para o GitHub).
 - `KeyboardAvoidingView` tinha `behavior={undefined}` no Android (só funcionava no iOS).
   Trocado para `behavior={Platform.OS === 'ios' ? 'padding' : 'height'}`. No Android o KAV reduz a
   altura quando o teclado abre e o `ScrollView` interno rola até o campo focado.
+
+### Ajustes de UI
+- **Logo no modal "Sobre"**: o `logo.png` (120x120) já era exibido no topo do `aboutCard` (linha ~845).
+  O botão "Sobre" continua com o ícone `information-circle` (não foi trocado por imagem).
+- **Texto da Política de Privacidade justificado**: `privacyText` mudou de `textAlign: 'left'`
+  para `'justify'`.
+
+### Erro `better-sqlite3` / `Cannot pipe to a closed or destroyed stream` no Metro
+- Sintoma: ao abrir o app, o Metro falhava resolvendo `@op-engineering/op-sqlite` e caía na
+  condition `node` do `exports` do pacote (`node/dist/index.js` → importa `better-sqlite3`, que não
+  existe no app). O `react-native` field do op-sqlite aponta para `src/index` (source .ts) e o Metro
+  acabava resolvendo o entry Node.
+- Esse erro só "apareceu" depois de consertar QR/teclado, pois antes o bundle travava antes de
+  chegar em `lib/storage.ts` (que importa op-sqlite). Não foi regressão de código novo.
+- **Correção**: criado `metro.config.js` forçando `react-native` primeiro em `resolver.conditionNames`
+  (baseado em `getDefaultConfig` do Expo). Limpar cache (`node_modules/.cache` + `.expo`) e subir com
+  `npx expo start -c`. O banco nativo (SQLCipher) então carrega sem o `better-sqlite3`.
 
 ## Decisão: compartilhamento PARADO (opção 3)
 No Expo Go, compartilhar SÓ texto/link (imagem anexa inviável — `FileUriExposedException`). Em APK/dev

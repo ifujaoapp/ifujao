@@ -1935,7 +1935,7 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
   privacyText: {
     fontSize: 14,
     color: c.text,
-    textAlign: 'left',
+    textAlign: 'justify',
     lineHeight: 20,
   },
   demoOverlay: {

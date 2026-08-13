@@ -6,13 +6,13 @@ import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { WebView } from 'react-native-webview';
 import ViewShot from 'react-native-view-shot';
-import QRCodeSvg from 'react-native-qr-svg';
+import { QrCodeSvg as QRCodeSvg } from 'react-native-qr-svg';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, SharedValue } from 'react-native-reanimated';
 import type { Region } from 'react-native-maps';
 
 const QRCode = QRCodeSvg as unknown as React.ComponentType<{
   value: string;
-  size?: number;
+  frameSize?: number;
   backgroundColor?: string;
   color?: string;
 }>;
@@ -25,6 +25,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import Constants from 'expo-constants';
+import { loadPets, savePets, persistPhotos, clearPhotos, type PetRecord } from '@/lib/storage';
 
 interface PetPost {
   id: string;
@@ -48,19 +49,6 @@ const normalizePhone = (value: string) => {
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-
-const DEMO_SPOTS = [
-  { lat: 0.018, lng: -0.012, name: 'Parque da Biquinha' },
-  { lat: -0.015, lng: 0.020, name: 'Praça Coronel' },
-  { lat: 0.008, lng: 0.025, name: 'Bairro Jardim' },
-  { lat: -0.022, lng: -0.018, name: 'Votorantim Centro' },
-  { lat: 0.026, lng: 0.006, name: 'Av. da Liberdade' },
-  { lat: -0.010, lng: -0.028, name: 'Marginal Botujuru' },
-  { lat: 0.012, lng: -0.022, name: 'Estação Sorocaba' },
-  { lat: -0.028, lng: 0.010, name: 'Bairro Barcelona' },
-  { lat: 0.004, lng: 0.032, name: 'Lagoa dos Patriotas' },
-  { lat: -0.004, lng: -0.034, name: 'Cidade Universitária' },
-];
 
 const formatBytes = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -201,52 +189,6 @@ export default function HomeScreen() {
 
   const canReport = locationEnabled === true && insideRadius === true;
 
-  const demoSpotsLocations = [
-    'Parque da Biquinha', 'Praça Coronel', 'Bairro Jardim', 'Votorantim Centro',
-    'Av. da Liberdade', 'Marginal Botujuru', 'Estação Sorocaba', 'Bairro Barcelona',
-    'Lagoa dos Patriotas', 'Cidade Universitária'
-  ];
-  const demoNames = [
-    'Bob', 'Luna', 'Thor', 'Mel', 'Rex',
-    'Nina', 'Toby', 'Lola', 'Max', 'Pituca'
-  ];
-  const demoSpecies = [
-    'Cachorro - Vira-lata', 'Gato - Siames', 'Cachorro - Golden', 'Gato - Rajado',
-    'Cachorro - Poodle', 'Cachorro - Bully', 'Gato - Preto', 'Cachorro - Pastor',
-    'Gato - Laranja', 'Cachorro - Beagle'
-  ];
-  const demoContacts = [
-    '15991234567', '15982345678', '15973456789', '15964567890', '15955678901',
-    '15946789012', '15937890123', '15928901234', '15919012345', '15900123456'
-  ];
-  const demoDescriptions = [
-    'Sumiu durante a tarde, muito dócil, responde por Bob.',
-    'Fugiu pelo portão, castrada, mancha nos olhos.',
-    'Perdido desde ontem, adora crianças, coleira azul.',
-    'Saiu e não voltou, medrosa com estranhos.',
-    'Escapou no parque, muito agitado, carinhoso.',
-    'Desapareceu de casa, cicatriz na orelha.',
-    'Gata arisca, sumiu na chuva, mia bastante.',
-    'Cão idoso, não enxerga bem de longe.',
-    'Gato de rua que virou de casa, não volta.',
-    'Filhote curioso, saiu pela janela.'
-  ];
-
-  const generateDemoData = (id: number) => ({
-    id,
-    name: demoNames[id],
-    species: demoSpecies[id],
-    location: demoSpotsLocations[id],
-    contact: demoContacts[id],
-    description: demoDescriptions[id],
-    images: [
-      `https://picsum.photos/seed/if${id}a/400/400`,
-      `https://picsum.photos/seed/if${id}b/400/400`,
-      `https://picsum.photos/seed/if${id}c/400/400`,
-    ],
-  });
-
-  const [selectedDemo, setSelectedDemo] = useState<number | null>(null);
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
   const menuProgress = useSharedValue(0);
   useEffect(() => {
@@ -311,17 +253,21 @@ export default function HomeScreen() {
   useEffect(() => {
     (async () => {
       try {
-        const raw = await SecureStore.getItemAsync('ifujao_pets');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) setPets(parsed as PetPost[]);
-        }
+        const loaded = await loadPets();
+        if (loaded.length > 0) setPets(loaded as PetPost[]);
       } catch {}
     })();
   }, []);
 
-  useEffect(() => {
-    SecureStore.setItemAsync('ifujao_pets', JSON.stringify(pets)).catch(() => {});
+  const commitPets = useCallback(async (next: PetPost[]) => {
+    setPets(next);
+    try {
+      const prevUris = new Set(pets.flatMap((p) => p.images));
+      const nextUris = new Set(next.flatMap((p) => p.images));
+      const orphans = [...prevUris].filter((u) => !nextUris.has(u));
+      if (orphans.length > 0) await clearPhotos(orphans);
+      await savePets(next as PetRecord[]);
+    } catch {}
   }, [pets]);
 
   const checkPermissionAndServices = useCallback(async () => {
@@ -502,13 +448,14 @@ export default function HomeScreen() {
     const ownerPhone = normalizePhone(contact);
     SecureStore.setItemAsync('ifujao_my_phone', ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
+    const storedImages = await persistPhotos(images);
     const newPet: PetPost = {
       id: Date.now().toString(),
-      species, location, description, contact, ownerPhone, images,
+      species, location, description, contact, ownerPhone, images: storedImages,
       latitude,
       longitude,
     };
-    setPets([newPet, ...pets]);
+    commitPets([newPet, ...pets]);
     setSpecies(''); setLocation(''); setDescription(''); setContact(''); setContactError(''); setImages([]);
     setIsCameraOpen(false);
     setReportModalVisible(false);
@@ -525,7 +472,7 @@ export default function HomeScreen() {
           text: 'Apagar',
           style: 'destructive',
           onPress: () => {
-            setPets((prev) => prev.filter((p) => p.id !== petId));
+            commitPets(pets.filter((p) => p.id !== petId));
             setSelectedPet(null);
           },
         },
@@ -539,8 +486,8 @@ export default function HomeScreen() {
 
   const submitReport = (pet: PetPost, reason: string) => {
     const reporter = myPhone || normalizePhone(pet.contact);
-    setPets((prev) =>
-      prev.map((p) =>
+    commitPets(
+      pets.map((p) =>
         p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter } : p
       )
     );
@@ -618,7 +565,7 @@ export default function HomeScreen() {
   };
 
   const petsDenunciados = pets.filter((p) => p.reported);
-  const totalPetsNoMapa = pets.length + DEMO_SPOTS.length;
+  const totalPetsNoMapa = pets.length;
 
   return (
     <View style={styles.container}>
@@ -653,7 +600,7 @@ export default function HomeScreen() {
           )}
         </View>
         {initialCenterRef.current && (
-          <MapLeaflet key={`${theme}-${selectedCity.id}`} initialCenter={initialCenterRef.current} region={mapRegion} userLocation={userLocation} pets={pets} onMarkerPress={(petId) => { const pet = pets.find((p) => p.id === petId); if (pet) setSelectedPet(pet); }} onDemoPress={(id) => setSelectedDemo(id)} theme={theme} city={selectedCity} />
+          <MapLeaflet key={`${theme}-${selectedCity.id}`} initialCenter={initialCenterRef.current} region={mapRegion} userLocation={userLocation} pets={pets} onMarkerPress={(petId) => { const pet = pets.find((p) => p.id === petId); if (pet) setSelectedPet(pet); }} theme={theme} city={selectedCity} />
         )}
 
         {locationEnabled === false && (
@@ -737,8 +684,8 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.modalContainer}>
           <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={0}
           >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Reportar Pet Perdido</Text>
@@ -968,48 +915,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {selectedDemo !== null && (() => {
-        const demo = generateDemoData(selectedDemo);
-        return (
-          <Modal
-            animationType="fade"
-            transparent={true}
-            visible={true}
-            onRequestClose={() => setSelectedDemo(null)}
-          >
-            <View style={styles.demoOverlay} onStartShouldSetResponder={() => true} onTouchStart={() => setSelectedDemo(null)}>
-              <View
-                style={styles.demoCard}
-                onStartShouldSetResponder={() => true}
-                onTouchStart={(e) => e.stopPropagation()}
-              >
-                <TouchableOpacity style={styles.demoClose} onPress={() => setSelectedDemo(null)}>
-                  <Ionicons name="close" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-                <ImageCarousel images={demo.images} />
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoSpecies}>{demo.species}</Text>
-                <View style={styles.demoRow}>
-                  <Ionicons name="location" size={16} color={themeColors.primaryButton} />
-                  <Text style={styles.demoLocation}>{demo.location}</Text>
-                </View>
-                <Text style={styles.demoDescription}>{demo.description}</Text>
-                <TouchableOpacity
-                  style={styles.demoContactBtn}
-                  onPress={() => {
-                    setSelectedDemo(null);
-                    openWhatsApp(demo.contact);
-                  }}
-                >
-                  <Ionicons name="logo-whatsapp" size={20} color="#FFFFFF" />
-                  <Text style={styles.demoContactText}>Entrar em contato</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-        );
-      })()}
-
       {selectedPet !== null && (
         <Modal
           animationType="fade"
@@ -1094,8 +999,8 @@ export default function HomeScreen() {
                       label: 'Apagar denúncia',
                       color: '#0A84FF',
                       onPress: () => {
-                        setPets((prev) =>
-                          prev.map((p) =>
+                        commitPets(
+                          pets.map((p) =>
                             p.id === selectedPet.id ? { ...p, reported: false, reportReason: undefined, reportedBy: undefined } : p
                           )
                         );
@@ -1158,7 +1063,7 @@ export default function HomeScreen() {
                     {isExpoGo ? (
                       <Image source={require('../../assets/images/qrcode.jpg')} style={{ width: 96, height: 96 }} />
                     ) : (
-                      <QRCode value={`${SHARE_BASE_URL}${selectedPet.id}`} size={96} backgroundColor="#FFFFFF" color="#000000" />
+                      <QRCode value={`${SHARE_BASE_URL}${selectedPet.id}`} frameSize={96} backgroundColor="#FFFFFF" color="#000000" />
                     )}
                   </View>
                   <View style={styles.shareCardFooterText}>
@@ -1314,7 +1219,7 @@ const CircularActionButton = ({ index, progress, x, y, size, color, icon, label,
   );
 };
 
-const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, onDemoPress, theme, city }: { initialCenter: { latitude: number; longitude: number } | null; region: Region; userLocation: { latitude: number; longitude: number } | null; pets: PetPost[]; onMarkerPress: (petId: string) => void; onDemoPress: (id: number) => void; theme: 'light' | 'dark'; city: import('@/constants/cities').City }) => {
+const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, theme, city }: { initialCenter: { latitude: number; longitude: number } | null; region: Region; userLocation: { latitude: number; longitude: number } | null; pets: PetPost[]; onMarkerPress: (petId: string) => void; theme: 'light' | 'dark'; city: import('@/constants/cities').City }) => {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -1368,23 +1273,6 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
           popupAnchor: [0, -36],
         });
 
-        var demoSpots = ${JSON.stringify(DEMO_SPOTS)};
-        var demoPets = demoSpots.map(function(s, i){
-          var jitterLat = (Math.sin(i * 91.7) * 0.0015);
-          var jitterLng = (Math.cos(i * 47.3) * 0.0015);
-          return {
-            latitude: city_lat + s.lat + jitterLat,
-            longitude: city_lng + s.lng + jitterLng,
-            species: 'Pet perdido ' + (i + 1),
-            location: s.name
-          };
-        });
-
-        demoPets.forEach(function(p, i){
-          var m = L.marker([p.latitude, p.longitude], { icon: pawIcon }).addTo(map);
-          m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ demoId: i })); });
-        });
-
         window.__petMarkers = [];
         window.__renderPets = function(pets){
           window.__petMarkers.forEach(function(m){ map.removeLayer(m); });
@@ -1425,7 +1313,6 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
         try {
           const data = JSON.parse(e.nativeEvent.data);
           if (data.petId) onMarkerPress(data.petId);
-          else if (typeof data.demoId === 'number') onDemoPress(data.demoId);
         } catch {}
       }}
     />
@@ -2139,12 +2026,6 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     color: c.text,
     marginBottom: 2,
   },
-  demoSpecies: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: c.primaryButton,
-    marginBottom: 8,
-  },
   demoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2160,20 +2041,6 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     color: c.text,
     lineHeight: 20,
     marginBottom: 16,
-  },
-  demoContactBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#25D366',
-    borderRadius: 12,
-    paddingVertical: 14,
-  },
-  demoContactText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   disabledBtn: {
     opacity: 0.4,

@@ -1,6 +1,6 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-12
+Última atualização: 2026-08-13
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
@@ -47,21 +47,80 @@ Branch: `master` (sem push para o GitHub).
     com retry interno). O WebView não recarrega → posição do usuário é mantida.
   - Os pins atualizam a cor (azul↔vermelho) ao denunciar e ao apagar a denúncia.
 
+## O que foi feito nesta sessão (2026-08-13, tarde)
+
+### Build local no Windows (sem gastar crédito EAS)
+- O Expo Go não compila (op-sqlite é nativo); a alternativa local é `npx expo run:android`.
+- Erros resolvidos na máquina:
+  1. **`SDK location not found`**: criado `android/local.properties` apontando para
+     `C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk` + var de usuário `ANDROID_HOME`.
+  2. **CMake/NDK quebrava (JDK 24)**: o `JAVA_HOME` antigo apontava para `C:\Program Files\Java\jdk-24`.
+     Redirecionado para o **JBR do Android Studio** (`C:\Program Files\Android\Android Studio\jbr`),
+     que é o JDK correto para o Gradle/React Native. `eas-cli` local foi removido (usar global).
+- `npx expo run:android` compila o APK e instala no celular conectado via USB (depuração USB + MTP).
+
+### Correções de runtime no card do pet / QR
+- **`Element type is invalid: got: undefined` ao clicar no pin**: `react-native-qr-svg` **não tem
+  default export** — exporta nomeado `QrCodeSvg`. Trocado o import em `app/(tabs)/index.tsx` para
+  `import { QrCodeSvg as QRCodeSvg } from 'react-native-qr-svg'`.
+- **Crash `com.horcrux.svg.PathParser` (NaN)**: o `react-native-qr-svg` (v1.5.0) usa a prop
+  **`frameSize`**, não `size`. O código passava `size={96}` → `frameSize` undefined → `cellSize = NaN`
+  em todos os paths do SVG. Corrigido para `frameSize={96}` no card compartilhável.
+
+### Teclado sobrepondo campos do modal "Reportar Pet Perdido" (Android)
+- `KeyboardAvoidingView` tinha `behavior={undefined}` no Android (só funcionava no iOS).
+  Trocado para `behavior={Platform.OS === 'ios' ? 'padding' : 'height'}`. No Android o KAV reduz a
+  altura quando o teclado abre e o `ScrollView` interno rola até o campo focado.
+
 ## Decisão: compartilhamento PARADO (opção 3)
 No Expo Go, compartilhar SÓ texto/link (imagem anexa inviável — `FileUriExposedException`). Em APK/dev
 build o fluxo completo com `ViewShot` + QR real é mantido. Ver histórico em sessões anteriores.
+
+## Arquitetura de persistência (estratégia híbrida) — 2026-08-13
+Substituiu o `SecureStore` de pets (que só guardava JSON de texto) por camadas separadas:
+- **Keychain/Keystore (`expo-secure-store`)**: guarda SÓ a chave de criptografia do banco
+  (`ifujao_db_key`, 32 bytes hex), gerada no primeiro acesso. Nada de dados pesados lá.
+- **SQLite criptografado (`@op-engineering/op-sqlite` + SQLCipher)**: banco `ifujao.sqlite`
+  aberto com `encryptionKey` vinda do SecureStore. Tabela `pets(id TEXT PK, data TEXT)`;
+  cada pet é um JSON. Habilitado via plugin no `app.json`: `["op-sqlite", { "sqlcipher": true }]`.
+- **File System (`expo-file-system` v19, API nova `Paths/File/Directory`)**: as fotos são copiadas
+  de `file://.../CachePhoto`/ImageManipulator para `Paths.document/pet_photos/` (pasta de documentos,
+  que o SO não limpa) no momento de publicar o alerta (`persistPhotos`). Só o caminho (`file://...`)
+  é salvo no SQLite. Fotos de pets removidos são apagadas (`clearPhotos`).
+- Módulo central: `lib/storage.ts` (loadPets/savePets/persistPhotos/clearPhotos). Integrado em
+  `app/(tabs)/index.tsx` via `commitPets` (substitui os antigos `setPets`+SecureStore).
+
+**IMPORTANTE — Expo Go não funciona mais.** op-sqlite é código nativo → o app agora exige
+**Development Build** (`expo-dev-client`). Rodar com `npx expo run:android` ou EAS dev build;
+`npx expo start` no Expo Go quebra. Ver "Como testar".
 
 ## Pendências conhecidas
 - Compartilhar imagem no Expo Go (Android): inviável. Só funciona em APK/dev build.
 - Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno): pendente.
 - Push para o GitHub (opcional).
 - URL/QR `https://ifujao.app` é placeholder; trocar pela real quando houver backend.
-- Backend Supabase: app guarda pets só em estado local.
-- Contador flutuante de pets: conta `pets.length + DEMO_SPOTS.length`; se algum pet não desenhar
-  no mapa (coords inválidas), o número pode diferir dos pins visíveis.
+- Backend Supabase (sincronização entre dispositivos): pets ainda são locais por dispositivo.
+- Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
+  inválidas, o número pode diferir dos pins visíveis no mapa.
 
 ## Como testar
-- Expo Go / dev: `npx expo start` (mesma Wi-Fi, sem `--tunnel`).
+- **Build local no Windows (sem crédito EAS)**: num novo terminal PowerShell, setar e rodar:
+  ```powershell
+  $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+  $env:ANDROID_HOME="C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk"
+  $env:ANDROID_SDK_ROOT="C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk"
+  cd C:\treinamento\iFujao\StudyFlow
+  npx expo run:android
+  ```
+  (As três vars também foram salvas como variáveis de USUÁRIO no Windows; num terminal novo
+  aparecem automaticamente. `JAVA_HOME` DEVE ser o JBR do Android Studio, nunca um JDK 24.)
+- Celular: ativar Modo Dev (7 toques em "Número da versão"), Depuração USB, conexão USB como
+  "Transferência de arquivos (MTP)", autorizar o PC. Validar com `adb devices`.
+- Mudanças só de JS: o hot-reload do dev build costuma bastar. Mudança nativa (novo pacote,
+  permissão, plugin): precisa `npx expo run:android` de novo para reconstruir o APK.
+- **Development Build (obrigatório agora)**: `npx expo run:android` (precisa Android SDK/NDK) ou
+  `npx eas build --profile development --platform android` e instalar o APK. Depois `npx expo start`
+  conecta ao dev build (não ao Expo Go).
 - Card compartilhável com imagem: requer DEV BUILD/APK (`npx eas build --profile preview --platform android`).
 - Ao importar `react-native-reanimated` pela primeira vez, reiniciar com cache limpo: `npx expo start -c`.
 

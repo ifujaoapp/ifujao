@@ -133,6 +133,17 @@ Substituiu o `SecureStore` de pets (que só guardava JSON de texto) por camadas 
   aparecem automaticamente. `JAVA_HOME` DEVE ser o JBR do Android Studio, nunca um JDK 24.)
 - Celular: ativar Modo Dev (7 toques em "Número da versão"), Depuração USB, conexão USB como
   "Transferência de arquivos (MTP)", autorizar o PC. Validar com `adb devices`.
+
+### Conexão via Wi-Fi (sem cabo USB)
+- O app (APK dev build já instalado) abre sem cabo, mas o bundle JS vem do servidor Metro → precisa
+  do `npx expo start` rodando e do celular na **mesma rede Wi-Fi** do PC.
+- O Expo às vezes anuncia um IP virtual (`10.x.x.x` de adaptador/emulador/VPN/WSL) em vez do Wi-Fi
+  (`192.168.x.x`), e aí o celular não conecta. Correções:
+  - Forçar LAN: `npx expo start -c --host lan` (geralmente anuncia o IP `192.x` correto).
+  - Se ainda vier `10.x`, apontar manualmente: no celular, no dev build, "Enter URL manually" →
+    `http://192.168.x.x:8081` (IP real do PC, visto via `ipconfig | Select-String "IPv4"`).
+  - Ou definir a var de ambiente `EXPO_PACKAGER_PROXY_URL="http://192.168.x.x:8081"` antes do start.
+- Sem cabo E sem Wi-Fi pro PC → só funciona com build de preview/produção (JS embutido no APK).
 - Mudanças só de JS: o hot-reload do dev build costuma bastar. Mudança nativa (novo pacote,
   permissão, plugin): precisa `npx expo run:android` de novo para reconstruir o APK.
 - **Development Build (obrigatório agora)**: `npx expo run:android` (precisa Android SDK/NDK) ou

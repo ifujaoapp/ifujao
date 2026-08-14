@@ -782,6 +782,9 @@ export default function HomeScreen() {
             <Text style={styles.pickLabel}>Onde o pet foi visto?</Text>
             <View
               style={styles.pickMapWrap}
+              onStartShouldSetResponder={() => true}
+              onMoveShouldSetResponder={() => true}
+              onResponderTerminationRequest={() => false}
             >
               <MapPicker
                 initial={petLocation ?? { latitude: mapRegion.latitude, longitude: mapRegion.longitude }}
@@ -1119,12 +1122,12 @@ const MapPicker = ({ initial, value, theme, city, onPick }: { initial: { latitud
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:manipulation;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}}</style>
     </head>
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { attributionControl: false }).setView([${start.latitude}, ${start.longitude}], 15);
+        var map = L.map('map', { attributionControl: false, tap: true, dragging: true, scrollWheelZoom: true, doubleClickZoom: true, zoomControl: true, inertia: true }).setView([${start.latitude}, ${start.longitude}], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         L.circle([${city.latitude}, ${city.longitude}], { radius: ${city.radiusMeters}, color: '#0A84FF', weight: 2, fillColor: '#0A84FF', fillOpacity: 0.12 }).addTo(map);
         var marker = L.marker([${start.latitude}, ${start.longitude}], { draggable: true }).addTo(map);
@@ -1151,22 +1154,31 @@ const MapPicker = ({ initial, value, theme, city, onPick }: { initial: { latitud
   }, [value?.latitude, value?.longitude]);
 
   return (
-    <WebView
-      ref={webRef}
-      style={{ width: '100%', height: 180, borderRadius: 12 }}
-      originWhitelist={['*']}
-      source={{ html }}
-      setSupportMultipleWindows={false}
-      overScrollMode="never"
-      nestedScrollEnabled={false}
-      javaScriptEnabled={true}
-      onMessage={(e) => {
-        try {
-          const d = JSON.parse(e.nativeEvent.data);
-          if (typeof d.lat === 'number' && typeof d.lng === 'number') onPick(d.lat, d.lng);
-        } catch {}
-      }}
-    />
+    <View
+      style={{ width: '100%', height: '100%' }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderTerminationRequest={() => false}
+      onStartShouldSetResponderCapture={() => true}
+      onMoveShouldSetResponderCapture={() => true}
+    >
+      <WebView
+        ref={webRef}
+        style={{ width: '100%', height: '100%', borderRadius: 12 }}
+        originWhitelist={['*']}
+        source={{ html }}
+        setSupportMultipleWindows={false}
+        overScrollMode="never"
+        nestedScrollEnabled={true}
+        javaScriptEnabled={true}
+        onMessage={(e) => {
+          try {
+            const d = JSON.parse(e.nativeEvent.data);
+            if (typeof d.lat === 'number' && typeof d.lng === 'number') onPick(d.lat, d.lng);
+          } catch {}
+        }}
+      />
+    </View>
   );
 };
 
@@ -1545,7 +1557,7 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
   },
   pickMapWrap: {
     width: '100%',
-    height: 180,
+    height: 260,
     borderRadius: 12,
     overflow: 'hidden',
   },

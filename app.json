@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/images/logo_bg.png",
     "scheme": "ifujao",
+    "platforms": ["ios", "android"],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

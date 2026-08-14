@@ -1,12 +1,92 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-13 (noite)
+Última atualização: 2026-08-14 (tarde)
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
 - `tsc --noEmit` passa sem erros.
-- Mudanças da sessão de 2026-08-12 commitadas em `app/(tabs)/index.tsx` (menu circular do card,
-  animação de brotar, lógica de botões p/ pet denunciado, correção do mapa que não recarrega ao denunciar).
+- **Development Build** instalado no Galaxy S23 (SM_S911B) via `npx expo run:android` (BUILD SUCCESSFUL).
+- App Lock (biometria do celular) implementado e funcional via `expo-local-authentication`.
+- `axios` instalado para futura integração com backend.
+- `expo-doctor`: 18/18 checks passed.
+
+## O que foi feito nesta sessão (2026-08-14)
+
+### Mapa do modal "Reportar Pet Perdido"
+- Aumentado de 180px → 260px (`pickMapWrap` em `app/(tabs)/index.tsx`).
+- Leaflet agora gerencia gestos: CSS `touch-action` trocado de `none` para `manipulation` e o mapa
+  habilita `tap`, `dragging`, `scrollWheelZoom`, `doubleClickZoom`, `zoomControl`, `inertia`.
+- Isolado o gesto do `ScrollView` do modal: `MapPicker` e `pickMapWrap` capturam
+  `onStartShouldSetResponder`/`onMoveShouldSetResponder` para o mapa rolar/arrastar sem rolar o modal.
+
+### Tela de bloqueio (biometria do celular)
+- Criado `src/components/AppLock.tsx` usando `expo-local-authentication` (import dinâmico com
+  `try/catch` para não quebrar no Expo Go, onde o módulo nativo não existe).
+- Integrado em `app/_layout.tsx` envolvendo toda a navegação.
+- **Opcional**: se o dispositivo não tiver biometria/hardware, o bloqueio é pulado automaticamente.
+- Corrigida versão: `expo-local-authentication` precisa ser `17.0.8` (SDK 54), não `16.x` nem `57.x`.
+- Movido de `app/components/` para `src/components/` (o `app/` é tratado como rota do expo-router).
+
+### Geração da Dev Build local (aprendizado importante)
+- `expo-local-authentication@57` (SDK 55+) quebrava no SDK 54 (`NoClassDefFoundError`).
+- `expo-notifications` foi instalado e depois REMOVIDO: a versão `0.14.x` puxava libs legadas
+  (`unimodules-task-manager-interface`) com `build.gradle` incompatível (erro `classifier`, JVM target,
+  erros de compilação Kotlin). Decisão: deixar para instalar com `npx expo install expo-notifications`
+  na hora real do backend, evitando troca de versões no escuro.
+- `axios@1.19.0` mantido (HTTP puro JS, não exige rebuild).
+- Estratégia segura aplicada (sugerida pelo usuário): remover → `npm ls` confirmar →
+  `npx expo prebuild --clean` → `npx expo-doctor` (corrigiu `expo-local-authentication` 16→17) →
+  remover `eas-cli` local → `npx expo run:android`. Resultado: build estável, 18/18 checks.
+
+### server.bat (Metro com limpeza de portas)
+- Reescrito para matar processos nas portas 8081/8082 (`netstat` + `taskkill /F`) antes de subir o
+  Metro, evitando "Port 8081 is being used by another process" e múltiplos Metros. Gravado em ASCII.
+
+### Correção de duplicate NavigationContainer / linking
+- Removido o `ThemeProvider` do `@react-navigation/native` em `app/_layout.tsx` (ele cria um
+  `NavigationContainer` próprio → conflito de deep linking com o `Stack` do expo-router).
+  Tema agora aplicado via `Stack screenOptions`. Elimina o warning "linking in multiple places".
+
+### Correção do Metro "Cannot pipe to a closed or destroyed stream"
+- Causa: app tinha target `web` habilitado por padrão → Metro tentava servir bundle web ao dev client
+  Android e o pipeline quebrava. Adicionado `"platforms": ["ios", "android"]` em `app.json`.
+- Limpo cache do Metro (`.expo/metro`, `node_modules/.cache/metro`).
+
+## Pendências conhecidas
+- Compartilhar imagem no Expo Go (Android): inviável. Só funciona em APK/dev build.
+- Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno): pendente.
+- Push para o GitHub (opcional).
+- URL/QR `https://ifujao.app` é placeholder; trocar pela real quando houver backend.
+- Backend (Supabase ou outro) para sincronização entre dispositivos: pets ainda são locais por dispositivo.
+- `expo-notifications` (push do backend) ainda NÃO instalado — instalar com `npx expo install expo-notifications`
+  quando for integrar, e gerar novo build.
+- Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
+  inválidas, o número pode diferir dos pins visíveis no mapa.
+
+## Como testar
+- **Build local no Windows (sem crédito EAS)**: num novo terminal PowerShell, setar e rodar:
+  ```powershell
+  $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"
+  $env:ANDROID_HOME="C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk"
+  $env:ANDROID_SDK_ROOT="C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk"
+  cd C:\treinamento\iFujao\StudyFlow
+  npx expo run:android
+  ```
+  (As três vars também foram salvas como variáveis de USUÁRIO no Windows; num terminal novo
+  aparecem automaticamente. `JAVA_HOME` DEVE ser o JBR do Android Studio, nunca um JDK 24.)
+- Celular: ativar Modo Dev (7 toques em "Número da versão"), Depuração USB, conexão USB como
+  "Transferência de arquivos (MTP)", autorizar o PC. Validar com `adb devices`.
+- **Metro**: rode `.\server.bat` (mata portas antigas e sobe `npx expo start -c --host lan`).
+  Abra o app **iFujão** (dev client, NÃO Expo Go) no celular, na mesma rede Wi-Fi do PC.
+- **Development Build (obrigatório)**: op-sqlite e expo-local-authentication são nativos → Expo Go não funciona.
+- Mudanças só de JS: hot-reload do dev build costuma bastar. Mudança nativa (nova lib/permissão/plugin):
+  precisa `npx expo run:android` de novo para reconstruir o APK.
+
+## Comandos úteis
+- Typecheck: `npx tsc --noEmit -p tsconfig.json`
+- Limpar cache dev: `npx expo start -c`
+- Doctor: `npx expo-doctor`
+- Prebuild limpo: `npx expo prebuild --clean --platform android`
 
 ## O que foi feito nesta sessão (2026-08-12)
 

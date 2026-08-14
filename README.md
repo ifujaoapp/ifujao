@@ -35,6 +35,39 @@ npm run reset-project
 
 This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
 
+## Dev build local (sem nuvem EAS)
+
+O app usa módulos nativos (`expo-local-authentication` para o bloqueio biométrico), que **não funcionam no Expo Go**. Para testar no celular é preciso gerar uma **dev build localmente**:
+
+1. Pré-requisitos (já no projeto):
+   - `ANDROID_HOME` apontando para o Android SDK.
+   - Dispositivo conectado via USB (`adb devices`) ou emulador aberto.
+   - `npm install` já executado.
+
+2. Gerar e instalar a dev build no Android (roda prebuild + Gradle + instala no aparelho):
+
+   ```bash
+   npx expo run:android
+   ```
+
+   Para rebuild limpo:
+
+   ```bash
+   npx expo run:android --no-build-cache
+   ```
+
+3. Após instalar o ícone "iFujão" (dev client) no celular, rode o Metro normalmente:
+
+   ```bash
+   npx expo start
+   ```
+
+   e abra o app pelo dev client (não pelo Expo Go).
+
+### Tela de bloqueio (biometria do celular)
+
+O bloqueio ao abrir o app usa `expo-local-authentication` e fica em `src/components/AppLock.tsx`, integrado em `app/_layout.tsx`. É **opcional**: se o dispositivo não tiver biometria/hardware, o bloqueio é pulado automaticamente. No Expo Go o módulo nativo não existe, então o bloqueio também é ignorado — por isso a dev build é necessária para ver o bloqueio real.
+
 ## Learn more
 
 To learn more about developing your project with Expo, look at the following resources:

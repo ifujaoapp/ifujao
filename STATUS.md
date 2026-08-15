@@ -43,10 +43,21 @@ Branch: `master` (sem push para o GitHub).
   (2) os pets são locais por dispositivo (sem backend) → outro celular não tem o dado para exibir.
 - Como o share agora usa o link da loja, a rota `app/pet/[id].tsx` está **sem uso** (pode ser removida).
 
-### Pendente (decisão do usuário) — imagem + link juntos
-- Para ter **imagem + legenda com link clicável numa só mensagem**, a solução é trocar para
-  `react-native-share` (envia arquivo + texto nas duas plataformas). Exige setup nativo
-  (prebuild/config plugin) — não feito ainda, usuário pediu parar antes.
+### DECISÃO FINAL (2026-08-15) — share é TEXTO com link (sem imagem)
+- Usuário desistiu da imagem anexa: "deixe pra lá esse negócio de imagem (não vai funcionar no iOS)".
+- `sharePetCard` (`app/(tabs)/index.tsx`) volta a ser `Share.share({ message })` — só texto:
+  `🐾 Ajude a encontrar este pet perdido em <cidade>!\nBaixe o iFujão e veja mais: <SHARE_BASE_URL>`.
+- `SHARE_BASE_URL` = `https://play.google.com/store/apps/details?id=br.com.petz`.
+- `react-native-share` foi instalado e testado mas NÃO funcionou (imagem não anexava / caía no
+  fallback de texto no S23). Foi REMOVIDO do projeto (`npm uninstall react-native-share`).
+  Motivo técnico: no RN/Expo atual, imagem+legenda numa mesma mensagem do WhatsApp exige
+  módulo nativo, e o `content://`+caption esbarrava em limites do Android (e o usuário julgou
+  inviável para iOS também). Sem backend, não há como um link clicável abrir o pet de forma
+  cross-plataforma.
+- O dev build atual (APK instalado) ainda contém o binário do `react-native-share` (rebuild
+  antigo), mas o JS não o importa mais — funciona normalmente com share de texto. Próximo
+  `prebuild`/rebuild não o incluirá.
+- `app/pet/[id].tsx` (deep link `ifujao://`) permanece no código mas sem uso (link de share é da loja).
 
 ## EM ANDAMENTO (2026-08-15 tarde) — Viewer de imagens do card do pet
 

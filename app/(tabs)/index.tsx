@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Alert, Image, View, Text, Modal, Linking, Platform, ActivityIndicator, AppState, BackHandler, Share, Pressable, Animated } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Image, View, Text, Modal, Linking, Platform, ActivityIndicator, AppState, BackHandler, Share, Pressable, Animated } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { DatePickerCalendar } from '@/src/components/DatePickerCalendar';
+import { ImageViewerModal } from '@/src/components/ImageViewerModal';
+import { showAlert } from '@/src/components/AppAlert';
 import { Ionicons } from '@expo/vector-icons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { WebView } from 'react-native-webview';
 import ViewShot from 'react-native-view-shot';
-import { QrCodeSvg as QRCodeSvg } from 'react-native-qr-svg';
 import Reanimated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing, SharedValue } from 'react-native-reanimated';
 import type { Region } from 'react-native-maps';
 
-const QRCode = QRCodeSvg as unknown as React.ComponentType<{
-  value: string;
-  frameSize?: number;
-  backgroundColor?: string;
-  color?: string;
-}>;
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/theme';
@@ -24,7 +20,6 @@ import { useThemeMode } from '@/hooks/use-theme-mode';
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
-import Constants from 'expo-constants';
 import { loadPets, savePets, persistPhotos, clearPhotos, type PetRecord } from '@/lib/storage';
 
 interface PetPost {
@@ -40,6 +35,7 @@ interface PetPost {
   reported?: boolean;
   reportReason?: string;
   reportedBy?: string;
+  lostDate?: string;
 }
 
 const normalizePhone = (value: string) => {
@@ -54,6 +50,13 @@ const formatBytes = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${bytes} B`;
+};
+
+const formatLostDate = (iso?: string): string | null => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('pt-BR');
 };
 
 const getFileSize = async (uri: string): Promise<number | null> => {
@@ -88,8 +91,7 @@ const filtrarPorTamanho = async (uris: string[], fileSizes?: (number | null)[]):
     else aceitas.push(uri);
   }
   if (rejeitadas.length > 0) {
-    Alert.alert(
-      'Foto muito grande',
+    showAlert('warning', 'Foto muito grande',
       `Algumas fotos foram ignoradas por excederem ${formatBytes(MAX_IMAGE_BYTES)}: ${rejeitadas.join(', ')}.`
     );
   }
@@ -112,6 +114,8 @@ export default function HomeScreen() {
   const [description, setDescription] = useState('');
   const [contact, setContact] = useState('');
   const [contactError, setContactError] = useState('');
+  const [lostDate, setLostDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const speciesRef = useRef<TextInput>(null);
   const locationRef = useRef<TextInput>(null);
@@ -190,6 +194,10 @@ export default function HomeScreen() {
   const canReport = locationEnabled === true && insideRadius === true;
 
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
+  const [showDescriptionModal, setShowDescriptionModal] = useState(false);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerVisible, setViewerVisible] = useState(false);
   const menuProgress = useSharedValue(0);
   useEffect(() => {
     if (selectedPet !== null) {
@@ -199,40 +207,14 @@ export default function HomeScreen() {
   }, [selectedPet, menuProgress]);
   const [reportTarget, setReportTarget] = useState<PetPost | null>(null);
   const shareCardRef = useRef<any>(null);
-  const [shareCardUri, setShareCardUri] = useState<string | null>(null);
-  const SHARE_BASE_URL = 'https://ifujao.app/pet/';
-  const isExpoGo = Constants.executionEnvironment === 'storeClient';
-
+  const SHARE_BASE_URL = 'https://play.google.com/store/apps/details?id=br.com.petz';
 
   const sharePetCard = async (pet: PetPost) => {
-    const message = `🐾 Ajude a encontrar este pet perdido em ${pet.location || 'Sorocaba'}!\nVeja no iFujão: ${SHARE_BASE_URL}${pet.id}`;
-    if (isExpoGo) {
-      try {
-        await Share.share({ message });
-      } catch {
-        Alert.alert('Erro', 'Não foi possível compartilhar.');
-      }
-      return;
-    }
+    const message = `🐾 Ajude a encontrar este pet perdido em ${pet.location || 'Sorocaba'}!\nBaixe o iFujão e veja mais: ${SHARE_BASE_URL}`;
     try {
-      if (shareCardRef.current) {
-        const uri = await shareCardRef.current.capture?.();
-        if (uri) {
-          setShareCardUri(uri);
-          await Share.share({ url: uri, title: 'iFujão - Pet Perdido', message });
-          return;
-        }
-      }
+      await Share.share({ message });
     } catch {
-    }
-    try {
-      await Share.share({
-        url: pet.images[0],
-        title: 'iFujão - Pet Perdido',
-        message,
-      });
-    } catch {
-      Alert.alert('Erro', 'Não foi possível compartilhar o pet.');
+      showAlert('error', 'Erro', 'Não foi possível compartilhar.');
     }
   };
 
@@ -333,7 +315,7 @@ export default function HomeScreen() {
     fecharFonte();
     const { granted } = await requestCameraPermission();
     if (!granted) {
-      Alert.alert('Permissão Negada', 'Precisamos de permissão para acessar a câmera.');
+      showAlert('permission', 'Permissão Negada', 'Precisamos de permissão para acessar a câmera.');
       return;
     }
     setCameraReady(false);
@@ -349,11 +331,11 @@ export default function HomeScreen() {
     fecharFonte();
     const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!granted) {
-      Alert.alert('Permissão Negada', 'Precisamos de permissão para acessar sua galeria.');
+      showAlert('permission', 'Permissão Negada', 'Precisamos de permissão para acessar sua galeria.');
       return;
     }
     if (images.length >= MAX_IMAGES) {
-      Alert.alert('Limite atingido', `Você pode adicionar no máximo ${MAX_IMAGES} fotos.`);
+      showAlert('warning', 'Limite atingido', `Você pode adicionar no máximo ${MAX_IMAGES} fotos.`);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -383,7 +365,7 @@ export default function HomeScreen() {
   const tirarFoto = async () => {
     if (!cameraRef.current || !cameraReady) return;
     if (images.length >= MAX_IMAGES) {
-      Alert.alert('Limite atingido', `Você pode adicionar no máximo ${MAX_IMAGES} fotos.`);
+      showAlert('warning', 'Limite atingido', `Você pode adicionar no máximo ${MAX_IMAGES} fotos.`);
       return;
     }
     const foto = await cameraRef.current.takePictureAsync({ quality: 0.8 });
@@ -423,27 +405,36 @@ export default function HomeScreen() {
 
   const handleAddPet = async () => {
     if (images.length === 0 || !species || !location || !contact) {
-      Alert.alert('Atenção', 'Preencha todos os campos e adicione ao menos uma foto.');
+      showAlert('warning', 'Atenção', 'Preencha todos os campos e adicione ao menos uma foto.');
       return;
     }
     if (!isValidPhone(contact)) {
       setContactError('Número de WhatsApp inválido (use DDD + 9 dígitos).');
-      Alert.alert('Atenção', 'Digite um número de WhatsApp válido (com DDD, 10 ou 11 dígitos).');
+      showAlert('warning', 'Atenção', 'Digite um número de WhatsApp válido (com DDD, 10 ou 11 dígitos).');
       return;
     }
-    let latitude = mapRegion.latitude;
-    let longitude = mapRegion.longitude;
+    let latitude: number;
+    let longitude: number;
     if (petLocation) {
       latitude = petLocation.latitude;
       longitude = petLocation.longitude;
     } else {
-      try {
-        const last = await Location.getLastKnownPositionAsync({});
-        if (last) {
-          latitude = last.coords.latitude;
-          longitude = last.coords.longitude;
-        }
-      } catch {}
+      showAlert('location', 'Marque o local',
+        'Defina onde o pet foi visto: toque no mapa para posicionar o pino ou use o botão "Usar meu GPS". O alerta não foi gravado.'
+      );
+      return;
+    }
+    const isValidCoord = (n: number) =>
+      typeof n === 'number' && Number.isFinite(n) &&
+      n >= -90 && n <= 90;
+    const isValidLng = (n: number) =>
+      typeof n === 'number' && Number.isFinite(n) &&
+      n >= -180 && n <= 180;
+    if (!isValidCoord(latitude) || !isValidLng(longitude) || (latitude === 0 && longitude === 0)) {
+      showAlert('warning', 'Coordenada inválida',
+        'As coordenadas obtidas não são válidas. Mova o pino ou use "Usar meu GPS" novamente antes de publicar. O alerta não foi gravado.'
+      );
+      return;
     }
     const ownerPhone = normalizePhone(contact);
     SecureStore.setItemAsync('ifujao_my_phone', ownerPhone).catch(() => {});
@@ -454,17 +445,18 @@ export default function HomeScreen() {
       species, location, description, contact, ownerPhone, images: storedImages,
       latitude,
       longitude,
+      lostDate: lostDate ? lostDate.toISOString() : undefined,
     };
     commitPets([newPet, ...pets]);
     setSpecies(''); setLocation(''); setDescription(''); setContact(''); setContactError(''); setImages([]);
+    setLostDate(null);
     setIsCameraOpen(false);
     setReportModalVisible(false);
-    Alert.alert('Sucesso!', 'Alerta publicado!');
+    showAlert('success', 'Sucesso!', 'Alerta publicado!');
   };
 
   const deletePet = (petId: string) => {
-    Alert.alert(
-      'Apagar alerta',
+    showAlert('trash', 'Apagar alerta',
       'Tem certeza que deseja apagar este alerta? Esta ação não pode ser desfeita.',
       [
         { text: 'Cancelar', style: 'cancel' },
@@ -493,7 +485,7 @@ export default function HomeScreen() {
     );
     setReportTarget(null);
     setSelectedPet(null);
-    Alert.alert('Denúncia enviada', 'Obrigado. Nossa equipe irá analisar este alerta.');
+    showAlert('info', 'Denúncia enviada', 'Obrigado. Nossa equipe irá analisar este alerta.');
   };
 
   const openReport = async () => {
@@ -521,6 +513,12 @@ export default function HomeScreen() {
     setReportModalVisible(true);
   };
 
+  const openInViewer = (images: string[], index: number) => {
+    setViewerImages(images);
+    setViewerIndex(Math.max(0, Math.min(index, images.length - 1)));
+    setViewerVisible(true);
+  };
+
   const atualizarEndereco = async (lat: number, lng: number) => {
     try {
       const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
@@ -541,19 +539,32 @@ export default function HomeScreen() {
     atualizarEndereco(lat, lng);
   };
 
-  const usarMeuGps = () => {
+  const usarMeuGps = async () => {
+    const ok = await checkPermissionAndServices();
+    if (!ok) {
+      showAlert('location', 'Localização', 'Ative a localização do dispositivo e conceda a permissão para usar seu GPS.');
+      return;
+    }
     if (userLocation) {
       setPetLocation(userLocation);
       atualizarEndereco(userLocation.latitude, userLocation.longitude);
-    } else {
-      Alert.alert('Localização', 'Ative a localização do dispositivo para usar seu GPS.');
+      return;
     }
+    const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null);
+    if (!current) {
+      showAlert('location', 'Sem sinal de GPS', 'Não foi possível obter sua posição. Verifique se o GPS está ativo e há sinal de satélite, depois tente novamente.');
+      return;
+    }
+    const coords = { latitude: current.coords.latitude, longitude: current.coords.longitude };
+    setUserLocation(coords);
+    setPetLocation(coords);
+    atualizarEndereco(coords.latitude, coords.longitude);
   };
 
   const openWhatsApp = (contactNumber: string) => {
     let phoneNumber = contactNumber.replace(/\D/g, '');
     if (!isValidPhone(phoneNumber)) {
-      Alert.alert('Atenção', 'O contato informado não é um número de WhatsApp válido.');
+      showAlert('warning', 'Atenção', 'O contato informado não é um número de WhatsApp válido.');
       return;
     }
     if (!phoneNumber.startsWith('55')) phoneNumber = `55${phoneNumber}`;
@@ -561,7 +572,7 @@ export default function HomeScreen() {
     const url = Platform.OS === 'android'
       ? `whatsapp://send?phone=${phoneNumber}&text=${message}`
       : `https://wa.me/${phoneNumber}?text=${message}`;
-    Linking.openURL(url).catch(() => Alert.alert('Erro', 'Não foi possível abrir o WhatsApp.'));
+    Linking.openURL(url).catch(() => showAlert('error', 'Erro', 'Não foi possível abrir o WhatsApp.'));
   };
 
   const petsDenunciados = pets.filter((p) => p.reported);
@@ -621,7 +632,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={toggleTheme}>
             <Ionicons name={theme === 'dark' ? 'sunny' : 'moon'} size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => Alert.alert('Buscar', 'Funcionalidade de busca em breve.')}>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => showAlert('search', 'Buscar', 'Funcionalidade de busca em breve.')}>
             <Ionicons name="search" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => {
@@ -630,22 +641,22 @@ export default function HomeScreen() {
               title: 'iFujão - Pets Perdidos',
             }).then((r) => {
               if (r.action === Share.dismissedAction) {
-                Alert.alert('Compartilhar', 'A janela foi fechada sem compartilhar.');
+                showAlert('share', 'Compartilhar', 'A janela foi fechada sem compartilhar.');
               }
             }).catch((e) => {
-              Alert.alert('Erro ao compartilhar', String(e?.message ?? e));
+              showAlert('error', 'Erro ao compartilhar', String(e?.message ?? e));
             });
           }}>
             <Ionicons name="share-social" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={() => {
             if (Platform.OS === 'android') {
-              Alert.alert('Sair', 'Deseja realmente sair do app?', [
+              showAlert('exit', 'Sair', 'Deseja realmente sair do app?', [
                 { text: 'Cancelar', style: 'cancel' },
                 { text: 'Sair', style: 'destructive', onPress: () => BackHandler.exitApp() },
               ]);
             } else {
-              Alert.alert('Sair', 'Não é possível fechar o app no iOS. Encerre-o manualmente.');
+              showAlert('exit', 'Sair', 'Não é possível fechar o app no iOS. Encerre-o manualmente.');
             }
           }}>
             <Ionicons name="log-out" size={24} color="#FFFFFF" />
@@ -779,6 +790,14 @@ export default function HomeScreen() {
               </View>
             )}
 
+            <Text style={styles.fieldLabel}>Quando o pet sumiu? (opcional)</Text>
+            <TouchableOpacity style={styles.dateField} onPress={() => setShowDatePicker(true)} activeOpacity={0.7}>
+              <Ionicons name="calendar" size={18} color={themeColors.primaryButton} />
+              <Text style={[styles.dateFieldText, !lostDate && { color: themeColors.icon }]}>
+                {lostDate ? lostDate.toLocaleDateString('pt-BR') : 'Toque para selecionar a data'}
+              </Text>
+            </TouchableOpacity>
+
             <Text style={styles.pickLabel}>Onde o pet foi visto?</Text>
             <View
               style={styles.pickMapWrap}
@@ -820,7 +839,7 @@ export default function HomeScreen() {
         onRequestClose={fecharFonte}
       >
         <TouchableOpacity style={styles.actionSheetOverlay} activeOpacity={1} onPress={fecharFonte}>
-          <View style={styles.actionSheet}>
+          <View style={[styles.actionSheet, { paddingBottom: 24 + insets.bottom }]}>
             <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
             <TouchableOpacity style={styles.actionSheetOption} onPress={abrirCamera}>
               <Ionicons name="camera" size={22} color={themeColors.text} />
@@ -919,7 +938,8 @@ export default function HomeScreen() {
       </Modal>
 
       {selectedPet !== null && (
-        <Modal
+        <>
+          <Modal
           animationType="fade"
           transparent={true}
           visible={true}
@@ -935,10 +955,10 @@ export default function HomeScreen() {
                 <Ionicons name="close" size={22} color="#FFFFFF" />
               </TouchableOpacity>
               <View style={styles.reportImageWrap}>
-                <ImageCarousel images={selectedPet.images} blurRadius={selectedPet.reported ? 18 : 0} />
+                <ImageCarousel images={selectedPet.images} blurRadius={selectedPet.reported ? 18 : 0} onPressImage={(imgs, idx) => { if (!selectedPet.reported) openInViewer(imgs, idx); }} />
                 {selectedPet.reported ? (
                   <View style={styles.reportedBanner}>
-                    <Text style={styles.reportedBannerText}>DENUNCIA</Text>
+                    <Text style={styles.reportedBannerText}>DENÚNCIA</Text>
                   </View>
                 ) : null}
               </View>
@@ -947,8 +967,17 @@ export default function HomeScreen() {
                 <Ionicons name="location" size={16} color={themeColors.primaryButton} />
                 <Text style={styles.demoLocation}>{selectedPet.location}</Text>
               </View>
+              {formatLostDate(selectedPet.lostDate) ? (
+                <View style={styles.demoRow}>
+                  <Ionicons name="calendar" size={16} color={themeColors.primaryButton} />
+                  <Text style={styles.demoDate}>Sumiu em {formatLostDate(selectedPet.lostDate)}</Text>
+                </View>
+              ) : null}
               {selectedPet.description ? (
-                <Text style={styles.demoDescription}>{selectedPet.description}</Text>
+                <TouchableOpacity style={styles.demoDescBtn} onPress={() => setShowDescriptionModal(true)} activeOpacity={0.7}>
+                  <Ionicons name="document-text" size={16} color={themeColors.primaryButton} />
+                  <Text style={styles.demoDescBtnText}>Ver descrição</Text>
+                </TouchableOpacity>
               ) : null}
               <View style={styles.circularMenu}>
                 <View style={styles.circularCenter}>
@@ -1037,14 +1066,15 @@ export default function HomeScreen() {
                   });
                 })()}
               </View>
-              </View>
             </View>
-            <ViewShot
-              ref={shareCardRef}
-              options={{ format: 'png', quality: 1 }}
-              style={styles.shareCardOffscreen}
-            >
-              <View style={styles.shareCard} collapsable={false}>
+          </View>
+        </Modal>
+          <ViewShot
+            ref={shareCardRef}
+            options={{ format: 'png', quality: 1 }}
+            style={styles.shareCardOffscreen}
+          >
+            <View style={styles.shareCard} collapsable={false}>
                 <View style={styles.shareCardHeader}>
                   <Image source={require('../../assets/images/logo.png')} style={styles.shareCardLogo} />
                   <Text style={styles.shareCardApp}>iFujão</Text>
@@ -1062,21 +1092,37 @@ export default function HomeScreen() {
                   <Text style={styles.shareCardCoords}>{selectedPet.latitude.toFixed(4)}, {selectedPet.longitude.toFixed(4)}</Text>
                 </View>
                 <View style={styles.shareCardFooter}>
-                  <View style={styles.shareCardQr}>
-                    {isExpoGo ? (
-                      <Image source={require('../../assets/images/qrcode.jpg')} style={{ width: 96, height: 96 }} />
-                    ) : (
-                      <QRCode value={`${SHARE_BASE_URL}${selectedPet.id}`} frameSize={96} backgroundColor="#FFFFFF" color="#000000" />
-                    )}
-                  </View>
                   <View style={styles.shareCardFooterText}>
-                    <Text style={styles.shareCardHelp}>Ajude a encontrar!{'\n'}Escaneie o QR Code{'\n'}ou acesse ifujao.app</Text>
+                    <Text style={styles.shareCardHelp}>Ajude a encontrar!{'\n'}Compartilhe com seus contatos{'\n'}para aumentar as chances. 🐾</Text>
                   </View>
                 </View>
               </View>
             </ViewShot>
-          </Modal>
+          </>
         )}
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDescriptionModal}
+        onRequestClose={() => setShowDescriptionModal(false)}
+      >
+        <View style={styles.descOverlay} onStartShouldSetResponder={() => true} onTouchStart={() => setShowDescriptionModal(false)}>
+          <View
+            style={styles.descCard}
+            onStartShouldSetResponder={() => true}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.descTitle}>Descrição</Text>
+            <ScrollView style={styles.descScroll} nestedScrollEnabled showsVerticalScrollIndicator={true}>
+              <Text style={styles.descText}>{selectedPet?.description}</Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.descCloseBtn} onPress={() => setShowDescriptionModal(false)} activeOpacity={0.6}>
+              <Text style={styles.descCloseText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -1089,6 +1135,7 @@ export default function HomeScreen() {
             <TouchableOpacity style={styles.reportClose} onPress={() => setReportTarget(null)}>
               <Ionicons name="close" size={22} color="#FFFFFF" />
             </TouchableOpacity>
+            <Ionicons name="flag" size={40} color="#FF9500" style={styles.reportIcon} />
             <Text style={styles.reportTitle}>Denunciar alerta</Text>
             <Text style={styles.reportSubtitle}>Selecione o motivo da denúncia:</Text>
             {['Conteúdo impróprio ou ofensivo', 'Foto inadequada', 'Informação falsa/engano', 'Spam', 'Outro'].map((m) => (
@@ -1104,6 +1151,25 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      <ImageViewerModal
+        visible={viewerVisible && viewerImages.length > 0}
+        images={viewerImages}
+        index={viewerIndex}
+        title={selectedPet ? selectedPet.species : undefined}
+        onClose={() => setViewerVisible(false)}
+        onIndexChange={setViewerIndex}
+      />
+
+      <DatePickerCalendar
+        isVisible={showDatePicker}
+        initialDate={lostDate ?? new Date()}
+        maximumDate={new Date()}
+        onCancel={() => setShowDatePicker(false)}
+        onConfirm={(selected) => {
+          setShowDatePicker(false);
+          setLostDate(selected);
+        }}
+      />
 
     </View>
   );
@@ -1331,7 +1397,7 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
   );
 };
 
-const ImageCarousel = ({ images, blurRadius = 0 }: { images: string[]; blurRadius?: number }) => {
+const ImageCarousel = ({ images, blurRadius = 0, onPressImage }: { images: string[]; blurRadius?: number; onPressImage?: (images: string[], index: number) => void }) => {
   const [index, setIndex] = useState(0);
   const clamped = Math.max(0, Math.min(index, images.length - 1));
   const btn = (disabled: boolean): any => ({
@@ -1345,7 +1411,12 @@ const ImageCarousel = ({ images, blurRadius = 0 }: { images: string[]; blurRadiu
   });
   return (
     <View style={{ width: '100%', height: 180, marginBottom: 14, position: 'relative' }}>
-      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12 }} resizeMode="cover" blurRadius={blurRadius} />
+      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12, backgroundColor: '#000000' }} resizeMode="contain" blurRadius={blurRadius} />
+      <TouchableOpacity
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: images.length > 1 ? 40 : 0 }}
+        activeOpacity={1}
+        onPress={() => onPressImage?.(images, clamped)}
+      />
       {images.length > 1 && (
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8 }}>
           <TouchableOpacity
@@ -1566,6 +1637,28 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     marginBottom: 8,
     fontSize: 14,
     fontWeight: '600',
+    color: c.text,
+  },
+  fieldLabel: {
+    marginTop: 18,
+    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    color: c.text,
+  },
+  dateField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: c.card,
+    borderWidth: 1,
+    borderColor: c.cardStroke,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  dateFieldText: {
+    marginLeft: 8,
+    fontSize: 15,
     color: c.text,
   },
   useGpsBtn: {
@@ -1863,7 +1956,6 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     backgroundColor: c.card,
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
-    paddingBottom: 24,
     paddingHorizontal: 16,
   },
   actionSheetTitle: {
@@ -1959,10 +2051,14 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
   },
   demoCard: {
     width: '100%',
+    maxHeight: '90%',
     backgroundColor: c.card,
     borderRadius: 18,
     padding: 18,
     position: 'relative',
+  },
+  demoCardScroll: {
+    maxHeight: '100%',
   },
   demoClose: {
     position: 'absolute',
@@ -2048,11 +2144,73 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     fontSize: 14,
     color: c.text,
   },
+  demoDate: {
+    fontSize: 14,
+    color: c.text,
+  },
   demoDescription: {
     fontSize: 14,
     color: c.text,
     lineHeight: 20,
     marginBottom: 16,
+  },
+  demoDescBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  demoDescBtnText: {
+    fontSize: 14,
+    color: c.primaryButton,
+    fontWeight: '600',
+  },
+  descOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  descCard: {
+    width: '100%',
+    maxWidth: 320,
+    maxHeight: '80%',
+    backgroundColor: c.card,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  descTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: c.text,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  descScroll: {
+    maxHeight: 360,
+    width: '100%',
+  },
+  descText: {
+    fontSize: 15,
+    color: c.text,
+    lineHeight: 22,
+    textAlign: 'left',
+  },
+  descCloseBtn: {
+    width: '100%',
+    borderTopWidth: 1,
+    borderColor: c.cardStroke,
+    marginTop: 16,
+    paddingTop: 12,
+    alignItems: 'center',
+  },
+  descCloseText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: c.primaryButton,
   },
   disabledBtn: {
     opacity: 0.4,
@@ -2140,16 +2298,9 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
   },
-  shareCardQr: {
-    backgroundColor: '#FFFFFF',
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-  },
   shareCardFooterText: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 0,
   },
   shareCardHelp: {
     color: '#1C1C1E',
@@ -2264,6 +2415,11 @@ const makeStyles = (c: typeof Colors.light) => StyleSheet.create({
     fontWeight: 'bold',
     color: c.text,
     marginBottom: 6,
+    textAlign: 'center',
+  },
+  reportIcon: {
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   reportSubtitle: {
     fontSize: 14,

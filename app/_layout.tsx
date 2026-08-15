@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 
 import { ThemeProvider as AppThemeProvider, useThemeMode } from '@/hooks/use-theme-mode';
 import AppLock from '@/src/components/AppLock';
+import { AppAlertProvider } from '@/src/components/AppAlert';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -31,6 +32,7 @@ function RootLayoutNav() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="pet/[id]" options={{ title: 'Pet perdido' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -42,7 +44,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
-        <RootLayoutNav />
+        <AppAlertProvider>
+          <RootLayoutNav />
+        </AppAlertProvider>
       </AppThemeProvider>
     </GestureHandlerRootView>
   );

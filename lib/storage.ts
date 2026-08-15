@@ -19,6 +19,7 @@ export interface PetRecord {
   reported?: boolean;
   reportReason?: string;
   reportedBy?: string;
+  lostDate?: string;
 }
 
 const ensureDbKey = async (): Promise<string> => {
@@ -83,6 +84,18 @@ export const loadPets = async (): Promise<PetRecord[]> => {
     return (res.rows as Array<{ data: string }>).map((r) => JSON.parse(r.data) as PetRecord);
   } catch {
     return [];
+  }
+};
+
+export const getPetById = async (id: string): Promise<PetRecord | null> => {
+  try {
+    const db = await getDb();
+    const res = await db.execute('SELECT data FROM pets WHERE id = ?', [id]);
+    const rows = res.rows as Array<{ data: string }>;
+    if (!rows || rows.length === 0) return null;
+    return JSON.parse(rows[0].data) as PetRecord;
+  } catch {
+    return null;
   }
 };
 

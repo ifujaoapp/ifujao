@@ -1,14 +1,136 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-14 (tarde)
+Última atualização: 2026-08-15 (tarde)
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
 - `tsc --noEmit` passa sem erros.
 - **Development Build** instalado no Galaxy S23 (SM_S911B) via `npx expo run:android` (BUILD SUCCESSFUL).
+  - Rebuild feito com **OpenJDK 17** (`C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot`); `JAVA_HOME` aponta para ele.
+  - `android/local.properties` recriado apontando para o SDK Android.
+  - Integração do viewer finalizada (`expo-media-library` + `expo-sharing` nativos embutidos no APK).
 - App Lock (biometria do celular) implementado e funcional via `expo-local-authentication`.
 - `axios` instalado para futura integração com backend.
 - `expo-doctor`: 18/18 checks passed.
+- Modais de alerta com ícones vetoriais (`src/components/AppAlert.tsx`) — corrigido para seguir o tema do app (não o do sistema).
+- Campo "Quando o pet sumiu?" (opcional) com calendário próprio em JS (`src/components/DatePickerCalendar.tsx`) — sem libs nativas.
+- Action sheet "Adicionar foto" com safe area (`insets.bottom`) para não ser cortado pela navigation bar.
+- Card do pet: botão "Ver descrição" abre modal próprio padronizado; descrição longa rola no modal.
+
+## O que foi feito nesta sessão (2026-08-15, rework do compartilhamento)
+
+### Compartilhar pet — rework (texto + link da loja)
+- `sharePetCard` (`app/(tabs)/index.tsx`) reescrito para mandar **texto com link clicável** via
+  `Share.share({ message })` (funciona iOS + Android). Mensagem:
+  `🐾 Ajude a encontrar este pet perdido em <cidade>!\nBaixe o iFujão e veja mais: <SHARE_BASE_URL>`.
+- `SHARE_BASE_URL` = `https://play.google.com/store/apps/details?id=br.com.petz` (link da loja, clicável no WhatsApp).
+- Removido o envio de imagem do share (`shareImageFile`/`Sharing.shareAsync`) e os imports que ficaram
+  sem uso (`Sharing`, `Constants`, `Paths`/`FSFile`). `tsc --noEmit` ✅.
+
+### Descoberta importante (limitação do RN/Expo nesta versão)
+- `Share.share({ url, message })` **NÃO anexa o arquivo**: no `ShareModule.kt` (RN new-arch) o `url` é
+  ignorado — só vai `EXTRA_TEXT`. Por isso qualquer tentativa de imagem+legenda via `Share.share` mandava
+  só texto (ou, no Android, nem a imagem ia).
+- `Sharing.shareAsync` (expo-sharing) manda **só o arquivo**, sem legenda/texto.
+- Conclusão: com as libs atuais **não dá pra mandar imagem + link clicável juntos numa mesma mensagem do
+  WhatsApp**. É escolha binária: imagem (poster) OU link clicável de texto.
+
+### Deep link `ifujao://` (tentativa, atualmente sem uso)
+- `app.json` já tinha `"scheme": "ifujao"`.
+- Criada rota `app/pet/[id].tsx` + `getPetById` em `lib/storage.ts` + registro em `app/_layout.tsx`
+  (`Stack.Screen name="pet/[id]"`). A tela abre o pet se o SO receber `ifujao://pet/<id>` no mesmo aparelho.
+- **Não resolve o caso WhatsApp**: (1) o WhatsApp não torna clicável scheme custom (`ifujao://`); e
+  (2) os pets são locais por dispositivo (sem backend) → outro celular não tem o dado para exibir.
+- Como o share agora usa o link da loja, a rota `app/pet/[id].tsx` está **sem uso** (pode ser removida).
+
+### Pendente (decisão do usuário) — imagem + link juntos
+- Para ter **imagem + legenda com link clicável numa só mensagem**, a solução é trocar para
+  `react-native-share` (envia arquivo + texto nas duas plataformas). Exige setup nativo
+  (prebuild/config plugin) — não feito ainda, usuário pediu parar antes.
+
+## EM ANDAMENTO (2026-08-15 tarde) — Viewer de imagens do card do pet
+
+Objetivo: ao tocar na foto do card do pet, abrir viewer profissional (não o share sheet).
+Decisão do usuário: fazer viewer PRÓPRIO (não `react-native-image-viewing`, que deu erro de
+`require.context`/entry errado no Metro e warning de SafeAreaView deprecado, e não expõe layout).
+Escopo aprovado pelo usuário (opções 1, 2 e 3):
+  1. Viewer próprio: título espécie/raça sobreposto, botão X grande/acessível, setas ◀ ▶, botões flutuantes.
+  2. Compartilhar via `expo-sharing` (com cópia da foto para `FileSystem.cacheDirectory` antes, porque
+     fotos ficam em `Paths.document/pet_photos/` que o FileProvider do Android 13+ nem sempre expõe).
+  3. Botão "Salvar na galeria" via `expo-media-library` (`saveToLibraryAsync` + `requestPermissionsAsync`).
+
+Status da implementação (INTEGRAÇÃO CONCLUÍDA):
+- `npx expo install expo-media-library` ✅ e `expo-sharing` ✅ instalados (ambos SDK 54 compatíveis, up to date).
+- `react-native-image-viewing` removido (`npm uninstall`).
+- Criado `src/components/ImageViewerModal.tsx`: Modal fullscreen próprio com:
+  - `closeBtn` (X grande, hitSlop, topo direito), `titleBar` (espécie/raça + contador n/total),
+    `imageArea` com `ScrollView` (zoom nativo `maximumZoomScale=4`), `navBtn` esquerda/direita,
+    `actionBar` com "Salvar" (MediaLibrary) e "Compartilhar" (expo-sharing + cópia p/ cache).
+  - Usa `Image.getSize` + `Dimensions` para dimensionar; `useColorScheme` para fundo claro/escuro.
+- No `app/(tabs)/index.tsx` (FINALIZADO):
+  - Import `ImageViewerModal` ✅; removido import `react-native-image-viewing` ✅.
+  - Estados `viewerImages`/`viewerIndex` + NOVO `viewerVisible` (linhas ~206-209).
+  - `openInViewer(images, index)` reescrito (linha ~549) para setar imagens, index clampado e `viewerVisible=true`.
+  - `<ImageViewer>` antigo substituído por `<ImageViewerModal visible={viewerVisible && ...} images index
+    title={selectedPet?.species} onClose onIndexChange />` (linhas ~1193-1200).
+  - `title` passado = espécie/raça do `selectedPet` (campo `species`).
+- Corrigido compatibilidade com `expo-file-system` v19 na cópia p/ share: trocado `FileSystem.cacheDirectory`
+  + `copyAsync({from,to})` por nova API `Paths`/`File` (`new FSFile(Paths.cache, ...)` + `src.copy(dest)`).
+
+Verificações:
+- `npx tsc --noEmit -p tsconfig.json` ✅ EXIT 0 (sem erros).
+- `npx expo-doctor` ✅ 18/18 checks passed.
+
+Próximos passos (PENDENTES — exigem dispositivo):
+  d. REBUILD do dev build (`npx expo run:android`) — `expo-media-library` e `expo-sharing` são nativos
+     e foram adicionados/confirmados; o APK precisa ser reconstruído para embutir os módulos nativos.
+  e. Testar no Galaxy S23: tocar na foto do card → viewer fullscreen, zoom, navegar ◀▶,
+     "Salvar na galeria" (permissão), "Compartilhar" (cópia p/ cache + share sheet).
+
+## O que foi feito nesta sessão (2026-08-15 tarde, rebuild + calendário)
+
+### Rebuild do dev build com OpenJDK 17
+- Troca do `JAVA_HOME` do JBR do Android Studio para OpenJDK 17 Microsoft (`C:\Program Files\Microsoft\jdk-17.0.20.8-hotspot`).
+- `npx expo prebuild --clean --platform android` + `./gradlew assembleDebug --no-daemon` → `BUILD SUCCESSFUL`.
+- Problemas resolvidos no caminho: processos `java` antigos seguravam locks de build cache do
+  `expo-modules-autolinking`; ao limpar, apaguei o `build/` desse pacote e o autolinking quebrava
+  (`Cannot find module '../build'`). Restaurado com reinstall forçado de `expo-modules-autolinking`.
+- APK `app-debug.apk` instalado no Galaxy S23 via `adb install -r`.
+- `expo-doctor`: 18/18 checks passed.
+
+### Bolinha do dia no calendário (DatePickerCalendar.tsx) — CORRIGIDO
+- Sintoma: a bolinha azul que marca o dia selecionado não ficava centralizada sobre o número (e, numa
+  tentativa, virou um círculo gigante quando `width:'84%'+aspectRatio` esticou a célula).
+- Solução final: o número e o círculo ficam dentro de um `dayBubble` de 34×34 com
+  `alignItems/justifyContent:'center'`; o círculo é `View` absoluto preenchendo o bubble (`34×34`,
+  `borderRadius:17`) e o `Text` é centralizado no mesmo box. Assim a bolinha centraliza exata e
+  consistentemente sobre o dia, para 1 ou 2 dígitos.
+
+- `expo-doctor`: 18/18 checks passed.
+- Botão "Sair" no Android: funciona corretamente (resolvido).
+- Modal de alertas customizado com ícones vetoriais (`src/components/AppAlert.tsx`) substituiu o `Alert.alert` nativo.
+
+## O que foi feito nesta sessão (2026-08-15)
+
+### Proteção de coordenada no modal "Reportar Pet Perdido"
+- `handleAddPet` (`app/(tabs)/index.tsx`) agora exige `petLocation` (pino posicionado no mapa). Se nulo →
+  alerta "Marque o local" e não grava. Se coord for inválida (fora de faixa ou `0,0`) → alerta "Coordenada
+  inválida" e não grava. Remove a divergência do contador flutuante vs pins (não há pet sem coord).
+- Corrigido bug na validação: rejeitava latitudes negativas (`n < -89.9`) — quebrava o Brasil (hemisfério sul).
+  Agora valida só faixa `-90..90` / `-180..180` + não ser exatamente `(0,0)`.
+
+### Botão "Usar meu GPS" (modal reportar pet)
+- `usarMeuGps` reescrito: usa o `userLocation` em cache (do boot/background) primeiro → posiciona o pino
+  instantaneamente se o usuário não se moveu. Só chama `getCurrentPositionAsync` se o cache estiver nulo.
+- Boot (`getOnce`) mantém `Accuracy.High` para não atrasar o mapa principal na entrada; `userLocation` é
+  resolvido em background (mapa já abre em `CITIES[0]` como fallback, sem depender do GPS).
+
+### Modais de alerta com ícones vetoriais
+- Criado `src/components/AppAlert.tsx`: `AppAlertProvider` + `showAlert(type, title, message?, buttons?)`.
+  Ícones via `@expo/vector-icons` (Ionicons): error/warning/success/info/location/permission/trash/share/
+  search/exit, com cores semânticas e suporte a tema claro/escuro.
+- Integrado `AppAlertProvider` em `app/_layout.tsx`.
+- Substituídos os 23 `Alert.alert` de `app/(tabs)/index.tsx` por `showAlert` (removeu os emojis dos títulos).
 
 ## O que foi feito nesta sessão (2026-08-14)
 
@@ -54,14 +176,16 @@ Branch: `master` (sem push para o GitHub).
 
 ## Pendências conhecidas
 - Compartilhar imagem no Expo Go (Android): inviável. Só funciona em APK/dev build.
-- Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno): pendente.
+- ~~Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno)~~: RESOLVIDO — funciona corretamente no Android.
 - Push para o GitHub (opcional).
 - URL/QR `https://ifujao.app` é placeholder; trocar pela real quando houver backend.
 - Backend (Supabase ou outro) para sincronização entre dispositivos: pets ainda são locais por dispositivo.
 - `expo-notifications` (push do backend) ainda NÃO instalado — instalar com `npx expo install expo-notifications`
   quando for integrar, e gerar novo build.
-- Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
-  inválidas, o número pode diferir dos pins visíveis no mapa.
+- ~~Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
+  inválidas, o número pode diferir dos pins visíveis no mapa~~: RESOLVIDO na origem — o modal
+  "Reportar Pet Perdido" (`handleAddPet`) agora exige coordenada GPS válida (getCurrentPositionAsync
+  + validação de faixa) e não grava o alerta se não obtiver; logo não há pet sem coord.
 
 ## Como testar
 - **Build local no Windows (sem crédito EAS)**: num novo terminal PowerShell, setar e rodar:
@@ -169,9 +293,14 @@ Branch: `master` (sem push para o GitHub).
   (baseado em `getDefaultConfig` do Expo). Limpar cache (`node_modules/.cache` + `.expo`) e subir com
   `npx expo start -c`. O banco nativo (SQLCipher) então carrega sem o `better-sqlite3`.
 
-## Decisão: compartilhamento PARADO (opção 3)
-No Expo Go, compartilhar SÓ texto/link (imagem anexa inviável — `FileUriExposedException`). Em APK/dev
-build o fluxo completo com `ViewShot` + QR real é mantido. Ver histórico em sessões anteriores.
+## Decisão: compartilhamento (estado atual — 2026-08-15)
+- Share do pet = **texto com link clicável da loja** (`Share.share({ message })`, `SHARE_BASE_URL` =
+  `https://play.google.com/store/apps/details?id=br.com.petz`). Sem imagem anexa.
+- Motivo: nesta versão do RN/Expo, `Share.share` só manda texto (ignora `url`/arquivo) e `Sharing.shareAsync`
+  manda só arquivo (sem texto) → não dá pra combinar imagem + link clicável numa mesma mensagem do WhatsApp.
+- Histórico: tentou-se `ifujao://pet/<id>` (rota `app/pet/[id].tsx`) mas o WhatsApp não linka scheme custom
+  e os pets são locais (sem backend) → sem uso hoje.
+- Para imagem + link juntos: falta `react-native-share` (setup nativo) — pendente.
 
 ## Arquitetura de persistência (estratégia híbrida) — 2026-08-13
 Substituiu o `SecureStore` de pets (que só guardava JSON de texto) por camadas separadas:
@@ -193,12 +322,13 @@ Substituiu o `SecureStore` de pets (que só guardava JSON de texto) por camadas 
 
 ## Pendências conhecidas
 - Compartilhar imagem no Expo Go (Android): inviável. Só funciona em APK/dev build.
-- Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno): pendente.
+- ~~Botão "Sair" no Android (`BackHandler.exitApp()` não funciona no Android moderno)~~: RESOLVIDO — funciona corretamente no Android.
 - Push para o GitHub (opcional).
 - URL/QR `https://ifujao.app` é placeholder; trocar pela real quando houver backend.
 - Backend Supabase (sincronização entre dispositivos): pets ainda são locais por dispositivo.
-- Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
-  inválidas, o número pode diferir dos pins visíveis no mapa.
+- ~~Contador flutuante de pets: conta `pets.length` (pins reais); se algum pet tiver coords
+  inválidas, o número pode diferir dos pins visíveis no mapa~~: RESOLVIDO na origem — `handleAddPet`
+  exige coordenada GPS válida e não grava sem ela.
 
 ## Como testar
 - **Build local no Windows (sem crédito EAS)**: num novo terminal PowerShell, setar e rodar:
@@ -231,6 +361,9 @@ Substituiu o `SecureStore` de pets (que só guardava JSON de texto) por camadas 
   conecta ao dev build (não ao Expo Go).
 - Card compartilhável com imagem: requer DEV BUILD/APK (`npx eas build --profile preview --platform android`).
 - Ao importar `react-native-reanimated` pela primeira vez, reiniciar com cache limpo: `npx expo start -c`.
+- **Viewer de imagens (em andamento)**: usa `expo-media-library` (salvar) e `expo-sharing` (compartilhar)
+  — ambos nativos → após finalizar a integração, rodar `npx expo run:android` para rebuild do dev build.
+  Fotos ficam em `Paths.document/pet_photos/`; para compartilhar, copiar para `cacheDirectory` primeiro.
 
 ## Comandos úteis
 - Typecheck: `npx tsc --noEmit -p tsconfig.json`

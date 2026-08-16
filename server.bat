@@ -9,4 +9,7 @@ for %%P in (8081 8082) do (
   )
 )
 
-npx expo start -c --host lan
+REM Limita workers do Metro (menos uso de CPU); ajuste conforme necessario
+set METRO_WORKERS=2
+
+npx expo start --host lan

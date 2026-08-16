@@ -7,4 +7,7 @@ config.resolver.conditionNames = [
   ...(config.resolver.conditionNames || []),
 ];
 
+// Limita workers do Transformer para reduzir uso de CPU (padrao = numero de cores)
+config.maxWorkers = 2;
+
 module.exports = config;

@@ -5,6 +5,8 @@ import { DatePickerCalendar } from '@/src/components/DatePickerCalendar';
 import { ImageViewerModal } from '@/src/components/ImageViewerModal';
 import { showAlert } from '@/src/components/AppAlert';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Application from 'expo-application';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera';
 import { WebView } from 'react-native-webview';
@@ -29,6 +31,8 @@ interface PetPost {
   description: string;
   contact: string;
   ownerPhone: string;
+  ownerDeviceId?: string;
+  reporterDeviceId?: string;
   images: string[];
   latitude: number;
   longitude: number;
@@ -42,6 +46,15 @@ const normalizePhone = (value: string) => {
   const digits = value.replace(/\D/g, '');
   return digits.startsWith('55') ? digits.slice(2) : digits;
 };
+
+// Autoria por device ID (mais forte). Fallback de telefone para pets criados antes do deviceId existir.
+const isOwner = (pet: PetPost, myDeviceId: string, myPhone: string) =>
+  (!!pet.ownerDeviceId && !!myDeviceId && pet.ownerDeviceId === myDeviceId) ||
+  (myPhone !== '' && normalizePhone(pet.ownerPhone) === myPhone);
+
+const isReporter = (pet: PetPost, myDeviceId: string, myPhone: string) =>
+  (!!pet.reporterDeviceId && !!myDeviceId && pet.reporterDeviceId === myDeviceId) ||
+  (myPhone !== '' && normalizePhone(pet.reportedBy ?? '') === myPhone);
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -106,6 +119,7 @@ export default function HomeScreen() {
 
   const [pets, setPets] = useState<PetPost[]>([]);
   const [myPhone, setMyPhone] = useState('');
+  const [myDeviceId, setMyDeviceId] = useState('');
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
@@ -228,6 +242,22 @@ export default function HomeScreen() {
       try {
         const saved = await SecureStore.getItemAsync('ifujao_my_phone');
         if (saved) setMyPhone(saved);
+      } catch {}
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let id: string | null = await Application.getAndroidId();
+        if (!id) {
+          id = await SecureStore.getItemAsync('ifujao_device_id');
+          if (!id) {
+            id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+            await SecureStore.setItemAsync('ifujao_device_id', id);
+          }
+        }
+        if (id) setMyDeviceId(id);
       } catch {}
     })();
   }, []);
@@ -442,7 +472,7 @@ export default function HomeScreen() {
     const storedImages = await persistPhotos(images);
     const newPet: PetPost = {
       id: Date.now().toString(),
-      species, location, description, contact, ownerPhone, images: storedImages,
+      species, location, description, contact, ownerPhone, ownerDeviceId: myDeviceId, images: storedImages,
       latitude,
       longitude,
       lostDate: lostDate ? lostDate.toISOString() : undefined,
@@ -480,7 +510,7 @@ export default function HomeScreen() {
     const reporter = myPhone || normalizePhone(pet.contact);
     commitPets(
       pets.map((p) =>
-        p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter } : p
+        p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter, reporterDeviceId: myDeviceId } : p
       )
     );
     setReportTarget(null);
@@ -985,7 +1015,7 @@ export default function HomeScreen() {
                 </View>
                 {(() => {
                   type MenuAction = { key: string; icon: string; label: string; color: string; reportedDisabled?: boolean; onPress: () => void };
-                  const alreadyReportedByMe = selectedPet.reported && normalizePhone(selectedPet.reportedBy ?? '') === myPhone && myPhone !== '';
+                  const alreadyReportedByMe = selectedPet.reported && isReporter(selectedPet, myDeviceId, myPhone);
                   const actions: MenuAction[] = [
                     {
                       key: 'contact',
@@ -1015,7 +1045,7 @@ export default function HomeScreen() {
                       onPress: () => sharePetCard(selectedPet),
                     },
                   ];
-                  if (normalizePhone(selectedPet.ownerPhone) === myPhone && myPhone !== '') {
+                  if (isOwner(selectedPet, myDeviceId, myPhone)) {
                     actions.push({
                       key: 'delete',
                       icon: 'trash',
@@ -1024,7 +1054,7 @@ export default function HomeScreen() {
                       onPress: () => deletePet(selectedPet.id),
                     });
                   }
-                  if (selectedPet.reported && (normalizePhone(selectedPet.ownerPhone) === myPhone || normalizePhone(selectedPet.reportedBy ?? '') === myPhone) && myPhone !== '') {
+                  if (selectedPet.reported && (isOwner(selectedPet, myDeviceId, myPhone) || isReporter(selectedPet, myDeviceId, myPhone))) {
                     actions.push({
                       key: 'undoReport',
                       icon: 'flag',
@@ -1399,6 +1429,8 @@ const MapLeaflet = ({ initialCenter, region, userLocation, pets, onMarkerPress, 
 
 const ImageCarousel = ({ images, blurRadius = 0, onPressImage }: { images: string[]; blurRadius?: number; onPressImage?: (images: string[], index: number) => void }) => {
   const [index, setIndex] = useState(0);
+  const [width, setWidth] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
   const clamped = Math.max(0, Math.min(index, images.length - 1));
   const btn = (disabled: boolean): any => ({
     width: 36,
@@ -1409,20 +1441,49 @@ const ImageCarousel = ({ images, blurRadius = 0, onPressImage }: { images: strin
     alignItems: 'center',
     opacity: disabled ? 0.3 : 1,
   });
+  const goTo = (next: number) => {
+    const target = Math.max(0, Math.min(next, images.length - 1));
+    setIndex(target);
+    if (width > 0 && scrollRef.current) {
+      scrollRef.current.scrollTo({ x: target * width, animated: true });
+    }
+  };
   return (
-    <View style={{ width: '100%', height: 180, marginBottom: 14, position: 'relative' }}>
-      <Image source={{ uri: images[clamped] }} style={{ width: '100%', height: 180, borderRadius: 12, backgroundColor: '#000000' }} resizeMode="contain" blurRadius={blurRadius} />
-      <TouchableOpacity
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: images.length > 1 ? 40 : 0 }}
-        activeOpacity={1}
-        onPress={() => onPressImage?.(images, clamped)}
-      />
+    <View
+      style={{ width: '100%', height: 180, marginBottom: 14, position: 'relative', borderRadius: 12, overflow: 'hidden' }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={images.length > 1}
+        onMomentumScrollEnd={(e) => {
+          const w = e.nativeEvent.layoutMeasurement.width;
+          if (w > 0) setIndex(Math.round(e.nativeEvent.contentOffset.x / w));
+        }}
+        style={StyleSheet.absoluteFill}
+      >
+        {images.map((uri, i) => (
+          <View key={i} style={{ width: width || '100%', height: 180 }}>
+            <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" blurRadius={blurRadius} />
+            <BlurView intensity={blurRadius > 0 ? 70 : 0} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.25)' }]} />
+            <TouchableOpacity
+              style={StyleSheet.absoluteFill}
+              activeOpacity={1}
+              onPress={() => onPressImage?.(images, i)}
+            />
+          </View>
+        ))}
+      </ScrollView>
       {images.length > 1 && (
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8, paddingBottom: 8 }}>
           <TouchableOpacity
             style={btn(clamped === 0)}
             disabled={clamped === 0}
-            onPress={() => setIndex(clamped - 1)}
+            onPress={() => goTo(clamped - 1)}
           >
             <Ionicons name="chevron-back" size={22} color="#FFFFFF" />
           </TouchableOpacity>
@@ -1432,7 +1493,7 @@ const ImageCarousel = ({ images, blurRadius = 0, onPressImage }: { images: strin
           <TouchableOpacity
             style={btn(clamped === images.length - 1)}
             disabled={clamped === images.length - 1}
-            onPress={() => setIndex(clamped + 1)}
+            onPress={() => goTo(clamped + 1)}
           >
             <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
           </TouchableOpacity>

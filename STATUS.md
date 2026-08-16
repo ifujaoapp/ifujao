@@ -1,6 +1,6 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-15 (noite).
+Última atualização: 2026-08-16 (manhã).
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
@@ -120,6 +120,19 @@ Branch: `master` (sem push para o GitHub).
 - **Dev build vs Release**: `npx expo run:android` gera o **dev client** (APK próprio, conecta no Metro —
   sem Expo Go); `npx expo run:android --variant release` gera APK **standalone** (JS embutido). Contato no
   reportar abre em branco na 1ª vez (SecureStore vazio) e auto-preenche após o 1º alerta.
+
+### 2026-08-16 (manhã) — Release p/ cliente, erro de conexão, Metro leve
+- **APK release standalone** gerado para demonstração a cliente: `android/app/build/outputs/apk/release/app-release.apk`
+  (BUILD SUCCESSFUL). Roda 100% no celular sem Metro/PC (JS embutido); basta sideload no Android do cliente.
+- **Erro de conexão no dev client** (`java.net.SocketTimeoutException` / okhttp3 ao abrir o app):
+  - Causa: Metro **não estava rodando** + URL cached apontando pro IP `10.102.234.34` (único IPv4 do PC, sem
+    `192.168.x.x` — adaptador/VPN), que o celular não alcança. Timeout (não "refused") indica Firewall ou rede.
+  - Correção aplicada: subir Metro (`server.bat`), criar regra de Firewall de entrada TCP 8081 (exige admin;
+    com AV desligado), e opção de túnel USB `adb reverse tcp:8081 tcp:8081` (celular usa `http://localhost:8081`).
+  - Para HTTP funcionar: celular na **mesma Wi-Fi** do PC e Firewall liberando 8081.
+- **Metro consumia CPU alto** (sobe ~8 jest-workers). Ajustes:
+  - `metro.config.js`: `config.maxWorkers = 2` (caminho confiável; `METRO_WORKERS` env não foi respeitado).
+  - `server.bat`: removido `-c` (evita pico de rebuild de cache) — workers caíram de 8 → 2.
 
 ## Pendências conhecidas
 - **Rebuild do dev build** (`npx expo run:android`) — `expo-media-library`/`expo-sharing` são nativos; o APK precisa ser reconstruído para embutir os módulos. *Pendente de execução/device.*

@@ -55,15 +55,22 @@ insert into storage.buckets (id, name, public)
 values ('pet-photos', 'pet-photos', true)
 on conflict (id) do nothing;
 
+-- Bucket público: arquivos servidos via URL pública (sem RLS de storage).
+-- Sem política/grant de SELECT para anon/authenticated => clientes não conseguem
+-- listar (enumerar) os arquivos do bucket. Upload/exclusão mantêm suas policies.
 drop policy if exists "pet-photos public read" on storage.objects;
-create policy "pet-photos public read"
-  on storage.objects for select
-  using (bucket_id = 'pet-photos');
 
 drop policy if exists "pet-photos authed insert" on storage.objects;
 create policy "pet-photos authed insert"
   on storage.objects for insert to authenticated
   with check (bucket_id = 'pet-photos');
+
+-- Só o dono (device_id) pode apagar suas fotos. Os uploads ficam em
+-- "<device_id>/<arquivo>", então a 1ª pasta da key == current_device_id().
+drop policy if exists "pet-photos owner delete" on storage.objects;
+create policy "pet-photos owner delete"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'pet-photos' and (storage.foldername(name))[1] = public.current_device_id());
 
 -- ============================================================================
 -- RLS na tabela pets
@@ -101,7 +108,7 @@ create policy "pets update own"
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on table public.pets to anon, authenticated;
 grant execute on function public.current_device_id() to anon, authenticated;
-grant select, insert on storage.objects to anon, authenticated;
+grant insert, delete on storage.objects to anon, authenticated;
 
 -- ============================================================================
 -- IMPORTANTE: ative o "Anonymous Sign-ins" em

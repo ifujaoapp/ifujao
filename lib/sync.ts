@@ -77,7 +77,8 @@ export const fetchPetRemote = async (id: string): Promise<PetRecord | null> => {
 export const runSync = async (
   localPets: PetRecord[],
   deviceId: string,
-  onPersist: (pets: PetRecord[]) => Promise<void>
+  onPersist: (pets: PetRecord[]) => Promise<void>,
+  options?: { full?: boolean }
 ): Promise<PetRecord[]> => {
   const sb = await ensureSession(deviceId);
   if (!sb) return localPets;
@@ -147,13 +148,22 @@ export const runSync = async (
 
   // 3) Pull INCREMENTAL: só o delta desde lastSync (dois filtros .gt() simples)
   const lastSync = await getLastSync();
+  // Pull completo (bootstrap): na 1ª sincronização da sessão, quando o local
+  // está vazio, ou quando forçado. O incremental (delta) só puxa o que mudou
+  // desde `lastSync` e NUNCA recupera pets que sumiram do local com
+  // updated_at <= lastSync — por isso o bootstrap precisa ser full.
+  const doFull = options?.full === true || !lastSync || localPets.length === 0;
   const remoteMap: Record<string, PetRecord> = {};
   const remoteDeletedIds = new Set<string>();
   let pullOk = false;
   let maxTs = '';
   try {
     let rows: any[] = [];
-    if (lastSync) {
+    if (doFull) {
+      const { data, error } = await sb.from('pets').select('*').is('deleted_at', null);
+      if (error) console.warn('[sync] pull falhou:', error.message);
+      rows = data ?? [];
+    } else {
       const [rU, rD] = await Promise.all([
         sb.from('pets').select('*').gt('updated_at', lastSync),
         sb.from('pets').select('*').gt('deleted_at', lastSync),
@@ -161,10 +171,6 @@ export const runSync = async (
       if (rU.error) console.warn('[sync] pull updated falhou:', rU.error.message);
       if (rD.error) console.warn('[sync] pull deleted falhou:', rD.error.message);
       rows = [...(rU.data ?? []), ...(rD.data ?? [])];
-    } else {
-      const { data, error } = await sb.from('pets').select('*').is('deleted_at', null);
-      if (error) console.warn('[sync] pull falhou:', error.message);
-      rows = data ?? [];
     }
     for (const row of rows) {
       const u = row.updated_at ?? '';
@@ -183,9 +189,13 @@ export const runSync = async (
     console.warn('[sync] erro no pull:', e);
   }
 
-  const remoteExistingIds = new Set(Object.keys(remoteMap));
-
   // 4) Merge
+  // No modo incremental (delta), `remoteMap` só traz as LINHAS QUE MUDARAM
+  // desde `lastSync` — NÃO o catálogo completo. Por isso um pet local já
+  // sincronizado (dirty=false) e ausente do delta NÃO deve ser descartado:
+  // ausência no delta significa "sem alteração remota", então mantemos o
+  // estado local. Só cedemos à versão remota quando ela de fato existe no
+  // delta (foi alterada), e só removemos quando o remoto está soft-deletado.
   const merged: PetRecord[] = [];
   const seen = new Set<string>();
   for (const pet of working) {
@@ -200,16 +210,11 @@ export const runSync = async (
     }
     const remote = remoteMap[pet.id];
     if (remote) {
-      merged.push(remote);
-      seen.add(pet.id);
-    } else if (remoteExistingIds.has(pet.id)) {
-      merged.push(pet);
-      seen.add(pet.id);
-    } else if (pet.dirty) {
-      merged.push(pet);
-      seen.add(pet.id);
+      merged.push(remote); // versão remota (mais nova) prevalece
+    } else {
+      merged.push(pet); // sem alteração remota -> mantém local
     }
-    // senão: pet local limpo que não existe mais no remoto -> descartado
+    seen.add(pet.id);
   }
   for (const id of Object.keys(remoteMap)) {
     if (!seen.has(id)) merged.push(remoteMap[id]);

@@ -1,5 +1,5 @@
 import { File } from 'expo-file-system';
-import { getSupabase } from './supabase';
+import { ensureSession, getSupabase } from './supabase';
 
 const BUCKET = 'pet-photos';
 
@@ -46,4 +46,32 @@ export const uploadPetPhotos = async (
     }
   }
   return urls;
+};
+
+// Extrai o caminho do objeto (após "/pet-photos/") a partir de uma URL pública.
+const storagePathFromUrl = (url: string): string | null => {
+  const marker = '/pet-photos/';
+  const idx = url.indexOf(marker);
+  if (idx < 0) return null;
+  return url.slice(idx + marker.length);
+};
+
+// Remove as fotos remotas de um pet do Storage (economiza espaço ao apagar).
+// Só remove arquivos cuja pasta raiz == deviceId (garante que o dono só apaga
+// as próprias fotos — a policy de RLS no Storage reforça isso).
+export const deletePetPhotos = async (urls: string[], deviceId: string): Promise<void> => {
+  // Garante sessão autenticada com o device_id gravado — a RLS de delete
+  // (pet-photos owner delete) só libera se current_device_id() == pasta do objeto.
+  const sb = await ensureSession(deviceId);
+  if (!sb || !deviceId || urls.length === 0) return;
+  const paths = urls
+    .map(storagePathFromUrl)
+    .filter((p): p is string => !!p && p.startsWith(`${deviceId}/`));
+  if (paths.length === 0) return;
+  try {
+    const { error } = await sb.storage.from(BUCKET).remove(paths);
+    if (error) console.warn('[photos] delete de fotos falhou:', error.message);
+  } catch (e) {
+    console.warn('[photos] erro ao deletar fotos:', e);
+  }
 };

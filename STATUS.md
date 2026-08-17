@@ -1,6 +1,6 @@
 # STATUS — Projeto iFujão (StudyFlow)
 
-Última atualização: 2026-08-16 (manhã).
+Última atualização: 2026-08-17 (noite).
 Branch: `master` (sem push para o GitHub).
 
 ## Estado atual
@@ -158,6 +158,31 @@ Branch: `master` (sem push para o GitHub).
 - **Conexão Metro no S23**: Wi-Fi anuncia IP de VPN (`10.x`, inalcançável). Caminho estável = **USB** +
   `adb reverse tcp:8081 tcp:8081` e abrir o dev client em `http://localhost:8081` (sem QR).
 
+### 2026-08-17 (tarde) — Correção de sync (só último pin) + delete de fotos
+- **BUG: só o último pin aparecia no mapa.** Causa: no sync incremental, o pull retorna só o *delta*
+  (`updated_at > lastSync`); o merge antigo descartava pets locais já sincronizados (dirty=false) que
+  não estavam nesse delta. Corrigido em `lib/sync.ts` (passo 4 do `runSync`): mantém o pet local quando
+  não há alteração remota no delta; só cede à versão remota se ela existir no delta, e só remove se
+  estiver em `remoteDeletedIds`. Agora todos os pins persistem no mapa após o sync. `tsc --noEmit` ✅.
+- **Delete de fotos no servidor ao apagar pin.** `lib/photos.ts`: nova `deletePetPhotos(urls, deviceId)`
+  que extrai o path da URL pública e chama `storage.remove`. `app/(tabs)/index.tsx` `deletePet` agora
+  apaga as `remoteImageUrls` do dono (via `isOwner`) quando o Supabase está configurado.
+- **RLS de Storage**: `supabase/schema.sql` ganhou policy `pet-photos owner delete` (folder raiz == device_id)
+  e `grant ... delete` em `storage.objects`. Re-rode o schema no SQL Editor. Sem rebuild de APK (só JS + SQL).
+
+### 2026-08-17 (tarde 2) — Recuperação de pins (full pull no boot)
+- **BUG: após o sync corretivo, os pins somiam do mapa.** Causa raiz: o sync é
+  INCREMENTAL (delta `updated_at > lastSync`). O pet A tinha sido descartado do
+  local pelo merge bugado anterior e seu `updated_at` era MENOR que o `lastSync`
+  armazenado, então o delta nunca o re-buscava. Dispositivo com local incompleto
+  não recuperava pets existentes no servidor. Também havia corrida: o 1º sync
+  podia disparar com `petsRef` vazio.
+- **Correção** (`lib/sync.ts`): `runSync` aceita `options.full`; o pull é COMPLETO
+  (`select * where deleted_at is null`) quando `full===true`, `lastSync` nulo ou
+  lista local vazia. `app/(tabs)/index.tsx`: 1º sync da sessão chama `triggerSync(true)`
+  (bootstrap) e só dispara após `localLoaded` (estado) ficar true. Sinces seguintes
+  (foreground/commit) continuam incrementais. `tsc --noEmit` ✅.
+
 ## Pendências conhecidas
 - **Rebuild do dev build** (`npx expo run:android`) — `expo-media-library`/`expo-sharing` são nativos; o APK precisa ser reconstruído para embutir os módulos. *Pendente de execução/device.*
 - **Testar no Galaxy S23**: viewer fullscreen, zoom, navegação ◀▶, "Salvar na galeria" (permissão), "Compartilhar" (cópia p/ cache + share sheet). *Pendente de device.*
@@ -191,3 +216,54 @@ Branch: `master` (sem push para o GitHub).
 - Limpar cache dev: `npx expo start -c`
 - Doctor: `npx expo-doctor`
 - Prebuild limpo: `npx expo prebuild --clean --platform android`
+
+---
+
+## 2026-08-17 (tarde 3) — Sessão de mapa (retomada)
+
+> **Mapa do modal "Reportar" (`MapPicker`) corrigido e sem remount.**
+> - Render em branco: era erro de sintaxe JS no `<script>` (`JSON.stringify({ lat: p.lat, p.lng })` → `p.lng` shorthand inválido). Corrigido para `{ lat: p.lat, lng: p.lng }`.
+> - "Usar meu GPS" move o pin: `MapPicker` espelha o padrão do `MapLeaflet` (que funciona): `webRef` + `mapReady` (set no `onLoad`),
+>   globais `window.__map`/`window.__marker`, `moveToJs(lat,lng)` e `useEffect([mapReady, value?.lat, value?.lng])` que injeta via `injectJavaScript`.
+> - **NÃO usar `key`/remount no `<MapPicker>`**: remount do WebView dentro do Modal dá tela branca e faz o pin "piscar" ao tocar o mapa (testado e descartado).
+> `tsc --noEmit` ✅. Validar no S23: abrir "Reportar", tocar "Usar meu GPS" (pin vai p/ posição atual) e tocar no mapa (pin sem piscar).
+
+### O que foi feito nesta sessão (e o resultado)
+1. **Sync incremental descartava pets** (só o último pin aparecia): corrigido em `lib/sync.ts` (merge não descarta mais pets ausentes do delta). `tsc` ✅.
+2. **Delete de fotos no servidor ao apagar pin**: `lib/photos.ts` (`deletePetPhotos`), `deletePet` em `index.tsx` (só dono), policy `pet-photos owner delete` + grant em `schema.sql`.
+3. **Pets somem após reload** (pull delta não re-buscava pets antigos): `runSync` faz **full pull no boot** (`options.full`), `initialSync` só dispara após `localLoaded`, e `triggerSync(full?)` aceita flag. `tsc` ✅.
+4. **Pin único visual** (2 pets com coordenadas idênticas no Supabase `-23.504397,-47.4287563`): spiderfy no `MapLeaflet` (`window.__renderPets` com `delta` que desloca pets na mesma coord para a direita). `tsc` ✅.
+5. **"Usar meu GPS" não centralizava**: `usarMeuGps` agora busca GPS **atual** (`getCurrentPositionAsync`) em vez de usar cache de `userLocation`. `tsc` ✅.
+
+### O que quebrou (CAUSA DO MAPA EM BRANCO)
+- Foram feitas várias edições no HTML do WebView (Leaflet) em `app/(tabs)/index.tsx` (`MapLeaflet` e `MapPicker`):
+  - Tentativa de forçar `key` no `<WebView>` (remount) para reaplicar spiderfy / recentralizar → **o mapa sumiu** (remount do WebView deixou a tela em branco).
+  - `MapPicker` foi alterado de `const [start] = useState(initial)` para `const center = value ?? initial` e revertido depois.
+  - Houve um typo no tile URL (`/{z/x/y.png`) corrigido para `/{z}/{x}/{y}.png`.
+- Suspeita: erro de JS no template do WebView (Leaflet) impede a inicialização do mapa → tela branca em home e modal.
+- O `MapPicker` foi **revertido ao original** (`start`-based) e os `key` removidos, mas o mapa home segue em branco → provável erro remanescente no `MapLeaflet` (`window.__renderPets`, `renderPetsJs`, ou `JSON.stringify(pets)` no HTML).
+
+### Plano de recuperação (quando retomar)
+1. Abrir o app no dev client e ler o **erro do Metro/Chrome debugger** (ou `console.error`) que aparece ao abrir a tela home — deve apontar a linha do HTML/JS do Leaflet que quebra.
+2. Verificar o `MapLeaflet` (`app/(tabs)/index.tsx` ~linha 1391+): `html` useMemo, `window.__renderPets`, `renderPetsJs`, e o `window.__renderPets(${JSON.stringify(pets)})` no final do `<script>`.
+   - Checar se `JSON.stringify(pets)` produz HTML válido (sem `</script>` ou aspas quebradas em nenhum campo de pet).
+   - Checar se `window.__map`/`__pawIcon`/`__reportedIcon` estão definidos antes do uso.
+3. Restaurar o `MapLeaflet` ao estado que renderizava (antes desta sessão de "spiderfy/key") e reaplicar as correções de forma incremental e testada.
+4. **NÃO usar `key` no `<WebView>` para forçar remount** — usar `source`/`injectJavaScript` ou recarregar via `onLoad`.
+5. Testar no S23 a cada pequena alteração (reload do dev client), validando home + modal "Reportar".
+
+### Notas do usuário
+- O app é **local-first**: o mapa exibe pets do banco local (op-sqlite); Supabase é espelho p/ sync. Apagar dados no Supabase NÃO remove os pins locais (precisa limpar dados do app ou desinstalar).
+- Os 2 pets de teste no Supabase têm coordenadas **idênticas** → naturalmente empilhados (não é bug de mapa, é dado duplicado).
+- `adb` não está no PATH: usar `& "C:\Users\SAFETY_ONE\AppData\Local\Android\Sdk\platform-tools\adb.exe"`.
+
+### 2026-08-17 (noite) — MapPicker (modal Reportar), GPS instantâneo e deleção de fotos
+- **Zoom do mapa home reduzido** (`MapLeaflet`, `app/(tabs)/index.tsx`): `setView(..., 17)` → `13` (visão mais ampla da cidade). `tsc --noEmit` ✅.
+- **`MapPicker` do modal "Reportar Pet Perdido" restaurado para a versão do HEAD** (WebView/Leaflet, baseada em `start`, sem `key`/remount). Call site já passa `theme`/`city`. A versão anterior (react-native-maps) foi descartada por instabilidade.
+- **Bug: "Usar meu GPS" demorava 10–15s para mexer o pin.** Causa raiz: `usarMeuGps` aguardava `getCurrentPositionAsync` (cold fix) antes de `setPetLocation`. Corrigido para usar o **`userLocation` já carregado no boot** na hora, com refine de fix novo em background (não bloqueia UI). `app/(tabs)/index.tsx`.
+- **Modal abre no GPS atual** (`openReport`): `petLocation` inicializado com `userLocation` (fallback centro da cidade) em vez de sempre centro da cidade.
+- **Bug: panorâmica o mapa sem mover o pin e o GPS não recentralizava.** Causa: `setPetLocation(userLocation)` não mudava o valor → efeito de `value` não disparava. Adicionado **`gpsNonce`** que incrementa a cada toque no botão; `MapPicker` reage a `gpsNonce` e força `map.setView` + pin na posição GPS. `tsc --noEmit` ✅.
+- **Deleção de fotos no Supabase ao apagar pin.** Sintoma: `remove()` retornava sucesso mas o arquivo ficava (RLS de DELETE barrando silenciosamente). Causas/correções:
+  - `deletePetPhotos` (`lib/photos.ts`) não garantia sessão → agora chama `ensureSession(deviceId)` antes do `remove()`.
+  - `current_device_id()` vinha `NULL` porque `ensureSession` fazia `signInAnonymously()` e só depois `updateUser({ data: { device_id } })`, que em anon é silenciosamente bloqueado. Corrigido em `lib/supabase.ts`: `device_id` agora vai **em `signInAnonymously({ options: { data: { device_id } } })`**; se a sessão antiga não tiver metadata, força `signOut` + re-sign-in. `tsc --noEmit` ✅.
+- **Exposição de listagem no Storage** (`supabase/schema.sql`): removida a policy `pet-photos public read` (SELECT) e o `grant ... select` em `storage.objects`. Bucket público → fotos servidas via URL pública; clientes não enumeram mais o bucket. Upload (`insert`) e deleção (`delete`, só dono via `current_device_id()`) mantidos. Rode o schema novamente no SQL Editor. `tsc --noEmit` ✅.

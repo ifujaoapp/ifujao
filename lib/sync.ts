@@ -1,0 +1,230 @@
+import * as SecureStore from 'expo-secure-store';
+import { ensureSession, isSupabaseConfigured } from './supabase';
+import { uploadPetPhotos } from './photos';
+import { type PetRecord } from './storage';
+
+const PENDING_DELETES_KEY = 'ifujao_pending_deletes';
+const LAST_SYNC_KEY = 'ifujao_last_sync';
+
+export const getPendingDeletes = async (): Promise<string[]> => {
+  try {
+    const raw = await SecureStore.getItemAsync(PENDING_DELETES_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+};
+
+export const addPendingDelete = async (id: string): Promise<void> => {
+  const list = await getPendingDeletes();
+  if (!list.includes(id)) {
+    list.push(id);
+    await SecureStore.setItemAsync(PENDING_DELETES_KEY, JSON.stringify(list));
+  }
+};
+
+const clearPendingDeletes = async (): Promise<void> => {
+  await SecureStore.deleteItemAsync(PENDING_DELETES_KEY).catch(() => {});
+};
+
+const getLastSync = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(LAST_SYNC_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setLastSync = async (iso: string): Promise<void> => {
+  await SecureStore.setItemAsync(LAST_SYNC_KEY, iso).catch(() => {});
+};
+
+// Converte um registro remoto (linha da tabela) num PetRecord local.
+// Usa as URLs remotas diretamente nas imagens (viewer suporta https).
+const toLocalPet = (row: any): PetRecord => {
+  const pet = (row.payload ?? {}) as PetRecord;
+  const remoteUrls: string[] = pet.remoteImageUrls && pet.remoteImageUrls.length ? pet.remoteImageUrls : [];
+  return {
+    ...pet,
+    images: remoteUrls.length > 0 ? remoteUrls : (pet.images ?? []),
+    remoteImageUrls: remoteUrls,
+    dirty: false,
+    updatedAt: row.updated_at ?? pet.updatedAt,
+    deletedAt: row.deleted_at ?? null,
+  };
+};
+
+// Busca o payload completo de UM pet no backend (fetch-on-tap).
+// Útil para abrir o detalhe sem precisar ter baixado tudo.
+export const fetchPetRemote = async (id: string): Promise<PetRecord | null> => {
+  const sb = await ensureSession();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.from('pets').select('*').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    if (data.deleted_at) return null;
+    return toLocalPet(data);
+  } catch (e) {
+    console.warn('[sync] fetchPetRemote erro:', e);
+    return null;
+  }
+};
+
+// Sincroniza o estado local com o backend.
+// Estratégia local-first + INCREMENTAL: não relê a tabela inteira — só o delta
+// desde `lastSync` (updated_at ou deleted_at). Isso evita estourar o plano de
+// tráfego mesmo com milhares de pins.
+export const runSync = async (
+  localPets: PetRecord[],
+  deviceId: string,
+  onPersist: (pets: PetRecord[]) => Promise<void>
+): Promise<PetRecord[]> => {
+  const sb = await ensureSession(deviceId);
+  if (!sb) return localPets;
+
+  const failedIds = new Set<string>();
+  const working = localPets.map((p) => ({ ...p }));
+
+  // Migra pets legados (sem updatedAt) marcando como dirty para subir no primeiro sync.
+  for (const p of working) {
+    if (!p.updatedAt) p.dirty = true;
+  }
+
+  // 1) Push dos pets alterados
+  for (const pet of working) {
+    if (!pet.dirty) continue;
+    let remoteUrls = pet.remoteImageUrls ?? [];
+    try {
+      remoteUrls = await uploadPetPhotos(pet.images, deviceId, remoteUrls);
+    } catch (e) {
+      console.warn('[sync] upload de fotos falhou (seguindo sem fotos):', e);
+    }
+    try {
+      const now = new Date().toISOString();
+      const payload: PetRecord = {
+        ...pet,
+        remoteImageUrls: remoteUrls,
+        dirty: false,
+        updatedAt: now,
+      };
+      const { error } = await sb.from('pets').upsert(
+        {
+          id: pet.id,
+          payload,
+          owner_device_id: pet.ownerDeviceId ?? null,
+          reporter_device_id: pet.reporterDeviceId ?? null,
+          reported: !!pet.reported,
+          updated_at: now,
+          deleted_at: pet.deletedAt ?? null,
+        },
+        { onConflict: 'id' }
+      );
+      if (error) {
+        console.warn('[sync] upsert falhou:', error.message);
+        failedIds.add(pet.id);
+      } else {
+        pet.remoteImageUrls = remoteUrls;
+        pet.dirty = false;
+        pet.updatedAt = now;
+      }
+    } catch (e) {
+      console.warn('[sync] erro no push:', e);
+      failedIds.add(pet.id);
+    }
+  }
+
+  // 2) Push das exclusões pendentes (soft delete)
+  const pending = await getPendingDeletes();
+  if (pending.length > 0) {
+    try {
+      const { error } = await sb.from('pets').update({ deleted_at: new Date().toISOString() }).in('id', pending);
+      if (!error) await clearPendingDeletes();
+      else console.warn('[sync] delete pendente falhou:', error.message);
+    } catch (e) {
+      console.warn('[sync] erro no delete pendente:', e);
+    }
+  }
+
+  // 3) Pull INCREMENTAL: só o delta desde lastSync (dois filtros .gt() simples)
+  const lastSync = await getLastSync();
+  const remoteMap: Record<string, PetRecord> = {};
+  const remoteDeletedIds = new Set<string>();
+  let pullOk = false;
+  let maxTs = '';
+  try {
+    let rows: any[] = [];
+    if (lastSync) {
+      const [rU, rD] = await Promise.all([
+        sb.from('pets').select('*').gt('updated_at', lastSync),
+        sb.from('pets').select('*').gt('deleted_at', lastSync),
+      ]);
+      if (rU.error) console.warn('[sync] pull updated falhou:', rU.error.message);
+      if (rD.error) console.warn('[sync] pull deleted falhou:', rD.error.message);
+      rows = [...(rU.data ?? []), ...(rD.data ?? [])];
+    } else {
+      const { data, error } = await sb.from('pets').select('*').is('deleted_at', null);
+      if (error) console.warn('[sync] pull falhou:', error.message);
+      rows = data ?? [];
+    }
+    for (const row of rows) {
+      const u = row.updated_at ?? '';
+      const d = row.deleted_at ?? '';
+      if (u > maxTs) maxTs = u;
+      if (d > maxTs) maxTs = d;
+      if (row.deleted_at) {
+        remoteDeletedIds.add(row.id);
+        continue;
+      }
+      const pet = toLocalPet(row);
+      remoteMap[pet.id] = pet;
+    }
+    pullOk = true;
+  } catch (e) {
+    console.warn('[sync] erro no pull:', e);
+  }
+
+  const remoteExistingIds = new Set(Object.keys(remoteMap));
+
+  // 4) Merge
+  const merged: PetRecord[] = [];
+  const seen = new Set<string>();
+  for (const pet of working) {
+    if (failedIds.has(pet.id)) {
+      merged.push(pet);
+      seen.add(pet.id);
+      continue;
+    }
+    if (remoteDeletedIds.has(pet.id)) {
+      seen.add(pet.id); // removido remotamente -> some do local
+      continue;
+    }
+    const remote = remoteMap[pet.id];
+    if (remote) {
+      merged.push(remote);
+      seen.add(pet.id);
+    } else if (remoteExistingIds.has(pet.id)) {
+      merged.push(pet);
+      seen.add(pet.id);
+    } else if (pet.dirty) {
+      merged.push(pet);
+      seen.add(pet.id);
+    }
+    // senão: pet local limpo que não existe mais no remoto -> descartado
+  }
+  for (const id of Object.keys(remoteMap)) {
+    if (!seen.has(id)) merged.push(remoteMap[id]);
+  }
+
+  try {
+    await onPersist(merged);
+  } catch (e) {
+    console.warn('[sync] falha ao persistir:', e);
+  }
+
+  // 5) Avança o cursor com o máximo updated_at/deleted_at do servidor (evita skew de relógio)
+  if (pullOk && maxTs) await setLastSync(maxTs);
+
+  return merged;
+};
+
+export { isSupabaseConfigured };

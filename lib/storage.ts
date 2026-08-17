@@ -13,6 +13,8 @@ export interface PetRecord {
   description: string;
   contact: string;
   ownerPhone: string;
+  ownerDeviceId?: string;
+  reporterDeviceId?: string;
   images: string[];
   latitude: number;
   longitude: number;
@@ -20,6 +22,11 @@ export interface PetRecord {
   reportReason?: string;
   reportedBy?: string;
   lostDate?: string;
+  // Campos de sincronização (backend)
+  dirty?: boolean;
+  remoteImageUrls?: string[];
+  updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 const ensureDbKey = async (): Promise<string> => {

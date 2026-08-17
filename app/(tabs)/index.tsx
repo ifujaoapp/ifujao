@@ -23,24 +23,9 @@ import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { loadPets, savePets, persistPhotos, clearPhotos, type PetRecord } from '@/lib/storage';
+import { runSync, addPendingDelete, isSupabaseConfigured, fetchPetRemote } from '@/lib/sync';
 
-interface PetPost {
-  id: string;
-  species: string;
-  location: string;
-  description: string;
-  contact: string;
-  ownerPhone: string;
-  ownerDeviceId?: string;
-  reporterDeviceId?: string;
-  images: string[];
-  latitude: number;
-  longitude: number;
-  reported?: boolean;
-  reportReason?: string;
-  reportedBy?: string;
-  lostDate?: string;
-}
+type PetPost = PetRecord;
 
 const normalizePhone = (value: string) => {
   const digits = value.replace(/\D/g, '');
@@ -120,6 +105,9 @@ export default function HomeScreen() {
   const [pets, setPets] = useState<PetPost[]>([]);
   const [myPhone, setMyPhone] = useState('');
   const [myDeviceId, setMyDeviceId] = useState('');
+  const petsRef = useRef<PetPost[]>([]);
+  const initialSyncDone = useRef(false);
+  const triggerSyncRef = useRef<() => void>(() => {});
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
@@ -266,13 +254,21 @@ export default function HomeScreen() {
     (async () => {
       try {
         const loaded = await loadPets();
-        if (loaded.length > 0) setPets(loaded as PetPost[]);
+        if (loaded.length > 0) {
+          petsRef.current = loaded as PetPost[];
+          setPets(loaded as PetPost[]);
+        }
       } catch {}
     })();
   }, []);
 
+  useEffect(() => {
+    petsRef.current = pets;
+  }, [pets]);
+
   const commitPets = useCallback(async (next: PetPost[]) => {
     setPets(next);
+    petsRef.current = next;
     try {
       const prevUris = new Set(pets.flatMap((p) => p.images));
       const nextUris = new Set(next.flatMap((p) => p.images));
@@ -280,7 +276,45 @@ export default function HomeScreen() {
       if (orphans.length > 0) await clearPhotos(orphans);
       await savePets(next as PetRecord[]);
     } catch {}
+    triggerSyncRef.current();
   }, [pets]);
+
+  const triggerSync = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      console.warn('[index] SYNC IGNORADO: Supabase não configurado (EXPO_PUBLIC_SUPABASE_* ausentes no bundle).');
+      return;
+    }
+    if (!myDeviceId) {
+      console.warn('[index] SYNC IGNORADO: myDeviceId ainda vazio.');
+      return;
+    }
+    try {
+      const synced = await runSync(
+        petsRef.current,
+        myDeviceId,
+        async (p) => {
+          petsRef.current = p;
+          setPets(p);
+          await savePets(p as PetRecord[]);
+        }
+      );
+      petsRef.current = synced;
+      setPets(synced);
+    } catch (e) {
+      console.warn('[index] sync erro:', e);
+    }
+  }, [myDeviceId]);
+
+  useEffect(() => {
+    triggerSyncRef.current = triggerSync;
+  }, [triggerSync]);
+
+  useEffect(() => {
+    if (myDeviceId && !initialSyncDone.current) {
+      initialSyncDone.current = true;
+      triggerSync();
+    }
+  }, [myDeviceId, triggerSync]);
 
   const checkPermissionAndServices = useCallback(async () => {
     let { status } = await Location.getForegroundPermissionsAsync();
@@ -331,6 +365,7 @@ export default function HomeScreen() {
         checkPermissionAndServices().then((ok) => {
           if (!ok) setLocationEnabled(false);
         });
+        triggerSyncRef.current();
       }
     });
 
@@ -476,6 +511,7 @@ export default function HomeScreen() {
       latitude,
       longitude,
       lostDate: lostDate ? lostDate.toISOString() : undefined,
+      dirty: true,
     };
     commitPets([newPet, ...pets]);
     setSpecies(''); setLocation(''); setDescription(''); setContact(''); setContactError(''); setImages([]);
@@ -493,8 +529,10 @@ export default function HomeScreen() {
         {
           text: 'Apagar',
           style: 'destructive',
-          onPress: () => {
-            commitPets(pets.filter((p) => p.id !== petId));
+          onPress: async () => {
+            const next = pets.filter((p) => p.id !== petId);
+            await addPendingDelete(petId);
+            commitPets(next);
             setSelectedPet(null);
           },
         },
@@ -510,7 +548,7 @@ export default function HomeScreen() {
     const reporter = myPhone || normalizePhone(pet.contact);
     commitPets(
       pets.map((p) =>
-        p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter, reporterDeviceId: myDeviceId } : p
+        p.id === pet.id ? { ...p, reported: true, reportReason: reason, reportedBy: reporter, reporterDeviceId: myDeviceId, dirty: true } : p
       )
     );
     setReportTarget(null);
@@ -641,7 +679,18 @@ export default function HomeScreen() {
           )}
         </View>
         {initialCenterRef.current && (
-          <MapLeaflet key={`${theme}-${selectedCity.id}`} initialCenter={initialCenterRef.current} region={mapRegion} userLocation={userLocation} pets={pets} onMarkerPress={(petId) => { const pet = pets.find((p) => p.id === petId); if (pet) setSelectedPet(pet); }} theme={theme} city={selectedCity} />
+          <MapLeaflet key={`${theme}-${selectedCity.id}`} initialCenter={initialCenterRef.current} region={mapRegion} userLocation={userLocation} pets={pets} onMarkerPress={async (petId) => {
+            const pet = pets.find((p) => p.id === petId);
+            if (pet) setSelectedPet(pet);
+            const remote = await fetchPetRemote(petId);
+            if (remote) {
+              setPets((prev) => {
+                const exists = prev.some((p) => p.id === petId);
+                return exists ? prev.map((p) => (p.id === petId ? remote : p)) : [remote, ...prev];
+              });
+              setSelectedPet((cur) => (cur && cur.id === petId ? remote : cur) ?? remote);
+            }
+          }} theme={theme} city={selectedCity} />
         )}
 
         {locationEnabled === false && (
@@ -1063,7 +1112,7 @@ export default function HomeScreen() {
                       onPress: () => {
                         commitPets(
                           pets.map((p) =>
-                            p.id === selectedPet.id ? { ...p, reported: false, reportReason: undefined, reportedBy: undefined } : p
+                            p.id === selectedPet.id ? { ...p, reported: false, reportReason: undefined, reportedBy: undefined, dirty: true } : p
                           )
                         );
                         setSelectedPet(null);

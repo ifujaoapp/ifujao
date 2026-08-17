@@ -134,11 +134,35 @@ Branch: `master` (sem push para o GitHub).
   - `metro.config.js`: `config.maxWorkers = 2` (caminho confiável; `METRO_WORKERS` env não foi respeitado).
   - `server.bat`: removido `-c` (evita pico de rebuild de cache) — workers caíram de 8 → 2.
 
+### 2026-08-17 — Backend/Sincronização (Supabase) + correção de build
+- **Integração Supabase concluída e testada no S23** (pin criado no celular aparece no Table Editor `pets`).
+- **Decisões**: backend **Supabase**; **auth anônimo** (sign-in invisível) com `device_id` gravado na
+  `raw_user_meta_data` do usuário e usado nas policies de RLS; fotos em **Storage bucket `pet-photos`** (URLs públicas).
+- **Módulos novos** (JS puro — sem rebuild de APK para mudanças de JS):
+  - `lib/supabase.ts` — cliente + `ensureSession(deviceId?)` (anon sign-in + grava `device_id`).
+  - `lib/photos.ts` — upload das fotos (`file://` → Storage) via `File.arrayBuffer()` (API v19 do `expo-file-system`).
+  - `lib/sync.ts` — motor **local-first + incremental**: `runSync` faz push dos pets `dirty` + exclusões pendentes
+    (soft delete) e **pull só do delta** (`updated_at > lastSync` ou `deleted_at > lastSync`, cursor em `SecureStore`).
+    Exclusões remotas detectadas pelo `deleted_at`. `fetchPetRemote(id)` = fetch-on-tap do detalhe do pin.
+- **Schema**: `supabase/schema.sql` — tabela `pets` (jsonb `payload` + colunas p/ RLS), bucket `pet-photos` público,
+  RLS (leitura pública; escrita só dono/denunciante via função `SECURITY DEFINER current_device_id()`),
+  `GRANT`s p/ `anon`/`authenticated`, e **Anonymous Sign-ins** ativado no dashboard.
+- **Config**: `.env` com `EXPO_PUBLIC_SUPABASE_URL` / `EXPO_PUBLIC_SUPABASE_ANON_KEY` (lido/inline pelo Metro no bundle).
+  Feature-flag: sem as env, o app roda 100% local (sync = no-op).
+- **`app/(tabs)/index.tsx`**: `PetPost` = alias de `PetRecord` (com `dirty`/`remoteImageUrls`/`updatedAt`/`deletedAt`);
+  sync dispara no launch, no `AppState` foreground e após `commitPets`; apagar registra exclusão pendente;
+  `onMarkerPress` faz fetch-on-tap do detalhe.
+- **Lição de build (importante)**: `npx expo run:android --variant release` gera APK **standalone** que NÃO conecta
+  no Metro (só p/ demo sem PC). Para debugar/testar JS, usar `npx expo run:android` (dev client/debug, conecta Metro).
+  Instalar release sobre dev client dá conflito de assinatura (não substitui o app).
+- **Conexão Metro no S23**: Wi-Fi anuncia IP de VPN (`10.x`, inalcançável). Caminho estável = **USB** +
+  `adb reverse tcp:8081 tcp:8081` e abrir o dev client em `http://localhost:8081` (sem QR).
+
 ## Pendências conhecidas
 - **Rebuild do dev build** (`npx expo run:android`) — `expo-media-library`/`expo-sharing` são nativos; o APK precisa ser reconstruído para embutir os módulos. *Pendente de execução/device.*
 - **Testar no Galaxy S23**: viewer fullscreen, zoom, navegação ◀▶, "Salvar na galeria" (permissão), "Compartilhar" (cópia p/ cache + share sheet). *Pendente de device.*
 - Compartilhar imagem no Expo Go (Android): inviável. Só em APK/dev build.
-- Backend (Supabase ou outro) para sincronização entre dispositivos: pets ainda são locais por dispositivo.
+- ~~Backend (Supabase ou outro) para sincronização entre dispositivos: pets ainda são locais por dispositivo.~~ **CONCLUÍDO (2026-08-17): backend Supabase integrado (sync incremental) e testado no S23 — ver sessão 2026-08-17.**
 - `expo-notifications` (push do backend) ainda NÃO instalado — instalar com `npx expo install expo-notifications` quando integrar e gerar novo build.
 - URL/QR `https://ifujao.app` é placeholder; trocar pela real quando houver backend.
 - Push para o GitHub (opcional).

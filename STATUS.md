@@ -220,6 +220,11 @@ Sintoma: ao denunciar um pet de outra pessoa, o sync logava
   com `{ reported, reporter_device_id, updated_at }` — não mexe no `payload`
   (respeita a policy de denúncia) e NÃO toca `pet_contacts` (o contato é do
   dono; antes o `else` apagaria o contato do dono).
+- `lib/sync.ts` (merge): pet local com mudança pendente (`dirty`) agora
+  PREVALECE sobre o remoto. Antes o pull sobrescrevia o `reported=true` local
+  com o `reported=false` do servidor (update em voo/falhando), fazendo o pin
+  "voltar ao normal" logo após denunciar. Agora o pin fica vermelho na hora e
+  persiste até o servidor confirmar.
 
 ### Reaplicar no Supabase (SQL Editor) — só a policy, sem risco de perder dados
 ```sql

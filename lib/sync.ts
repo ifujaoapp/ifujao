@@ -284,10 +284,10 @@ export const runSync = async (
       continue;
     }
     const remote = remoteMap[pet.id];
-    if (remote) {
-      merged.push(remote); // versão remota (mais nova) prevalece
+    if (remote && !pet.dirty) {
+      merged.push(remote); // versão remota (mais nova) prevalece, salvo se há mudança local pendente
     } else {
-      merged.push(pet); // sem alteração remota -> mantém local
+      merged.push(pet); // mantém local (inclui denúncia/report pendente) ou sem alteração remota
     }
     seen.add(pet.id);
   }

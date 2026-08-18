@@ -153,3 +153,45 @@ avisos/erros pré-existentes fora do escopo).
   barrada — afrouxar a lista de chaves ignoradas em `schema.sql` se ocorrer.
 - `app/pet/[id].tsx` vira redirecionador; a tela de detalhe isolada foi
   substituída pelo modal do card (comportamento desejado).
+
+## Atualizações (2026-08-18, tarde) — robustez do mapa/GPS no emulador
+
+Trabalho desta sessão (validado com `tsc --noEmit` e commit `11afd5b`).
+
+### Diagnóstico de "sem pins" no emulador
+- Os dados ESTÃO no Supabase: query REST com a anon key retorna os pets e o
+  `signInAnonymously` funciona (Anonymous Sign-ins ativo no projeto).
+- O bundle de DEBUG precisa embutir `EXPO_PUBLIC_SUPABASE_*` (else
+  `isSupabaseConfigured=false` e o sync é ignorado silenciosamente, log
+  `[index] SYNC IGNORADO: Supabase não configurado`). Rebuild limpo de cache
+  (`Remove-Item -Recurse -Force .expo, node_modules\.cache` + `npx expo run:android`)
+  resolveu — os pins passaram a aparecer.
+
+### Bugs corrigidos no mapa (`app/(tabs)/index.tsx`)
+1. **Mapa em branco quando o GPS não responde.** O `MapLeaflet` só montava
+   DEPOIS de um fix de GPS (`initialCenterRef.current` setado em `getOnce`).
+   Se o provedor de localização do emulador não devolvesse nada (ou travasse),
+   o mapa sumia. Agora `initialCenterRef` é inicializado com o centro da
+   cidade (Sorocaba) no corpo do componente → o mapa abre SEMPRE, centrado na
+   cidade, independente do GPS.
+2. **GPS trava o app.** `getCurrentPositionAsync` não tem timeout nativo; no
+   emulador podia travar a启动. Cada tentativa agora usa `Promise.race` com
+   timeout de 5s; `fetchGps` tenta 6 vezes.
+3. **Foco na posição padrão do emulador (Mountain View).** Quando o GPS do
+   emulador devolve a coord padrão (fora do Brasil), o app centralizava nela.
+   Agora `applyCenter` e o efeito de pan do `MapLeaflet` só recentralizam se a
+   posição cair DENTRO de uma área atendida (`getCityForLocation` + raio da
+   cidade). Fora da área, mantém o centro atual (cidade).
+
+### Como testar no emulador (GPS do AVD é instável)
+- `adb -s emulator-5554 emu geo fix <lon> <lat>` (longitude ANTES de latitude)
+  envia o fix direto ao emulador e é mais confiável que o botão "enviar" da UI
+  de Extended Controls → Location.
+- Ou rodar no celular físico (`npx expo start` + QR): GPS real funciona.
+- O `expo run:android` NÃO aceita `-c`; para limpar cache use
+  `Remove-Item -Recurse -Force .expo, node_modules\.cache` antes do build.
+
+### Pendências conhecidas
+- A centralização no ponto exato do usuário depende de o emulador/device
+  entregar um fix de GPS válido; com a posição padrão do AVD, o mapa fica na
+  cidade (comportamento aceito para teste).

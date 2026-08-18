@@ -29,9 +29,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
-import MapView, { Marker, UrlTile, type Region } from "react-native-maps";
+import { type Region } from "react-native-maps";
 import Reanimated, {
   Easing,
   SharedValue,
@@ -50,6 +50,8 @@ import { WebView } from "react-native-webview";
 import { CITIES, distanceMeters } from "@/constants/cities";
 import { Colors } from "@/constants/theme";
 import { useThemeMode } from "@/hooks/use-theme-mode";
+import { revealContact, resolveContact } from "@/lib/contacts";
+import { consumePendingPetId, onDeepLinkPet } from "@/lib/deeplink";
 import { deletePetPhotos } from "@/lib/photos";
 import {
   clearPhotos,
@@ -294,7 +296,7 @@ export default function HomeScreen() {
         withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }),
       );
     }
-  }, [selectedPet, menuProgress]);
+  }, [selectedPet?.id, menuProgress]);
   const [reportTarget, setReportTarget] = useState<PetPost | null>(null);
   const shareCardRef = useRef<any>(null);
   const SHARE_BASE_URL =
@@ -355,6 +357,23 @@ export default function HomeScreen() {
   useEffect(() => {
     petsRef.current = pets;
   }, [pets]);
+
+  // Deep link (link de contato do WhatsApp): abre o modal do card do pet na
+  // aba principal, em vez da tela isolada app/pet/[id].tsx.
+  const openPetFromDeepLink = useCallback(async (pid: string) => {
+    const local = petsRef.current.find((p) => p.id === pid);
+    const pet = local ?? (await fetchPetRemote(pid));
+    if (pet) setSelectedPet(pet);
+  }, []);
+
+  useEffect(() => {
+    const unsub = onDeepLinkPet((pid) => {
+      openPetFromDeepLink(pid);
+    });
+    const pending = consumePendingPetId();
+    if (pending) openPetFromDeepLink(pending);
+    return unsub;
+  }, [openPetFromDeepLink]);
 
   const commitPets = useCallback(
     async (next: PetPost[]) => {
@@ -775,7 +794,10 @@ export default function HomeScreen() {
     setPetLocation(
       userLocation
         ? { latitude: userLocation.latitude, longitude: userLocation.longitude }
-        : { latitude: selectedCity.latitude, longitude: selectedCity.longitude },
+        : {
+            latitude: selectedCity.latitude,
+            longitude: selectedCity.longitude,
+          },
     );
     setReportModalVisible(true);
   };
@@ -870,7 +892,7 @@ export default function HomeScreen() {
     atualizarEndereco(coords.latitude, coords.longitude);
   };
 
-  const openWhatsApp = (contactNumber: string) => {
+  const openWhatsApp = (contactNumber: string, petId?: string) => {
     let phoneNumber = contactNumber.replace(/\D/g, "");
     if (!isValidPhone(phoneNumber)) {
       showAlert(
@@ -881,8 +903,11 @@ export default function HomeScreen() {
       return;
     }
     if (!phoneNumber.startsWith("55")) phoneNumber = `55${phoneNumber}`;
+    const link = petId
+      ? `\nhttps://ifujaoapp.github.io/ifujao-links/pet/?id=${petId}`
+      : "";
     const message = encodeURIComponent(
-      "Olá! Vi seu alerta de pet perdido no iFujão. Posso ajudar a encontrá-lo?",
+      `Olá! Vi seu alerta de pet perdido no iFujão. Posso ajudar a encontrá-lo?${link}`,
     );
     const url =
       Platform.OS === "android"
@@ -891,6 +916,21 @@ export default function HomeScreen() {
     Linking.openURL(url).catch(() =>
       showAlert("error", "Erro", "Não foi possível abrir o WhatsApp."),
     );
+  };
+
+  // Contato: dono/reporter já têm `contact` local; finder revela via Edge
+  // Function (rate-limited). Se não vier contato, avisa ao usuário.
+  const handleContact = async (pet: PetRecord) => {
+    const contact = await resolveContact(pet, revealContact);
+    if (!contact) {
+      showAlert(
+        "warning",
+        "Contato indisponível",
+        "Não foi possível obter o contato agora. Tente novamente em instantes.",
+      );
+      return;
+    }
+    openWhatsApp(contact, pet.id);
   };
 
   const petsDenunciados = pets.filter((p) => p.reported);
@@ -974,14 +1014,27 @@ export default function HomeScreen() {
               if (pet) setSelectedPet(pet);
               const remote = await fetchPetRemote(petId);
               if (remote) {
+                // Preserva o estado de denúncia local caso o servidor ainda
+                // não tenha propagado o relatório (evita perder a bandeira
+                // DENÚNCIA e a opção "Apagar denúncia" ao reabrir o card).
+                const merged =
+                  pet && pet.reported && !remote.reported
+                    ? {
+                        ...remote,
+                        reported: pet.reported,
+                        reportReason: pet.reportReason,
+                        reportedBy: pet.reportedBy,
+                        reporterDeviceId: pet.reporterDeviceId,
+                      }
+                    : remote;
                 setPets((prev) => {
                   const exists = prev.some((p) => p.id === petId);
                   return exists
-                    ? prev.map((p) => (p.id === petId ? remote : p))
-                    : [remote, ...prev];
+                    ? prev.map((p) => (p.id === petId ? merged : p))
+                    : [merged, ...prev];
                 });
                 setSelectedPet(
-                  (cur) => (cur && cur.id === petId ? remote : cur) ?? remote,
+                  (cur) => (cur && cur.id === petId ? merged : cur) ?? merged,
                 );
               }
             }}
@@ -1724,9 +1777,9 @@ export default function HomeScreen() {
                         color: "#25D366",
                         reportedDisabled: true,
                         onPress: () => {
-                          const contact = selectedPet.contact;
+                          const pet = selectedPet;
                           setSelectedPet(null);
-                          openWhatsApp(contact);
+                          handleContact(pet);
                         },
                       },
                       ...(alreadyReportedByMe
@@ -1966,12 +2019,30 @@ export default function HomeScreen() {
   );
 }
 
-const MapPicker = ({ initial, value, userLocation, gpsNonce, theme, city, onPick }: { initial: { latitude: number; longitude: number }; value?: { latitude: number; longitude: number } | null; userLocation: { latitude: number; longitude: number } | null; gpsNonce: number; theme: 'light' | 'dark'; city: import('@/constants/cities').City; onPick: (lat: number, lng: number) => void }) => {
-  const isDark = theme === 'dark';
+const MapPicker = ({
+  initial,
+  value,
+  userLocation,
+  gpsNonce,
+  theme,
+  city,
+  onPick,
+}: {
+  initial: { latitude: number; longitude: number };
+  value?: { latitude: number; longitude: number } | null;
+  userLocation: { latitude: number; longitude: number } | null;
+  gpsNonce: number;
+  theme: "light" | "dark";
+  city: import("@/constants/cities").City;
+  onPick: (lat: number, lng: number) => void;
+}) => {
+  const isDark = theme === "dark";
   const [start] = useState(initial);
   const webRef = useRef<WebView>(null);
   const html = useMemo(() => {
-    const mapFilter = isDark ? 'filter: invert(1) hue-rotate(180deg) brightness(0.95);' : '';
+    const mapFilter = isDark
+      ? "filter: invert(1) hue-rotate(180deg) brightness(0.95);"
+      : "";
     return `
   <!DOCTYPE html>
   <html>
@@ -2002,11 +2073,20 @@ const MapPicker = ({ initial, value, userLocation, gpsNonce, theme, city, onPick
       </script>
     </body>
   </html>`;
-  }, [isDark, start.latitude, start.longitude, city.latitude, city.longitude, city.radiusMeters]);
+  }, [
+    isDark,
+    start.latitude,
+    start.longitude,
+    city.latitude,
+    city.longitude,
+    city.radiusMeters,
+  ]);
 
   useEffect(() => {
     if (value && webRef.current) {
-      webRef.current.postMessage(JSON.stringify({ move: { lat: value.latitude, lng: value.longitude } }));
+      webRef.current.postMessage(
+        JSON.stringify({ move: { lat: value.latitude, lng: value.longitude } }),
+      );
     }
   }, [value?.latitude, value?.longitude]);
 
@@ -2015,14 +2095,16 @@ const MapPicker = ({ initial, value, userLocation, gpsNonce, theme, city, onPick
   useEffect(() => {
     if (gpsNonce > 0 && userLocation && webRef.current) {
       webRef.current.postMessage(
-        JSON.stringify({ move: { lat: userLocation.latitude, lng: userLocation.longitude } }),
+        JSON.stringify({
+          move: { lat: userLocation.latitude, lng: userLocation.longitude },
+        }),
       );
     }
   }, [gpsNonce]);
 
   return (
     <View
-      style={{ width: '100%', height: '100%' }}
+      style={{ width: "100%", height: "100%" }}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
       onResponderTerminationRequest={() => false}
@@ -2031,8 +2113,8 @@ const MapPicker = ({ initial, value, userLocation, gpsNonce, theme, city, onPick
     >
       <WebView
         ref={webRef}
-        style={{ width: '100%', height: '100%', borderRadius: 12 }}
-        originWhitelist={['*']}
+        style={{ width: "100%", height: "100%", borderRadius: 12 }}
+        originWhitelist={["*"]}
         source={{ html }}
         setSupportMultipleWindows={false}
         overScrollMode="never"
@@ -2041,7 +2123,8 @@ const MapPicker = ({ initial, value, userLocation, gpsNonce, theme, city, onPick
         onMessage={(e) => {
           try {
             const d = JSON.parse(e.nativeEvent.data);
-            if (typeof d.lat === 'number' && typeof d.lng === 'number') onPick(d.lat, d.lng);
+            if (typeof d.lat === "number" && typeof d.lng === "number")
+              onPick(d.lat, d.lng);
           } catch {}
         }}
       />

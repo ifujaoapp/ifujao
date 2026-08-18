@@ -63,7 +63,16 @@ export const fetchPetRemote = async (id: string): Promise<PetRecord | null> => {
     const { data, error } = await sb.from('pets').select('*').eq('id', id).maybeSingle();
     if (error || !data) return null;
     if (data.deleted_at) return null;
-    return toLocalPet(data);
+    const pet = toLocalPet(data);
+    // Contato (PII) só vem de pet_contacts se o device for dono/reporter
+    // (RLS cuida). Finder revela via Edge Function em lib/contacts.ts.
+    const { data: c } = await sb
+      .from('pet_contacts')
+      .select('contact')
+      .eq('pet_id', id)
+      .maybeSingle();
+    if (c?.contact) pet.contact = c.contact;
+    return pet;
   } catch (e) {
     console.warn('[sync] fetchPetRemote erro:', e);
     return null;
@@ -108,10 +117,16 @@ export const runSync = async (
         dirty: false,
         updatedAt: now,
       };
+      // PII (telefone) NÃO vai no payload público de `pets` — vai para
+      // `pet_contacts` (RLS restrita a dono/reporter). Finders revelam via
+      // Edge Function. O registro local (PetRecord) continua com `contact`.
+      const remotePayload: Record<string, unknown> = { ...payload };
+      delete (remotePayload as Record<string, unknown>).contact;
+      delete (remotePayload as Record<string, unknown>).ownerPhone;
       const { error } = await sb.from('pets').upsert(
         {
           id: pet.id,
-          payload,
+          payload: remotePayload,
           owner_device_id: pet.ownerDeviceId ?? null,
           reporter_device_id: pet.reporterDeviceId ?? null,
           reported: !!pet.reported,
@@ -120,6 +135,16 @@ export const runSync = async (
         },
         { onConflict: 'id' }
       );
+      // Espelha o contato em pet_contacts (ou remove, se vazio).
+      if (pet.contact) {
+        const { error: cErr } = await sb
+          .from('pet_contacts')
+          .upsert({ pet_id: pet.id, contact: pet.contact }, { onConflict: 'pet_id' });
+        if (cErr) console.warn('[sync] pet_contacts upsert falhou:', cErr.message);
+      } else {
+        const { error: cErr } = await sb.from('pet_contacts').delete().eq('pet_id', pet.id);
+        if (cErr) console.warn('[sync] pet_contacts delete falhou:', cErr.message);
+      }
       if (error) {
         console.warn('[sync] upsert falhou:', error.message);
         failedIds.add(pet.id);
@@ -185,6 +210,22 @@ export const runSync = async (
       remoteMap[pet.id] = pet;
     }
     pullOk = true;
+    // Re-anexa o contato (PII) apenas para pets que este device é dono/reporter,
+    // lendo de pet_contacts (RLS restrita). Finders obtêm o contato via Edge
+    // Function (lib/contacts.ts) no momento do clique.
+    const myPets = Object.values(remoteMap).filter(
+      (p) => p.ownerDeviceId === deviceId || p.reporterDeviceId === deviceId
+    );
+    if (myPets.length > 0) {
+      const { data: contacts } = await sb
+        .from('pet_contacts')
+        .select('pet_id, contact')
+        .in('pet_id', myPets.map((p) => p.id));
+      for (const c of contacts ?? []) {
+        const pet = remoteMap[c.pet_id];
+        if (pet) pet.contact = c.contact;
+      }
+    }
   } catch (e) {
     console.warn('[sync] erro no pull:', e);
   }

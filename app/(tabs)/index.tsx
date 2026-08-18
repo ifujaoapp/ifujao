@@ -206,6 +206,15 @@ export default function HomeScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  // O mapa deve abrir SEMPRE, centrado na cidade, mesmo que o GPS falhe, trave
+  // ou devolva a posição padrão do emulador. Sem isto, o mapa só montava após
+  // um fix de GPS e sumia quando o GPS não respondia.
+  if (!initialCenterRef.current) {
+    initialCenterRef.current = {
+      latitude: CITIES[0].latitude,
+      longitude: CITIES[0].longitude,
+    };
+  }
   const [locationEnabled, setLocationEnabled] = useState<boolean | null>(null);
   const [now, setNow] = useState(new Date());
   const isDay = now.getHours() >= 6 && now.getHours() < 18;
@@ -455,39 +464,91 @@ export default function HomeScreen() {
   useEffect(() => {
     let cancelled = false;
 
+    // Define o centro inicial do mapa: foca na posição exata do GPS quando ela
+    // está dentro de alguma área atendida; caso contrário (ex.: emulador com a
+    // coordenada padrão de Mountain View), centraliza no centro da cidade mais
+    // Recentraliza no GPS somente quando ele cai DENTRO de uma área atendida.
+    // Se o GPS devolver a posição padrão do emulador (Mountain View), mantém o
+    // centro atual (cidade) em vez de focar no ponto errado.
+    const applyCenter = (coords: { latitude: number; longitude: number }) => {
+      const gpsCity = getCityForLocation(coords);
+      const gpsWithin =
+        distanceMeters(
+          coords.latitude,
+          coords.longitude,
+          gpsCity.latitude,
+          gpsCity.longitude,
+        ) <= gpsCity.radiusMeters;
+      if (!gpsWithin) return;
+      initialCenterRef.current = coords;
+      setMapRegion({
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      });
+    };
+
+    // Tenta obter o fix de GPS várias vezes. Cada tentativa tem timeout de 5s
+    // (Promise.race) para o getCurrentPositionAsync NUNCA travar o app caso o
+    // provedor de localização do emulador não responda.
+    const fetchGps = async (
+      attempts = 6,
+    ): Promise<{ latitude: number; longitude: number } | null> => {
+      for (let i = 0; i < attempts; i++) {
+        const loc = await Promise.race<null | Awaited<
+          ReturnType<typeof Location.getCurrentPositionAsync>
+        >>([
+          Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          }).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+        ]);
+        if (loc)
+          return {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return null;
+    };
+
     const getOnce = async () => {
       const ok = await checkPermissionAndServices();
       if (!ok) {
         setLocationEnabled(false);
         return;
       }
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      }).catch(() => null);
-      if (cancelled || !location) return;
-      const coords = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      };
+      const coords = await fetchGps();
+      if (cancelled || !coords) return;
       setUserLocation(coords);
-      if (!initialCenterRef.current) {
-        initialCenterRef.current = coords;
-        setMapRegion({
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
-      }
+      applyCenter(coords);
       setLocationEnabled(true);
     };
 
     getOnce();
 
+    // Reconsulta o GPS periodicamente e atualiza a posição do usuário. Isso
+    // faz o mapa (via pan no MapLeaflet) acompanhar a localização real, inclusive
+    // quando ela é definida tarde no emulador.
     const poll = setInterval(async () => {
       const ok = await checkPermissionAndServices();
-      if (!ok) setLocationEnabled(false);
-    }, 3000);
+      if (!ok) {
+        setLocationEnabled(false);
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      }).catch(() => null);
+      if (!loc) return;
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+      setUserLocation(coords);
+      applyCenter(coords);
+    }, 5000);
 
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") {
@@ -2354,6 +2415,42 @@ const MapLeaflet = ({
     if (!mapReady || !webRef.current) return;
     webRef.current.injectJavaScript(renderPetsJs(pets));
   }, [mapReady, pets, SPIDER_DELTA]);
+
+  // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
+  // (incluindo quando definida tarde no emulador). Usa um limiar para não
+  // "pular" o mapa a cada pequeno ruído de GPS.
+  const lastPanRef = useRef<{ latitude: number; longitude: number } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!mapReady || !webRef.current || !userLocation) return;
+    // Só recentraliza se a posição do GPS estiver DENTRO de uma área atendida.
+    // Evita focar na posição padrão do emulador (Mountain View) quando o GPS
+    // não entrega a localização real. `city` é a cidade mais próxima do usuário.
+    const within =
+      distanceMeters(
+        userLocation.latitude,
+        userLocation.longitude,
+        city.latitude,
+        city.longitude,
+      ) <= city.radiusMeters;
+    if (!within) return;
+    const last = lastPanRef.current;
+    if (
+      last &&
+      distanceMeters(
+        last.latitude,
+        last.longitude,
+        userLocation.latitude,
+        userLocation.longitude,
+      ) < 80
+    ) {
+      return;
+    }
+    lastPanRef.current = userLocation;
+    const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 15)); } })();`;
+    webRef.current.injectJavaScript(js);
+  }, [mapReady, userLocation]);
 
   const source = useMemo(() => ({ html }), [html]);
 

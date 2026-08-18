@@ -195,3 +195,49 @@ Trabalho desta sessão (validado com `tsc --noEmit` e commit `11afd5b`).
 - A centralização no ponto exato do usuário depende de o emulador/device
   entregar um fix de GPS válido; com a posição padrão do AVD, o mapa fica na
   cidade (comportamento aceito para teste).
+
+## Atualizações (2026-08-18, fim) — finder denunciando quebrava o sync (RLS)
+
+Sintoma: ao denunciar um pet de outra pessoa, o sync logava
+`[sync] upsert falhou: new row violates row-level security policy for table "pets"`.
+
+### Causa raiz (dois pontos)
+1. **App usava `upsert` para tudo.** Para um pet denunciado por um finder
+   (outro `device_id`), o `upsert` bate na policy `pets insert own` (exige
+   `owner_device_id = current_device_id()`) → rejeitado.
+2. **Policy `pets update own` muito rigorosa.** O `with check` impedia
+   `reporter_device_id` ir de `null` → `current_device_id()` (1ª denúncia),
+   então nem um `update` direto passava (o `with check` das policies de UPDATE
+   é combinado com AND).
+
+### Correções
+- `supabase/schema.sql`: `pets update own` agora permite
+  `reporter_device_id = public.current_device_id()` no `with check` (o finder
+  só pode se declarar repórter como si mesmo; a policy `pets report update`
+  ainda exige conteúdo inalterado, então não abre brecha para "pichar" o alerta).
+- `lib/sync.ts`: no push, se `ownerDeviceId != deviceId` e
+  `reporterDeviceId == deviceId` (finder denunciando), usa `.update()` apenas
+  com `{ reported, reporter_device_id, updated_at }` — não mexe no `payload`
+  (respeita a policy de denúncia) e NÃO toca `pet_contacts` (o contato é do
+  dono; antes o `else` apagaria o contato do dono).
+
+### Reaplicar no Supabase (SQL Editor) — só a policy, sem risco de perder dados
+```sql
+drop policy if exists "pets update own" on public.pets;
+create policy "pets update own"
+  on public.pets for update to authenticated
+  using (
+    owner_device_id = public.current_device_id()
+    or reporter_device_id = public.current_device_id()
+  )
+  with check (
+    owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
+    and (
+      reporter_device_id is null
+      or reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
+      or reporter_device_id = public.current_device_id()
+    )
+  );
+```
+(NÃO rerode o `schema.sql` inteiro em produção se já houver dados — ele recria
+tabelas. Use só o trecho acima, ou rode o `schema.sql` num projeto novo.)

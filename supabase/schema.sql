@@ -219,6 +219,7 @@ create policy "pets update own"
     and (
       reporter_device_id is null
       or reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
+      or reporter_device_id = public.current_device_id()
     )
   );
 

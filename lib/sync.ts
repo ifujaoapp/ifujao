@@ -103,6 +103,40 @@ export const runSync = async (
   // 1) Push dos pets alterados
   for (const pet of working) {
     if (!pet.dirty) continue;
+
+    // Finder denunciando pet de OUTRO dono: só atualiza os campos de denúncia
+    // (policy "pets report update"). Não pode usar upsert (bateria na policy
+    // "pets insert own", que exige owner = current_device_id) e não mexe no
+    // payload nem em pet_contacts (o contato é do dono, não do finder).
+    if (
+      pet.ownerDeviceId &&
+      pet.ownerDeviceId !== deviceId &&
+      pet.reporterDeviceId === deviceId
+    ) {
+      try {
+        const now = new Date().toISOString();
+        const { error } = await sb
+          .from('pets')
+          .update({
+            reported: !!pet.reported,
+            reporter_device_id: deviceId,
+            updated_at: now,
+          })
+          .eq('id', pet.id);
+        if (error) {
+          console.warn('[sync] report update falhou:', error.message);
+          failedIds.add(pet.id);
+        } else {
+          pet.dirty = false;
+          pet.updatedAt = now;
+        }
+      } catch (e) {
+        console.warn('[sync] erro no report update:', e);
+        failedIds.add(pet.id);
+      }
+      continue;
+    }
+
     let remoteUrls = pet.remoteImageUrls ?? [];
     try {
       remoteUrls = await uploadPetPhotos(pet.images, deviceId, remoteUrls);

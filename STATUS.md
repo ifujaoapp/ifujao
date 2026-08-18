@@ -226,6 +226,16 @@ Sintoma: ao denunciar um pet de outra pessoa, o sync logava
   "voltar ao normal" logo após denunciar. Agora o pin fica vermelho na hora e
   persiste até o servidor confirmar.
 
+### Bug de UX: WebView recarregava e recentralizava o mapa
+- `MapLeaflet` tinha `pets` e `userLocation` nas dependências do `html`, então
+  CADA mudança de pets (ex.: ao denunciar) ou de GPS (poll de 5s) RECARREGAVA o
+  WebView inteiro, que re-centrava o mapa na cidade. Ao denunciar, o mapa pulava
+  pra cidade e o pin saía de vista — parecia que "nada acontecia".
+- Corrigido: `pets` e `userLocation` saíram do `html`; marcadores e o círculo
+  do usuário são injetados via `injectJavaScript` no lugar, sem reload. O mapa
+  mantém o enquadramento do usuário e o pin denunciado fica vermelho no mesmo
+  lugar.
+
 ### Reaplicar no Supabase (SQL Editor) — só a policy, sem risco de perder dados
 ```sql
 drop policy if exists "pets update own" on public.pets;

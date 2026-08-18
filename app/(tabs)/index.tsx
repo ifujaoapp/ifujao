@@ -2314,7 +2314,6 @@ const MapLeaflet = ({
           maxZoom: 19
         }).addTo(map);
         L.circle([${city.latitude}, ${city.longitude}], { radius: ${city.radiusMeters}, color: '#0A84FF', weight: 2, fillColor: '#0A84FF', fillOpacity: 0.12 }).addTo(map);
-        ${userLocation ? `L.circleMarker([${userLocation.latitude}, ${userLocation.longitude}], { radius: 8, color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map);` : ""}
 
         var pawIcon = L.divIcon({
           className: 'paw-pin',
@@ -2366,7 +2365,7 @@ const MapLeaflet = ({
             groups[key].forEach(function(p, i){ addMarker(p, p.latitude, p.longitude + delta * i); });
           });
         };
-        window.__renderPets(${JSON.stringify(pets)});
+        window.__renderPets([]);
       </script>
     </body>
   </html>`,
@@ -2376,8 +2375,6 @@ const MapLeaflet = ({
       center.latitude,
       center.longitude,
       mapFilter,
-      userLocation,
-      pets,
     ],
   );
 
@@ -2449,6 +2446,18 @@ const MapLeaflet = ({
     }
     lastPanRef.current = userLocation;
     const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 15)); } })();`;
+    webRef.current.injectJavaScript(js);
+  }, [mapReady, userLocation]);
+
+  // Desenha/atualiza o círculo do usuário via JS (sem recarregar o WebView a
+  // cada mudança de GPS — antes o userLocation estava no html e forcava reload +
+  // recentralizacao na cidade a cada 5s).
+  useEffect(() => {
+    if (!mapReady || !webRef.current || !userLocation) return;
+    const js = `(function(){
+      if (window.__userCircle) { window.__map.removeLayer(window.__userCircle); }
+      window.__userCircle = L.circleMarker([${userLocation.latitude}, ${userLocation.longitude}], { radius: 8, color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 1 }).addTo(window.__map);
+    })();`;
     webRef.current.injectJavaScript(js);
   }, [mapReady, userLocation]);
 

@@ -44,8 +44,14 @@ const setLastSync = async (iso: string): Promise<void> => {
 const toLocalPet = (row: any): PetRecord => {
   const pet = (row.payload ?? {}) as PetRecord;
   const remoteUrls: string[] = pet.remoteImageUrls && pet.remoteImageUrls.length ? pet.remoteImageUrls : [];
+  // As colunas de topo são a fonte autoritativa do estado de denúncia/posse:
+  // o finder atualiza SÓ essas colunas (a policy impede mexer no conteúdo do
+  // payload), então ler do payload deixaria a bandeira invisível no mapa.
   return {
     ...pet,
+    ownerDeviceId: (row.owner_device_id as string | undefined) ?? pet.ownerDeviceId,
+    reporterDeviceId: (row.reporter_device_id as string | undefined) ?? pet.reporterDeviceId,
+    reported: (row.reported as boolean) ?? pet.reported ?? false,
     images: remoteUrls.length > 0 ? remoteUrls : (pet.images ?? []),
     remoteImageUrls: remoteUrls,
     dirty: false,
@@ -104,10 +110,12 @@ export const runSync = async (
   for (const pet of working) {
     if (!pet.dirty) continue;
 
-    // Finder denunciando pet de OUTRO dono: só atualiza os campos de denúncia
-    // (policy "pets report update"). Não pode usar upsert (bateria na policy
-    // "pets insert own", que exige owner = current_device_id) e não mexe no
-    // payload nem em pet_contacts (o contato é do dono, não do finder).
+    // Finder (reporter) agindo sobre pet de OUTRO dono: só pode DENUNCIAR
+    // (reported=true) ou APAGAR a própria denúncia (reported=false). Em nenhum
+    // dos dois casos mexe no CONTEÚDO do payload (policy "pets report update"
+    // / "pets update own" exigem conteúdo inalterado). O dono NÃO pode apagar a
+    // denúncia de outra pessoa — isso é travado na policy "pets update own".
+    // Não usa upsert (bateria na policy "pets insert own").
     if (
       pet.ownerDeviceId &&
       pet.ownerDeviceId !== deviceId &&
@@ -115,11 +123,32 @@ export const runSync = async (
     ) {
       try {
         const now = new Date().toISOString();
+        // A policy exige que o CONTEÚDO do payload não mude (apenas os campos
+        // de denúncia). Então lemos o payload atual e sobrescrevemos SÓ as
+        // chaves de denúncia (que a policy ignora no comparativo: reported,
+        // reporterDeviceId, reportReason, reportedBy), mantendo o resto
+        // idêntico. Assim tanto denunciar quanto apagar passam no `with check`.
+        const { data: cur } = await sb
+          .from('pets')
+          .select('payload')
+          .eq('id', pet.id)
+          .maybeSingle();
+        const basePayload: Record<string, unknown> =
+          (cur?.payload as Record<string, unknown>) ??
+          ({ ...pet } as Record<string, unknown>);
+        const newPayload = {
+          ...basePayload,
+          reported: !!pet.reported,
+          reporterDeviceId: deviceId,
+          reportReason: pet.reported ? pet.reportReason : undefined,
+          reportedBy: pet.reported ? pet.reportedBy : undefined,
+        };
         const { error } = await sb
           .from('pets')
           .update({
             reported: !!pet.reported,
             reporter_device_id: deviceId,
+            payload: newPayload,
             updated_at: now,
           })
           .eq('id', pet.id);

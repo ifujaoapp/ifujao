@@ -292,6 +292,7 @@ export default function HomeScreen() {
   const canReport = locationEnabled === true && insideRadius === true;
 
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [showDescriptionModal, setShowDescriptionModal] = useState(false);
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -994,8 +995,14 @@ export default function HomeScreen() {
     openWhatsApp(contact, pet.id);
   };
 
-  const petsDenunciados = pets.filter((p) => p.reported);
-  const totalPetsNoMapa = pets.length;
+  // Filtro da barra lateral: "Todos" (padrão) ou "Somente meus alertas"
+  // (criados por mim). Aplica-se só à visualização no mapa; o estado completo
+  // (pets) continua sendo usado para abrir o card via marcador.
+  const visiblePets = showOnlyMine
+    ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
+    : pets;
+  const petsDenunciados = visiblePets.filter((p) => p.reported);
+  const totalPetsNoMapa = visiblePets.length;
 
   return (
     <View style={styles.container}>
@@ -1069,7 +1076,7 @@ export default function HomeScreen() {
             initialCenter={initialCenterRef.current}
             region={mapRegion}
             userLocation={userLocation}
-            pets={pets}
+            pets={visiblePets}
             onMarkerPress={async (petId) => {
               const pet = pets.find((p) => p.id === petId);
               if (pet) setSelectedPet(pet);
@@ -1124,6 +1131,19 @@ export default function HomeScreen() {
         )}
 
         <View style={[styles.sideToolbar, { zIndex: 20 }]}>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => {
+              setShowOnlyMine((v) => !v);
+              triggerSyncRef.current();
+            }}
+          >
+            <Ionicons
+              name={showOnlyMine ? "person" : "people"}
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.sideToolbarBtn} onPress={toggleTheme}>
             <Ionicons
               name={theme === "dark" ? "sunny" : "moon"}
@@ -1827,9 +1847,10 @@ export default function HomeScreen() {
                       reportedDisabled?: boolean;
                       onPress: () => void;
                     };
-                    const alreadyReportedByMe =
-                      selectedPet.reported &&
-                      isReporter(selectedPet, myDeviceId, myPhone);
+                    // Não faz sentido "Denunciar" de novo um pet já denunciado:
+                    // oculta o botão sempre que reported=true (qualquer denúncia,
+                    // não importa quem fez). Quem denunciou vê "Apagar denúncia".
+                    const jaDenunciado = selectedPet.reported;
                     const actions: MenuAction[] = [
                       {
                         key: "contact",
@@ -1843,7 +1864,7 @@ export default function HomeScreen() {
                           handleContact(pet);
                         },
                       },
-                      ...(alreadyReportedByMe
+                      ...(jaDenunciado
                         ? []
                         : [
                             {
@@ -1874,8 +1895,7 @@ export default function HomeScreen() {
                     }
                     if (
                       selectedPet.reported &&
-                      (isOwner(selectedPet, myDeviceId, myPhone) ||
-                        isReporter(selectedPet, myDeviceId, myPhone))
+                      isReporter(selectedPet, myDeviceId, myPhone)
                     ) {
                       actions.push({
                         key: "undoReport",

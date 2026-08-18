@@ -204,9 +204,14 @@ create policy "pets insert own"
 -- CORREÇÃO N1: UPDATE endurecido + denúncia por finder.
 -- Duas policies para conciliar "só dono apaga/edita" com "finder pode denunciar":
 --
--- (A) pets update own: dono OU repórter editam o conteúdo e o dono apaga
---     (soft-delete via deleted_at). owner_device_id é IMUTÁVEL (sem sequestro
---     de posse) e reporter_device_id é IMUTÁVEL (mantém quem reportou).
+-- (A) pets update own: dono OU repórter editam e o dono apaga (soft-delete via
+--     deleted_at). owner_device_id e reporter_device_id são IMUTÁVEIS (sem
+--     sequestro de posse nem troca de quem denunciou).
+--     REGRA DE DENÚNCIA: só o finder/reporter pode APAGAR a própria denúncia.
+--     O dono do alerta NUNCA pode inverter reported de true->false (esconder a
+--     denúncia de outra pessoa). Por isso o `with check` bloqueia o dono de
+--     fazer reported=true->false, mas libera o repórter (owner_device_id <>
+--     current) de denunciar e apagar livremente.
 drop policy if exists "pets update own" on public.pets;
 create policy "pets update own"
   on public.pets for update to authenticated
@@ -216,10 +221,13 @@ create policy "pets update own"
   )
   with check (
     owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
+    and reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
     and (
-      reporter_device_id is null
-      or reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
-      or reporter_device_id = public.current_device_id()
+      owner_device_id <> public.current_device_id()
+      or not (
+        (select p.reported from public.pets p where p.id = pets.id) = true
+        and reported = false
+      )
     )
   );
 

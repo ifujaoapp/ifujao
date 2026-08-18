@@ -247,12 +247,78 @@ create policy "pets update own"
   )
   with check (
     owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
+    and reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
     and (
-      reporter_device_id is null
-      or reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
-      or reporter_device_id = public.current_device_id()
+      owner_device_id <> public.current_device_id()
+      or not (
+        (select p.reported from public.pets p where p.id = pets.id) = true
+        and reported = false
+      )
     )
   );
 ```
 (NÃO rerode o `schema.sql` inteiro em produção se já houver dados — ele recria
 tabelas. Use só o trecho acima, ou rode o `schema.sql` num projeto novo.)
+
+## Atualizações (2026-08-18, noite) — denúncia: propagação, dono não apaga e filtro do mapa
+
+Trabalho desta sessão (validado com `tsc --noEmit` e `npm test`).
+
+### 1. Bug raiz: bandeira de denúncia não aparecia nem propagava
+- **Causa:** o ramo de denúncia do finder em `lib/sync.ts` só atualizava as
+  **colunas de topo** (`reported`, `reporter_device_id`), mas o app lê a
+  bandeira de `row.payload` em `toLocalPet`. Como o `payload.reported`
+  continuava `false`, a bandeira não aparecia no mapa do finder nem no de
+  outros usuários (o UPDATE "funcionava" sem erro no Postgres).
+- **Correção `lib/sync.ts`:**
+  - `toLocalPet` agora lê `reported`, `reporterDeviceId` e `ownerDeviceId`
+    das **colunas de topo** (fonte autoritativa), não só do `payload`.
+  - O ramo do finder (pet de outro dono) agora também atualiza o `payload`,
+    lendo o payload atual e sobrescrevendo **só** as chaves de denúncia
+    (`reported`, `reporterDeviceId`, `reportReason`, `reportedBy`) — chaves
+    que a policy `pets report update` já ignora no comparativo, então o
+    `with check` continua passando.
+
+### 2. Regra de autorização da denúncia
+- **Regra:** só o **finder (quem denunciou)** pode apagar a denúncia. O dono
+  do alerta **nunca** pode (nem no app, nem pela API).
+- **App (`app/(tabs)/index.tsx`):**
+  - Botão "Apagar denúncia" aparece **só** para `isReporter` (não mais para
+    o dono).
+  - O ramo de denúncia no sync agora trata os dois sentidos: `reported=true`
+    (denunciar) e `reported=false` (apagar). Antes, clicar em "apagar"
+    re-denunciava, porque o ramo forçava `reported: true`.
+  - Botão "Denunciar" some sempre que `reported === true` (não faz sentido
+    denunciar de novo um pet já denunciado, seja por quem for).
+- **Policy `pets update own` (`supabase/schema.sql`):** `reporter_device_id`
+  tornou-se **imutável**; o dono **não pode** inverter `reported`
+  `true -> false` (esconder denúncia alheia). O finder (reporter) segue
+  livre para denunciar e apagar a própria denúncia. A policy `pets report
+  update` (finder denuncia, conteúdo inalterado) permanece igual.
+
+### 3. Filtro de alertas no mapa (barra lateral)
+- Novo botão na `sideToolbar` (`app/(tabs)/index.tsx`) que alterna
+  `showOnlyMine`: `false` = **todos os alertas** (inclui de outros); `true`
+  = **somente meus alertas** (criados por mim, via `isOwner`).
+- A filtragem afeta só a visualização (`visiblePets` passado ao
+  `MapLeaflet`); o estado completo (`pets`) ainda abre o card pelo marcador.
+- Ao alternar o filtro, dispara `triggerSyncRef.current()` para fazer resync
+  incremental e puxar os pins que mudaram de estado.
+- Visual: mesmo estilo dos outros botões da barra; só troca o ícone
+  (`people` ↔ `person`).
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `lib/sync.ts` | `toLocalPet` lê colunas de topo; ramo do finder denuncia E apaga (atualiza payload + colunas). |
+| `app/(tabs)/index.tsx` | "Apagar denúncia" só p/ reporter; "Denunciar" some se já denunciado; botão de filtro com resync. |
+| `supabase/schema.sql` | `pets update own`: `reporter_device_id` imutável; dono não apaga denúncia alheia. |
+
+### Pendências conhecidas
+- `deletePet` (dono apaga o próprio alerta via soft-delete) ainda remove o
+  alerta inteiro, o que também some com a denúncia — aceito, pois é o dono
+  removendo o próprio alerta. Se a equipe quiser, pode-se travar o dono de
+  apagar um alerta já denunciado.
+- Reaplicar a policy `pets update own` no Supabase (SQL Editor) com o trecho
+  atualizado acima (não rode o `schema.sql` inteiro em produção).
+

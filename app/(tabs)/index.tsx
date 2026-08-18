@@ -74,8 +74,8 @@ import * as SecureStore from "expo-secure-store";
 
 type PetPost = PetRecord;
 
-const normalizePhone = (value: string) => {
-  const digits = value.replace(/\D/g, "");
+const normalizePhone = (value?: string | null) => {
+  const digits = (value ?? "").replace(/\D/g, "");
   return digits.startsWith("55") ? digits.slice(2) : digits;
 };
 

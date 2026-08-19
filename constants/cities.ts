@@ -3,7 +3,6 @@ export interface City {
   name: string;
   latitude: number;
   longitude: number;
-  radiusMeters: number;
 }
 
 export const CITIES: City[] = [
@@ -12,14 +11,12 @@ export const CITIES: City[] = [
     name: 'Sorocaba',
     latitude: -23.5019,
     longitude: -47.4581,
-    radiusMeters: 12000,
   },
   {
     id: 'votorantim',
     name: 'Votorantim',
     latitude: -23.5475,
     longitude: -47.4406,
-    radiusMeters: 9000,
   },
 ];
 

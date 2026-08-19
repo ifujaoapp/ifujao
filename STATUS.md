@@ -1,5 +1,24 @@
 # status.md — iFujão / StudyFlow
 
+> **Preferência de idioma:** o usuário se comunica **sempre em português** —
+> responder e escrever tudo (mensagens e comentários de status) em português.
+
+## Persona e Princípios (carregar sempre)
+
+Você é um Desenvolvedor Senior React Native com vasta experiência na criação de aplicativos móveis de alto desempenho para iOS e Android. Sua missão é atuar como especialista técnico, arquiteto de software e mentor de código.
+
+**Sua Persona e Princípios:**
+* **Excelência Técnica:** Escreva código em TypeScript estritamente tipado, limpo, bem documentado e alinhado aos princípios SOLID e Clean Architecture.
+* **Dominio da Stack:** Domine o ecossistema React Native (CLI e Expo), React Navigation, gerenciamento de estado (Zustand, Redux Toolkit, TanStack Query), estilos (NativeWind/Tailwind, Styled-Components, StyleSheet) e testes (Jest, React Native Testing Library).
+* **Foco em Performance:** Sempre otimize a renderização (useMemo, useCallback, React.memo), renderização de listas (FlashList/FlatList), uso de memória e inicialização do app.
+* **Integração Nativa:** Compreenda o funcionamento da nova arquitetura (Fabric, TurboModules, JSI) e a ponte nativa entre JavaScript/TypeScript, Swift/Objective-C e Kotlin/Java.
+
+**Regras de Resposta:**
+1. **Soluções Práticas:** Apresente códigos funcionais, modernos e prontos para produção.
+2. **Análise Crítica:** Apontar proativamente potenciais gargalos de performance, problemas de segurança, riscos de compatibilidade entre plataformas (iOS/Android) ou falhas na experiência do usuário (UX).
+3. **Didática e Clareza:** Explique o motivo técnico por trás de cada decisão de arquitetura ou escolha de biblioteca proposta.
+4. **Resolução de Bugs:** Ao debugar, isole a causa raiz, apresente a correção e forneça dicas para evitar o problema no futuro.
+
 > Status das melhorias de segurança de PII (telefone de contato) e do fluxo de
 > revelação via Edge Function. Atualizado em 2026-08-18.
 
@@ -322,3 +341,389 @@ Trabalho desta sessão (validado com `tsc --noEmit` e `npm test`).
 - Reaplicar a policy `pets update own` no Supabase (SQL Editor) com o trecho
   atualizado acima (não rode o `schema.sql` inteiro em produção).
 
+## Atualizações (2026-08-19) — sessão de ajustes de UX, GPS/mapa e correção de sync
+
+Validado com `tsc --noEmit` (limpo) e rebuild no emulador após conserto do AVD.
+
+### 1. Link de compartilhar do pet (`sharePetCard`)
+- Antes mandava "Baixe o iFujão" + Play Store. Agora envia
+  `https://ifujaoapp.github.io/ifujao-links/pet/?id=<id>` (link universal que
+  abre o app se instalado ou cai na loja).
+
+### 2. Campo Cidade no report
+- `lib/storage.ts`: `PetRecord.city?: string`.
+- `app/(tabs)/index.tsx` `handleAddPet`: `city: getCityForLocation(petLocation)?.name`.
+- Card e compartilhar exibem `local — cidade`.
+- Tela de reportar: label automático e somente leitura `Cidade: <nome>`
+  (derivado do pino/GPS). Sync: sobe/desce automático (payload é o `PetRecord`).
+
+### 3. GPS / Mapa
+- `fetchGps`: retry 6×5s → **3×3s** (centraliza mais cedo).
+- Botão **"Centralizar no meu GPS"** na `sideToolbar` → `centerOnUserGps`.
+- Removido o **bloqueio de cidade** (`applyCenter` e efeito de pan do `MapLeaflet`):
+  o mapa centraliza em qualquer lugar do mundo. Mantida só a trava da
+  coordenada-padrão-do-emulador (Mountain View) — depois removida a pedido.
+- **GPS instantâneo**: `getOnce` e `centerOnUserGps` usam `getLastKnownPositionAsync`
+  primeiro (cache, na hora) e depois refinam com fix fresco.
+- `poll` (5s) agora usa `fetchGps` (com timeout); antes usava
+  `getCurrentPositionAsync` sem timeout e travava/never resolvia.
+- Zoom forçado no recentrar: **15 → 13**.
+- `recenterNonce`: o botão força o recentramento ignorando o limiar de ruído (80m).
+- `invalidateSize` no `MapLeaflet` (init + `onLoad`) para o container não ficar 0×0.
+
+### 4. `sideToolbar` (barra de botões da direita)
+- Verticalmente centralizada (`top: 50%` + `transform: translateY(-50%)`).
+- Removido o botão de compartilhar da barra (perdeu o sentido; o compartilhar
+  do card do pet permanece).
+
+### 5. Tela preta no emulador — era o AVD, não o código
+- Tela preta em **qualquer app** do emulador = renderer de gráficos (GLES).
+  Corrigido no AVD: Emulated Performance → Graphics → **Software - GLES 2.0
+  (SwiftShader)** + Cold boot. O código estava íntegro (baseline também dava
+  preto por causa do AVD).
+
+### 6. BUG RAIZ: exclusão não propagava para o finder (RLS)
+- **Sintoma:** dono apagava 2 pins, mas no app do finder eles continuavam
+  aparecendo. Log mostrava os 2 ids vivos no finder.
+- **Causa:** o soft-delete faz `update({ deleted_at })` que cai na policy
+  `pets update own`. O `with check` comparava
+  `reporter_device_id = (subquery)`; pets normais têm `reporter_device_id = NULL`
+  → `NULL = NULL` é `NULL` (não TRUE) → `with check` falha → o `update` é
+  **rejeitado silenciosamente**. `deleted_at` nunca era gravado → finder
+  continuava puxando o pet. O mesmo bug quebrava qualquer edição do dono.
+- **Correção (SQL Editor do Supabase — só as policies, sem recriar tabelas):**
+  trocar os `=` das colunas que podem ser `NULL` por `is not distinct from`
+  em `pets update own` (e endurecer `pets report update` também).
+  ```sql
+  drop policy if exists "pets update own" on public.pets;
+  create policy "pets update own"
+    on public.pets for update to authenticated
+    using ( owner_device_id = public.current_device_id() or reporter_device_id = public.current_device_id() )
+    with check (
+      owner_device_id is not distinct from (select p.owner_device_id from public.pets p where p.id = pets.id)
+      and reporter_device_id is not distinct from (select p.reporter_device_id from public.pets p where p.id = pets.id)
+      and ( owner_device_id <> public.current_device_id()
+            or not ( (select p.reported from public.pets p where p.id = pets.id) = true and reported = false ) )
+    );
+  -- (pets report update: idem, is not distinct from no owner_device_id)
+  ```
+- Após aplicar: dono apaga → `deleted_at` gravado → finder remove no próximo sync.
+
+### 7. Reset completo dos dados
+- Backend: `delete from public.contact_reveals; delete from public.pet_contacts; delete from public.pets;` (SQL Editor).
+- Local: limpar dados do app no emulador / `adb uninstall com.ifujao.app` + rebuild limpo.
+
+### 8. STATUS.md
+- Adicionada preferência de idioma (português sempre) e a seção "Persona e
+  Princípios (carregar sempre)" no topo do arquivo.
+
+### Arquivos alterados nesta sessão
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | sharePetCard (link), campo/cidade, label cidade, GPS instantâneo, botão centralizar, `applyCenter` sem bloqueio, `recenterNonce`, `invalidateSize`, `sideToolbar` centralizada + sem botão share, zoom 13. |
+| `lib/storage.ts` | `PetRecord.city?: string`. |
+| `STATUS.md` | preferência de idioma + persona + este histórico. |
+| `supabase/schema.sql` | (referência) policies `pets update own` / `pets report update` com `is not distinct from` — reaplicar via SQL Editor. |
+
+## Regras de conduta do assistente (carregar sempre — feedback do usuário)
+
+> O usuário pediu para salvar isto no STATUS.md para não esquecer entre sessões.
+
+1. **Não tomar decisões equivocadas / não inferir causa raiz sem prova.**
+   Confirmar com o código ou logs antes de propor a correção. Não culpar a
+   "fonte de dado" sem evidência.
+2. **Não inventar dependências externas** (APIs, serviços de terceiros,
+   Edge Functions, chaves) sem o usuário pedir. Usar o que já existe no app.
+   - Erro cometido: para o nome da cidade do pino, criei primeiro Nominatim e
+     depois Google Geocoding API via Edge Function. O correto era o geocoder
+     NATIVO do aparelho (`expo-location` `reverseGeocodeAsync`), que sempre
+     devolveu o município em `g.city`.
+3. **Perguntar em vez de chutar** quando o caminho for ambíguo ou tiver
+   custo/implicação (ex.: provedor de geocoding, chaves de API).
+4. **Sinal de diagnóstico:** se o endereço (mesmo geocoder) vem certo, a fonte
+   funciona — o bug está na extração/fallback, não na API.
+
+### Lição concreta — cidade do pino (não repetir)
+- `reverseGeocodeAsync` devolve o município em `g.city` (locality). **NUNCA**
+  usar `g.region` como fallback de cidade: `region` é o **ESTADO** e fixa a
+  cidade no nome do estado (ex.: "São Paulo") para qualquer pino do estado.
+- Extração correta: `g.city || g.subregion || g.district` (sem `g.region`).
+- Arquivos: `lib/geocode.ts` (`reverseGeocodeCity`), usado em
+  `app/(tabs)/index.tsx` em `atualizarEndereco` / `openReport`. Sem rede, sem
+  chave — padrão de produção em RN.
+- Histórico: removido `radiusMeters`/`L.circle` dos mapas e o bloqueio de
+  cidade (qualquer usuário em qualquer lugar pode reportar). `CITIES` mantido
+  só para centro padrão do mapa e rótulo de cidade mais próxima.
+
+## Atualizações (2026-08-19, tarde) — card do pet: barra de ações flutuante
+
+Sintoma: em telas menores os botões de ação do card do pet estouravam o modal
+(ficavam de fora da borda) porque o `circularMenu` radial (raio 85 + botões 60)
+ficava dentro de `demoCard`, que não era scrollável.
+
+Solução (opção 2 escolhida pelo usuário): **barra de ações flutuante inferior**.
+- `app/(tabs)/index.tsx`: removido o `circularMenu` (radial) de dentro de
+  `demoCard`; as ações (Contato, Denunciar/Apagar denúncia, Compartilhar,
+  Apagar) agora ficam numa `demoActionBar` **irmã de `demoCard`**, posicionada
+  `absolute` na base da tela (`bottom: insets.bottom + 16`), fora do card.
+- A barra tem `onTouchStart` com `stopPropagation` para não fechar o modal ao
+  tocar nela. `demoOverlay` ganhou `paddingBottom: 120` para o card não ficar
+  sob a barra.
+- Estilos novos: `demoActionBar`, `demoActionRow`, `demoActionBtn`,
+  `demoActionBtnDisabled`, `demoActionLabel`.
+- `CircularActionButton` e os estilos `circularMenu`/`circularCenter` ficaram
+  como código morto (não usados); `menuProgress` só resta no useEffect.
+- Validação: `tsc --noEmit` limpo.
+
+## Atualizações (2026-08-19) — modal "Reportar Pet": Espécie/Raça separados + autocomplete
+
+Pedido: separar "Espécie / Raça" (1 campo) em **2 campos obrigatórios** e
+adicionar **autocomplete local** (lista fixa, sem API externa/deps).
+
+- `lib/storage.ts`: `PetRecord.breed?: string` adicionado.
+- `app/(tabs)/index.tsx`:
+  - Novo estado `breed` + `breedRef`.
+  - `AUTO_OPTIONS`: listas fixas `species` e `breed` (offline).
+  - Novo componente `AutoInput` (dropdown filtrado local, `onPressIn` para
+    evitar corrida de blur; recebe `styles` como prop, igual ao
+    `CircularActionButton`, pois `styles` é local do `HomeScreen`).
+  - Modal: dois `AutoInput` — "Espécie *" e "Raça *" — antes de Localização;
+    `onSubmitEditing`/`onSelect` focam o próximo campo.
+  - `handleAddPet`: validação exige `species` **e** `breed`; `newPet` inclui
+    `breed`; reset inclui `setBreed("")`.
+  - Card (`demoName`) e título do viewer mostram `Espécie (Raça)`.
+  - Estilos: `autoWrap`, `autoDropdown`, `autoList`, `autoItem`,
+    `autoItemText` (usam `c.card`, `c.cardStroke`, `c.text`).
+- Validação: `tsc --noEmit` limpo. Testar em device/emulador o dropdown e o
+  foco sequencial (Espécie → Raça → Localização).
+
+
+## Atualizações (2026-08-19, fim) — "Apagar denúncia" só para quem criou
+
+Bug raiz: o botão "Apagar denúncia" aparecia para o **dono** do pet denunciado.
+Causa: `submitReport` definia `reportedBy = myPhone || normalizePhone(pet.contact)`.
+Quando quem denuncia não tem telefone, `reportedBy` caía no **contato do dono**;
+o dono, ao ver o próprio pet, batia no `isReporter` por telefone e ganhava o botão.
+
+Regra (confirmada): "Apagar denúncia" só aparece para **quem criou a denúncia**,
+identificado pelo **device que reportou** (`reporterDeviceId`), não por telefone.
+
+- `app/(tabs)/index.tsx`:
+  - Botão "Apagar denúncia": condição agora
+    `selectedPet.reported && selectedPet.reporterDeviceId === myDeviceId`
+    (removeu o `isReporter` por telefone, que colidia com o dono).
+  - `submitReport`: `reportedBy` usa só o telefone de quem denuncia
+    (`myPhone ? normalizePhone(myPhone) : ""`), nunca o contato do pet.
+  - Removada a função `isReporter` (virava código morto/enganoso).
+- Validação: `tsc --noEmit` limpo.
+
+## Atualizações (2026-08-19, tarde) — autocomplete Espécie/Raça via react-native-element-dropdown
+
+Pedido: substituir o `AutoInput` (TextInput + dropdown local) dos campos
+**Espécie** e **Raça** do modal "Reportar Pet" pela lib
+`react-native-element-dropdown` (v2.12.4), usando a propriedade `search`
+(autocomplete com busca).
+
+- `package.json`: nova dependência `react-native-element-dropdown@^2.12.4`
+  (peers só `react`/`react-native`; sem conflito com `react-native-reanimated@4`).
+- `app/(tabs)/index.tsx`:
+  - Import de `Dropdown` e `type IDropdownRef` da lib.
+  - `AutoInput` removido; novo componente `SearchableSelect` faz wrapper do
+    `Dropdown` com `search`, `searchPlaceholder="Buscar..."`, `data` mapeado de
+    `{label, value}` a partir de `AUTO_OPTIONS`. `onChange` devolve o texto
+    selecionado; `onSelect` encadeia o foco (abre o próximo dropdown / foca o
+    campo Localização).
+  - Refs `speciesRef`/`breedRef` (TextInput) viraram `speciesDropdownRef`/
+    `breedDropdownRef` (`IDropdownRef`); após selecionar espécie abre o dropdown
+    de raça; após raça, foca `locationRef`.
+  - Estilos: adicionados `dropdown`, `dropdownContainer`, `dropdownPlaceholder`,
+    `dropdownSelectedText`, `dropdownInputSearch`, `dropdownItemText` (temáticos);
+    removidos os estilos órfãos `autoWrap`/`autoDropdown`/`autoList`/`autoItem`/
+    `autoItemText`.
+- Validação: `tsc --noEmit` limpo.
+- **Nota de UX:** o `Dropdown` é um seletor da lista fixa (não aceita texto
+  livre digitado que não esteja na lista) — comportamento esperado de um
+  autocomplete com `search`. Rebuild nativo (`npx expo run:android`) necessário
+  após a nova dependência.
+
+## Atualizações (2026-08-19, fim) — Espécie editável + Raça amarrada à espécie
+
+Feedback: a seleção de espécie "não ficou boa" — o campo precisava ser
+**editável** (usuário informa o que quiser) e a **raça precisa ficar amarrada
+à espécie** (cão não pode ter raça de gato).
+
+- `app/(tabs)/index.tsx`:
+  - `AUTO_OPTIONS` (listas soltas) substituído por `SPECIES_BREEDS`
+    (`Record<string, string[]>`) com o mapeamento espécie → raças fornecido
+    pelo usuário (Cão, Gato, Calopsita, Papagaio, Periquito, Agapornis,
+    Furão, Hámster, Coelho, Porquinho-da-índia, Rato Twister, Jabuti/Cágado,
+    Gecko, Cobra/Serpente). `SPECIES_OPTIONS = Object.keys(SPECIES_BREEDS)`.
+  - `SearchableSelect` reformulado para **aceitar texto livre**:
+    - `renderInputSearch` captura o texto digitado (não rely on `onChangeText`,
+      pois a lib zera o search com `onChangeText('')` ao fechar — `index.js:241`).
+    - O valor digitado é **injetado em `data`** (`list.unshift`) para continuar
+      sendo exibido fechado (a lib só mostra labels de itens em `data` —
+      `index.js:204-212`).
+    - `onBlur` consolida o texto digitado se nenhum item foi selecionado.
+    - `searchQuery` insensível a acentos (`normalizeDiacritics`).
+  - Modal "Reportar Pet":
+    - Espécie: `options={SPECIES_OPTIONS}`, editável; ao mudar, se a nova
+      espécie é conhecida e a raça atual não pertence a ela, `setBreed("")`
+      (impede cruzar raça de gato em cão).
+    - Raça: `options={SPECIES_BREEDS[species] ?? NO_BREEDS}` — só aparecem as
+      raças da espécie escolhida; espécie livre (não mapeada) → raça livre.
+  - Estilo `dropdownInputSearch` ganha borda/padding para o campo de busca.
+- Validação: `tsc --noEmit` limpo; `eslint` sem novos erros (resto é
+  pré-existente: aspas em JSX na linha 1826).
+- Rebuild nativo (`npx expo run:android`) necessário para testar.
+
+## Atualizações (2026-08-19) — expansão das listas Espécie→Raça
+
+Atualização de `SPECIES_BREEDS` (`app/(tabs)/index.tsx`) com as listas
+enviadas pelo usuário: muito mais raças por espécie e novos grupos
+(**Arara**, **Cacatua**, **Gerbil**, **Iguana**). Grupos renomeados para os
+rótulos limpos: `Calopsita`, `Papagaio`, `Ferret`, `Jabuti e Cágado`, `Cobra`
+(sem o sufixo explicativo entre parênteses). `SPECIES_OPTIONS` e a lógica de
+raça amarrada à espécie continuam derivando automaticamente de `SPECIES_BREEDS`.
+`tsc --noEmit` limpo.
+
+## Atualizações (2026-08-19) — teclado cobrindo Espécie/Raça (Dropdown)
+
+Bug: ao abrir o dropdown de Espécie/Raça, o teclado ficava por cima do campo
+de busca e o scroll não funcionava direito.
+
+Causa raiz: o `Dropdown` da `react-native-element-dropdown` renderiza a lista
+(num `Modal` próprio, fora da nossa árvore de `KeyboardAvoidingView`). O ramo
+de `keyboardAvoiding` da lib (`index.js:436`) só dispara quando
+`dropdownPosition === 'auto'`. O `SearchableSelect` usava
+`dropdownPosition="bottom"`, que forçava a lista para baixo do campo e
+desligava o desvio de teclado → o teclado cobria o input de busca.
+
+ Correção (`app/(tabs)/index.tsx`): `dropdownPosition="bottom"` →
+ `"auto"`. Com `"auto"` a lib posiciona a lista acima/abaixo conforme o espaço e
+ aplica `keyboardAvoiding` (default `true`), subindo a lista acima do teclado
+ quando o campo está na parte baixa da tela. `tsc --noEmit` limpo.
+
+## Atualizações (2026-08-19) — teclado ainda cobria Raça (Dropdown)
+
+O `"auto"` não resolveu para Espécie/Raça: a lógica de auto-posicionamento da
+lib (`index.js:421-426`) só abre a lista ACIMA quando
+`bottom < keyboardHeight + height` — ou seja, só quando o campo está bem
+embaixo. Para campos no meio/baixo do formulário (Espécie/Raça vêm após as
+fotos), `bottom` é grande e a condição é falsa → a lista fica **abaixo** e o
+teclado a cobre. Além disso a lista do Dropdown **sempre** vai num `Modal`
+próprio da lib (`index.js:472`), independente de `mode`, então ela não
+participa do `KeyboardAvoidingView` do modal do formulário.
+
+ Correção: `dropdownPosition="auto"` → `"top"`. A lista abre acima do campo, com
+ o input de busca no topo (longe do teclado). Como Espécie/Raça têm espaço
+ acima (cabeçalho + seção de fotos), não há corte no topo. `tsc --noEmit` limpo.
+
+## Atualizações (2026-08-19) — overlap do dropdown (zIndex/ScrollView)
+
+Reclamação: `"top"` cobria o campo em edição. Aplicada a correção padrão de
+overlap de dropdowns (conforme guia do usuário):
+
+- `dropdownPosition` voltou para `"bottom"` → a lista abre **abaixo** do campo e
+  não cobre o campo em edição.
+- Cada `SearchableSelect` agora é envolvido por um container pai
+  `dropdownWrap` com `position: relative`, `zIndex: 2000`, `elevation: 2000`
+  (evita que campos irmãos sobreponham a lista flutuante).
+- `ScrollView` do modal: adicionado `nestedScrollEnabled={true}` e
+  `modalScrollView` ganhou `overflow: "visible"` (evita corte do conteúdo
+  absoluto/flutuante pelo container pai).
+- A lista do Dropdown já usa `Modal` internamente (sem corte de ScrollView).
+
+`tsc --noEmit` limpo; `eslint` sem novos erros (resto pré-existente: aspas em
+JSX na linha 1863). Rebuild nativo (`npx expo run:android`) para validar.
+
+## Atualizações (2026-08-19, fim) — correção definitiva do sync de denúncia
+
+Histórico desta sessão (várias tentativas até acertar a causa raiz):
+
+**Causa 1 — duas policies de UPDATE combinadas com AND.** Havia `pets update
+own` + `pets report update`. O Postgres combina o `WITH CHECK` de policies
+permissivas de UPDATE com **AND**, então um caso passava e o outro falhava
+(consertar a denúncia quebrava o "apagar"; consertar o "apagar" quebrava a
+denúncia). Confirmado em teste real de Postgres (PGlite).
+
+**Causa 2 (a que realmente travava em produção) — o app reescrevia o `payload`
+inteiro na denúncia.** Em `lib/sync.ts`, o ramo de denúncia fazia
+`UPDATE ... payload = newPayload` (payload completo). A policy comparava
+`payload - chaves = oldpayload - chaves` para garantir "conteúdo inalterado".
+Isso era FRÁGIL: o payload local do finder divergia do do servidor (ex.:
+`images` como URI local vs URL remota), então a comparação falhava com
+`new row violates row-level security policy` e a denúncia não propagava. Se a
+comparação fosse relaxada, o servidor teria o `payload` CORROMPIDO (imagens
+viravam URI local).
+
+**Correções definitivas (todas validadas em Postgres real / `tsc --noEmit`):**
+
+1. **`lib/sync.ts`** — o ramo de denúncia agora atualiza SÓ as **colunas de
+   topo** (`reported`, `reporter_device_id`, `updated_at`), **não** o `payload`.
+   As colunas de topo já são a fonte autoritativa (`toLocalPet` lê delas), então
+   o conteúdo do servidor fica intacto e não há mais comparação de payload.
+2. **`supabase/schema.sql`** — UMA SÓ policy `pets update` (sem comparação de
+   `payload`). Casos (OR explícito):
+   - **A — dono** edita conteúdo/soft-delete; `reporter` imutável; dono não
+     esconde denúncia alheia (`reported true→false` bloqueado).
+   - **B — finder denuncia 1ª vez**: `reporter null→current`, `reported=true`.
+   - **C — o próprio repórter** confirma (`true`) ou apaga (`false`) a denúncia;
+     `reporter` inalterado. Só o repórter pode; dono segue travado.
+   - Em todos: `owner_device_id` IMUTÁVEL.
+3. **`app/(tabs)/index.tsx`** — o **dono NÃO denuncia o próprio post**: botão
+   "Denunciar" some para o dono, e `reportPet`/`submitReport` travam se for o
+   dono (evita o erro de RLS do dono denunciando a si mesmo).
+
+**Testado (PGlite, 13 cenários):** dono edita ✅, dono soft-delete (normal e
+denunciado) ✅, finder denuncia (payload idêntico E divergente) ✅, repórter
+apaga ✅, repórter re-denuncia ✅, finder alheio editando conteúdo bloqueado ✅,
+roubo de posse bloqueado ✅, dono escondendo denúncia alheia bloqueado ✅, finder
+não-reporter denunciando pet já denunciado bloqueado ✅, repórter apagando só com
+colunas de topo ✅, dono denunciando próprio post bloqueado (app) ✅.
+
+### Reaplicar no Supabase (SQL Editor) — rode UMA vez e não rode mais nenhum outro snippet de policy
+```sql
+drop policy if exists "pets update own" on public.pets;
+drop policy if exists "pets report update" on public.pets;
+drop policy if exists "pets update" on public.pets;
+create policy "pets update"
+  on public.pets for update to authenticated
+  using (true)
+  with check (
+    owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
+    and (
+      ( owner_device_id = public.current_device_id()
+        and reporter_device_id is not distinct from (select p.reporter_device_id from public.pets p where p.id = pets.id)
+        and ( owner_device_id <> public.current_device_id()
+              or not ( (select p.reported from public.pets p where p.id = pets.id) = true
+                       and reported = false ) )
+      )
+      or ( (select p.reporter_device_id from public.pets p where p.id = pets.id) is null
+           and owner_device_id <> public.current_device_id()
+           and reporter_device_id = public.current_device_id()
+           and reported = true
+           and deleted_at is null )
+      or ( (select p.reporter_device_id from public.pets p where p.id = pets.id) = public.current_device_id()
+           and owner_device_id <> public.current_device_id()
+           and reporter_device_id = public.current_device_id()
+           and deleted_at is null )
+    )
+  );
+```
+(NÃO rode o `schema.sql` inteiro em produção se já houver dados — ele recria
+tabelas. O `supabase/schema.sql` já está atualizado com esta policy única.)
+
+### Importante
+As mudanças em `lib/sync.ts` e `app/(tabs)/index.tsx` **exigem rebuild do app**
+(`npx expo run:android`), não só o SQL. Sem o rebuild, o app ainda manda o
+`payload` na denúncia e/ou deixa o dono denunciar o próprio post.
+
+### Lição (não repetir)
+- Nunca "consertar" RLS mexendo em UMA policy de um par cujos `WITH CHECK` são
+  combinados com AND — unificar em UMA policy com OR explícito.
+- Não comparar `payload` jsonb em RLS para "garantir conteúdo inalterado": é
+  frágil (URI vs URL, campos extras) e quebra o cliente legítimo. Em vez disso,
+  o app deve atualizar só as colunas de topo relevantes.
+- Validar com teste de Postgres real (ex.: PGlite) ANTES de passar SQL.
+- O dono não deve denunciar o próprio alerta (regra de negócio + evita erro de RLS).

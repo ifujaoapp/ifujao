@@ -110,45 +110,28 @@ export const runSync = async (
   for (const pet of working) {
     if (!pet.dirty) continue;
 
-    // Finder (reporter) agindo sobre pet de OUTRO dono: só pode DENUNCIAR
+    // Quem está DENUNCIANDO (reporter_device_id === deviceId) — seja um finder
+    // comum ou o próprio dono de OUTRO alerta — só pode DENUNCIAR
     // (reported=true) ou APAGAR a própria denúncia (reported=false). Em nenhum
     // dos dois casos mexe no CONTEÚDO do payload (policy "pets report update"
     // / "pets update own" exigem conteúdo inalterado). O dono NÃO pode apagar a
     // denúncia de outra pessoa — isso é travado na policy "pets update own".
-    // Não usa upsert (bateria na policy "pets insert own").
-    if (
-      pet.ownerDeviceId &&
-      pet.ownerDeviceId !== deviceId &&
-      pet.reporterDeviceId === deviceId
-    ) {
+    // Não usa upsert (bateria na policy "pets insert own"). O branch cobre
+    // qualquer denunciante (inclusive dono), via `.update()` direto.
+    if (pet.reporterDeviceId === deviceId) {
       try {
         const now = new Date().toISOString();
-        // A policy exige que o CONTEÚDO do payload não mude (apenas os campos
-        // de denúncia). Então lemos o payload atual e sobrescrevemos SÓ as
-        // chaves de denúncia (que a policy ignora no comparativo: reported,
-        // reporterDeviceId, reportReason, reportedBy), mantendo o resto
-        // idêntico. Assim tanto denunciar quanto apagar passam no `with check`.
-        const { data: cur } = await sb
-          .from('pets')
-          .select('payload')
-          .eq('id', pet.id)
-          .maybeSingle();
-        const basePayload: Record<string, unknown> =
-          (cur?.payload as Record<string, unknown>) ??
-          ({ ...pet } as Record<string, unknown>);
-        const newPayload = {
-          ...basePayload,
-          reported: !!pet.reported,
-          reporterDeviceId: deviceId,
-          reportReason: pet.reported ? pet.reportReason : undefined,
-          reportedBy: pet.reported ? pet.reportedBy : undefined,
-        };
+        // SÓ atualiza as COLUNAS DE TOPO (fonte autoritativa da denúncia).
+        // NÃO reescreve o `payload` inteiro: o app já espelha a denúncia nas
+        // colunas de topo (toLocalPet lê `reported`/`reporterDeviceId` delas),
+        // e reenviar o payload local corromperia o conteúdo (ex.: `images`
+        // viraria URI local em vez de URL remota) e quebraria o `WITH CHECK`
+        // de RLS que compara o payload. O servidor mantém seu payload intacto.
         const { error } = await sb
           .from('pets')
           .update({
             reported: !!pet.reported,
             reporter_device_id: deviceId,
-            payload: newPayload,
             updated_at: now,
           })
           .eq('id', pet.id);

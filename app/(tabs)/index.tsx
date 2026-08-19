@@ -31,6 +31,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Dropdown, type IDropdownRef } from "react-native-element-dropdown";
 import { type Region } from "react-native-maps";
 import Reanimated, {
   Easing,
@@ -51,6 +52,7 @@ import { CITIES, distanceMeters } from "@/constants/cities";
 import { Colors } from "@/constants/theme";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import { revealContact, resolveContact } from "@/lib/contacts";
+import { reverseGeocodeCity } from "@/lib/geocode";
 import { consumePendingPetId, onDeepLinkPet } from "@/lib/deeplink";
 import { deletePetPhotos } from "@/lib/photos";
 import {
@@ -84,14 +86,103 @@ const isOwner = (pet: PetPost, myDeviceId: string, myPhone: string) =>
   (!!pet.ownerDeviceId && !!myDeviceId && pet.ownerDeviceId === myDeviceId) ||
   (myPhone !== "" && normalizePhone(pet.ownerPhone) === myPhone);
 
-const isReporter = (pet: PetPost, myDeviceId: string, myPhone: string) =>
-  (!!pet.reporterDeviceId &&
-    !!myDeviceId &&
-    pet.reporterDeviceId === myDeviceId) ||
-  (myPhone !== "" && normalizePhone(pet.reportedBy ?? "") === myPhone);
-
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+// Espécie -> raças válidas. A raça fica "amarrada" à espécie (não dá para
+// escolher uma raça de gato para um cão). A espécie é editável (texto livre)
+// e sugerida a partir destas opções; a raça também aceita texto livre.
+const SPECIES_BREEDS: Record<string, string[]> = {
+  "Cão": [
+    "Shih Tzu", "Golden Retriever", "Labrador Retriever", "Poodle",
+    "Buldogue Francês", "Spitz Alemão (Lulu da Pomerânia)", "Pastor Alemão",
+    "Pinscher", "Yorkshire Terrier", "Beagle", "Rottweiler", "Doberman",
+    "Boxer", "Dachshund", "Border Collie", "Pastor Australiano", "Akita",
+    "Shiba Inu", "Husky Siberiano", "Maltês", "Pug", "Chihuahua",
+    "Cavalier King Charles Spaniel", "Cane Corso", "Pit Bull",
+    "American Bully", "Bull Terrier", "Chow Chow", "Basset Hound",
+    "Shar Pei", "Cocker Spaniel", "Lhasa Apso", "Bernese Mountain Dog",
+    "São Bernardo", "Dogue Alemão", "Boston Terrier", "Whippet",
+    "Sem Raça Definida",
+  ],
+  "Gato": [
+    "Persa", "Maine Coon", "Siamês", "Ragdoll", "Sphynx", "Bengal",
+    "British Shorthair", "Angorá", "Abissínio", "Birmanês", "Chartreux",
+    "Cornish Rex", "Devon Rex", "Exótico", "Norwegian Forest", "Oriental",
+    "Russian Blue", "Scottish Fold", "Selkirk Rex", "Somali", "Tonquinês",
+    "Turkish Van", "American Shorthair", "Sem Raça Definida",
+  ],
+  "Calopsita": [
+    "Ancestral", "Lutino", "Cara Branca", "Pérola", "Arlequim", "Canela",
+    "Albina", "Bochecha Amarela", "Prata", "Pastel", "Fulvo",
+  ],
+  "Papagaio": [
+    "Papagaio-verdadeiro", "Papagaio-chauá", "Papagaio-cinzento",
+    "Papagaio-eclectus", "Papagaio-do-mangue", "Papagaio-diadema",
+    "Papagaio-moleiro", "Papagaio-de-charão", "Papagaio-galego",
+    "Papagaio-de-cabeça-amarela",
+  ],
+  "Arara": [
+    "Arara-canindé", "Arara-vermelha", "Arara-azul-grande", "Arara-militar",
+    "Arara-verde", "Ararinha-maracanã", "Arara-juba",
+  ],
+  "Cacatua": [
+    "Cacatua-de-crista-amarela", "Cacatua-galah", "Cacatua-branca",
+    "Cacatua-das-molucas", "Cacatua-de-crista-rosa", "Cacatua-negra",
+  ],
+  "Periquito-australiano": [
+    "Periquito Comum", "Periquito Inglês", "Arlequim", "Lutino", "Albino",
+    "Asa Cinza", "Opalino", "Asas Claras",
+  ],
+  "Agapornis": [
+    "Agapornis Roseicollis", "Agapornis Personatus", "Agapornis Fischeri",
+    "Agapornis Lilianae", "Agapornis Nigrigenis", "Agapornis Cana",
+    "Agapornis Taranta",
+  ],
+  "Ferret": [
+    "Sável", "Albino", "Canela", "Prateado", "Panda", "Chocolate",
+    "Champagne", "Blaze",
+  ],
+  "Hámster": [
+    "Hámster Sírio", "Hámster Anão Russo Winter White",
+    "Hámster Anão Russo Campbell", "Hámster Roborovski", "Hámster Chinês",
+  ],
+  "Coelho": [
+    "Mini Lion Head", "Netherland Dwarf", "Mini Lop", "Holandês",
+    "Gigante de Flandres", "Angorá", "Nova Zelândia", "Rex", "Mini Rex",
+    "Califórnia", "Chinchila", "Lop Francês", "Borboleta", "Tan",
+  ],
+  "Porquinho-da-índia": [
+    "Inglês", "Abissínio", "Peruano", "Sheltie", "Skinny", "Coronet",
+    "Texel", "Alpaca", "Merino", "Crestado Americano", "Chinchila",
+    "Standard", "Bege", "Branca", "Preta Velvet", "Safira", "Violeta",
+    "Ébano", "Mosaico",
+  ],
+  "Gerbil": [
+    "Agouti", "Black", "Argente", "Sapphire", "Lilac", "Schimmel",
+  ],
+  "Rato Twister": [
+    "Dumbo", "Standard", "Rex", "Double Rex", "Hairless", "Tailless", "Satin",
+  ],
+  "Jabuti e Cágado": [
+    "Jabuti-piranga", "Jabuti-tinga", "Tigre-d'água", "Cágado-de-barbicha",
+    "Cágado-pescoço-de-cobra", "Muçuã",
+  ],
+  "Gecko": [
+    "Gecko-leopardo", "Crested Gecko", "Gecko-diurno", "Gecko-gárgula",
+    "Tokay Gecko",
+  ],
+  "Iguana": [
+    "Iguana-verde", "Iguana-azul", "Iguana-vermelha",
+  ],
+  "Cobra": [
+    "Corn Snake", "Piton-real", "Jiboia-constritora", "Falsa-coral",
+    "Milk Snake", "Cobra-rei-da-califórnia", "Piton-carpete", "Piton-verde",
+  ],
+};
+
+const SPECIES_OPTIONS = Object.keys(SPECIES_BREEDS);
+const NO_BREEDS: string[] = [];
 
 const formatBytes = (bytes: number) => {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -151,6 +242,100 @@ const filtrarPorTamanho = async (
   return aceitas;
 };
 
+type SearchableSelectProps = {
+  value: string;
+  onChange: (text: string) => void;
+  options: string[];
+  placeholder: string;
+  dropdownRef?: React.Ref<IDropdownRef>;
+  onSelect?: () => void;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+const normalizeDiacritics = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+// Dropdown com busca (react-native-element-dropdown) que também aceita texto
+// livre: o que o usuário digita na busca vira o valor ao fechar, e esse valor
+// digitado é injetado em `data` para continuar sendo exibido (a lib só mostra
+// o label de itens existentes em `data` quando fechado).
+const SearchableSelect = ({
+  value,
+  onChange,
+  options,
+  placeholder,
+  dropdownRef,
+  onSelect,
+  styles,
+}: SearchableSelectProps) => {
+  const typedRef = useRef("");
+  const selectedRef = useRef(false);
+
+  const data = useMemo(() => {
+    const list = options.map((o) => ({ label: o, value: o }));
+    if (value && !options.includes(value)) {
+      list.unshift({ label: value, value });
+    }
+    return list;
+  }, [options, value]);
+
+  return (
+    <Dropdown
+      ref={dropdownRef}
+      style={styles.dropdown}
+      containerStyle={styles.dropdownContainer}
+      placeholderStyle={styles.dropdownPlaceholder}
+      selectedTextStyle={styles.dropdownSelectedText}
+      itemTextStyle={styles.dropdownItemText}
+      activeColor="#0A84FF"
+      data={data}
+      labelField="label"
+      valueField="value"
+      value={value}
+      placeholder={placeholder}
+      search
+      maxHeight={220}
+      dropdownPosition="bottom"
+      searchQuery={(keyword, labelValue) =>
+        normalizeDiacritics(labelValue).includes(normalizeDiacritics(keyword))
+      }
+      renderInputSearch={(onSearch) => (
+        <TextInput
+          style={styles.dropdownInputSearch}
+          placeholder="Buscar..."
+          placeholderTextColor="#8E8E93"
+          autoCorrect={false}
+          onChangeText={(t) => {
+            typedRef.current = t;
+            onSearch(t);
+          }}
+        />
+      )}
+      flatListProps={{
+        // Altura fixa do item (~52px) para layout O(1) do FlatList interno.
+        getItemLayout: (_data, index) => ({
+          length: 52,
+          offset: 52 * index,
+          index,
+        }),
+      }}
+      onChange={(item) => {
+        selectedRef.current = true;
+        onChange(item.value as string);
+        onSelect?.();
+      }}
+      onBlur={() => {
+        // Ao fechar sem ter selecionado item, consolida o texto digitado.
+        if (!selectedRef.current && typedRef.current.trim()) {
+          onChange(typedRef.current.trim());
+        }
+        typedRef.current = "";
+        selectedRef.current = false;
+      }}
+    />
+  );
+};
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { theme, toggleTheme } = useThemeMode();
@@ -168,14 +353,17 @@ export default function HomeScreen() {
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
   const [species, setSpecies] = useState("");
+  const [breed, setBreed] = useState("");
   const [location, setLocation] = useState("");
+  const [cityName, setCityName] = useState("");
   const [description, setDescription] = useState("");
   const [contact, setContact] = useState("");
   const [contactError, setContactError] = useState("");
   const [lostDate, setLostDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [images, setImages] = useState<string[]>([]);
-  const speciesRef = useRef<TextInput>(null);
+  const speciesDropdownRef = useRef<IDropdownRef>(null);
+  const breedDropdownRef = useRef<IDropdownRef>(null);
   const locationRef = useRef<TextInput>(null);
   const descriptionRef = useRef<TextInput>(null);
   const contactRef = useRef<TextInput>(null);
@@ -197,6 +385,9 @@ export default function HomeScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  // Incrementado pelo botão "Centralizar no meu GPS" para forçar o
+  // recentramento do mapa, ignorando o limiar de ruído de GPS.
+  const [recenterNonce, setRecenterNonce] = useState(0);
   const [petLocation, setPetLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -248,48 +439,27 @@ export default function HomeScreen() {
   const getCityForLocation = (
     loc: { latitude: number; longitude: number } | null,
   ): import("@/constants/cities").City => {
-    if (loc) {
-      const inside = CITIES.find(
-        (c) =>
-          distanceMeters(
-            loc.latitude,
-            loc.longitude,
-            c.latitude,
-            c.longitude,
-          ) <= c.radiusMeters,
+    if (!loc) return CITIES[0];
+    let nearest = CITIES[0];
+    let nearestDist = Infinity;
+    CITIES.forEach((c) => {
+      const d = distanceMeters(
+        loc.latitude,
+        loc.longitude,
+        c.latitude,
+        c.longitude,
       );
-      if (inside) return inside;
-      let nearest = CITIES[0];
-      let nearestDist = Infinity;
-      CITIES.forEach((c) => {
-        const d = distanceMeters(
-          loc.latitude,
-          loc.longitude,
-          c.latitude,
-          c.longitude,
-        );
-        if (d < nearestDist) {
-          nearestDist = d;
-          nearest = c;
-        }
-      });
-      return nearest;
-    }
-    return CITIES[0];
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = c;
+      }
+    });
+    return nearest;
   };
 
   const selectedCity = getCityForLocation(userLocation);
 
-  const insideRadius =
-    userLocation != null &&
-    distanceMeters(
-      userLocation.latitude,
-      userLocation.longitude,
-      selectedCity.latitude,
-      selectedCity.longitude,
-    ) <= selectedCity.radiusMeters;
-
-  const canReport = locationEnabled === true && insideRadius === true;
+  const canReport = locationEnabled === true;
 
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
   const [showOnlyMine, setShowOnlyMine] = useState(false);
@@ -309,11 +479,10 @@ export default function HomeScreen() {
   }, [selectedPet?.id, menuProgress]);
   const [reportTarget, setReportTarget] = useState<PetPost | null>(null);
   const shareCardRef = useRef<any>(null);
-  const SHARE_BASE_URL =
-    "https://play.google.com/store/apps/details?id=br.com.petz";
 
   const sharePetCard = async (pet: PetPost) => {
-    const message = `🐾 Ajude a encontrar este pet perdido em ${pet.location || "Sorocaba"}!\nBaixe o iFujão e veja mais: ${SHARE_BASE_URL}`;
+    const link = `https://ifujaoapp.github.io/ifujao-links/pet/?id=${pet.id}`;
+    const message = `🐾 Ajude a encontrar este pet perdido em ${pet.location || "Sorocaba"}!\n${link}`;
     try {
       await Share.share({ message });
     } catch {
@@ -462,58 +631,88 @@ export default function HomeScreen() {
     return servicesEnabled;
   }, []);
 
+  // Recentraliza o mapa na posição do GPS em QUALQUER lugar do mundo.
+  // Importante: NÃO muta `initialCenterRef` — ele é o centro INICIAL fixo do
+  // WebView. O recentramento real é feito pelo efeito de pan via
+  // injectJavaScript (setView), sem rebuild do html (que recarregaria o mapa).
+  const applyCenter = (coords: { latitude: number; longitude: number }) => {
+    setMapRegion({
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    });
+  };
+
+  // Tenta obter o fix de GPS. Cada tentativa tem timeout de 3s (Promise.race)
+  // para o getCurrentPositionAsync NUNCA travar o app. Reduzido para 3
+  // tentativas para o 1º fix recentralizar o mapa mais cedo.
+  const fetchGps = async (
+    attempts = 3,
+  ): Promise<{ latitude: number; longitude: number } | null> => {
+    for (let i = 0; i < attempts; i++) {
+      const loc = await Promise.race<null | Awaited<
+        ReturnType<typeof Location.getCurrentPositionAsync>
+      >>([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        }).catch(() => null),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ]);
+      if (loc)
+        return {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        };
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return null;
+  };
+
+  // Centraliza o mapa no GPS do usuário sob demanda (botão "Centralizar no meu
+  // GPS"). Válido em qualquer lugar do mundo.
+  const centerOnUserGps = async () => {
+    const ok = await checkPermissionAndServices();
+    if (!ok) {
+      showAlert(
+        "location",
+        "Localização",
+        "Ative a localização do dispositivo e conceda a permissão para usar seu GPS.",
+      );
+      return;
+    }
+    // Posição conhecida (cache) — instantânea, igual ao Google Maps. Centraliza
+    // JÁ, na hora, sem esperar o fix fresco.
+    const last = await Location.getLastKnownPositionAsync().catch(() => null);
+    if (last) {
+      const coords = {
+        latitude: last.coords.latitude,
+        longitude: last.coords.longitude,
+      };
+      setUserLocation(coords);
+      applyCenter(coords);
+      // Força o recentramento na hora (ignora o limiar de ruído de GPS).
+      setRecenterNonce((n) => n + 1);
+    }
+    // Refina com fix fresco em SEGUNDO PLANO (não bloqueia a centralização).
+    const coords = await fetchGps();
+    if (!coords) {
+      if (!last) {
+        showAlert(
+          "location",
+          "Sem sinal de GPS",
+          "Não foi possível obter sua posição atual.",
+        );
+      }
+      return;
+    }
+    setUserLocation(coords);
+    applyCenter(coords);
+    setRecenterNonce((n) => n + 1);
+  };
+
   useEffect(() => {
     let cancelled = false;
-
-    // Define o centro inicial do mapa: foca na posição exata do GPS quando ela
-    // está dentro de alguma área atendida; caso contrário (ex.: emulador com a
-    // coordenada padrão de Mountain View), centraliza no centro da cidade mais
-    // Recentraliza no GPS somente quando ele cai DENTRO de uma área atendida.
-    // Se o GPS devolver a posição padrão do emulador (Mountain View), mantém o
-    // centro atual (cidade) em vez de focar no ponto errado.
-    const applyCenter = (coords: { latitude: number; longitude: number }) => {
-      const gpsCity = getCityForLocation(coords);
-      const gpsWithin =
-        distanceMeters(
-          coords.latitude,
-          coords.longitude,
-          gpsCity.latitude,
-          gpsCity.longitude,
-        ) <= gpsCity.radiusMeters;
-      if (!gpsWithin) return;
-      initialCenterRef.current = coords;
-      setMapRegion({
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      });
-    };
-
-    // Tenta obter o fix de GPS várias vezes. Cada tentativa tem timeout de 5s
-    // (Promise.race) para o getCurrentPositionAsync NUNCA travar o app caso o
-    // provedor de localização do emulador não responda.
-    const fetchGps = async (
-      attempts = 6,
-    ): Promise<{ latitude: number; longitude: number } | null> => {
-      for (let i = 0; i < attempts; i++) {
-        const loc = await Promise.race<null | Awaited<
-          ReturnType<typeof Location.getCurrentPositionAsync>
-        >>([
-          Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          }).catch(() => null),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-        ]);
-        if (loc)
-          return {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-          };
-        await new Promise((r) => setTimeout(r, 1500));
-      }
-      return null;
-    };
 
     const getOnce = async () => {
       const ok = await checkPermissionAndServices();
@@ -521,6 +720,22 @@ export default function HomeScreen() {
         setLocationEnabled(false);
         return;
       }
+      // Posição conhecida (cache) — instantânea, igual ao Google Maps: mostra o
+      // seu pino e centraliza JÁ, sem esperar fix fresco de GPS (que num
+      // dispositivo "frio" pode levar vários segundos).
+      const last = await Location.getLastKnownPositionAsync().catch(
+        () => null,
+      );
+      if (!cancelled && last) {
+        const coords = {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+        };
+        setUserLocation(coords);
+        applyCenter(coords);
+        setLocationEnabled(true);
+      }
+      // Refina com fix fresco (não trava o app: timeout por tentativa).
       const coords = await fetchGps();
       if (cancelled || !coords) return;
       setUserLocation(coords);
@@ -539,14 +754,11 @@ export default function HomeScreen() {
         setLocationEnabled(false);
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      }).catch(() => null);
-      if (!loc) return;
-      const coords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
+      // Usa fetchGps (com timeout por tentativa) em vez de
+      // getCurrentPositionAsync sem timeout, que pode travar e nunca resolver
+      // — era o motivo de o mapa só centralizar ao clicar no botão.
+      const coords = await fetchGps();
+      if (!coords) return;
       setUserLocation(coords);
       applyCenter(coords);
     }, 5000);
@@ -660,6 +872,7 @@ export default function HomeScreen() {
   const fecharModal = () => {
     setIsCameraOpen(false);
     setReportModalVisible(false);
+    setCityName("");
   };
 
   const formatPhone = (value: string) => {
@@ -683,7 +896,7 @@ export default function HomeScreen() {
   };
 
   const handleAddPet = async () => {
-    if (images.length === 0 || !species || !location || !contact) {
+    if (images.length === 0 || !species || !breed || !location || !contact) {
       showAlert(
         "warning",
         "Atenção",
@@ -739,17 +952,21 @@ export default function HomeScreen() {
       location,
       description,
       contact,
+      breed,
       ownerPhone,
       ownerDeviceId: myDeviceId,
       images: storedImages,
       latitude,
       longitude,
+      city: cityName || getCityForLocation(petLocation)?.name,
       lostDate: lostDate ? lostDate.toISOString() : undefined,
       dirty: true,
     };
     commitPets([newPet, ...pets]);
     setSpecies("");
+    setBreed("");
     setLocation("");
+    setCityName("");
     setDescription("");
     setContact("");
     setContactError("");
@@ -795,11 +1012,15 @@ export default function HomeScreen() {
   };
 
   const reportPet = (pet: PetPost) => {
+    // O dono não denuncia o próprio post (evita erro de RLS e confusão de UX).
+    if (isOwner(pet, myDeviceId, myPhone)) return;
     setReportTarget(pet);
   };
 
   const submitReport = (pet: PetPost, reason: string) => {
-    const reporter = myPhone || normalizePhone(pet.contact);
+    // O dono não denuncia o próprio post.
+    if (isOwner(pet, myDeviceId, myPhone)) return;
+    const reporter = myPhone ? normalizePhone(myPhone) : "";
     commitPets(
       pets.map((p) =>
         p.id === pet.id
@@ -849,6 +1070,10 @@ export default function HomeScreen() {
       } catch {
         setLocation(selectedCity.name);
       }
+      setCityName(
+        (await reverseGeocodeCity(coords.latitude, coords.longitude)) ||
+          selectedCity.name,
+      );
     }
     if (myPhone) {
       setContact(formatPhone(myPhone));
@@ -888,6 +1113,7 @@ export default function HomeScreen() {
     } catch {
       setLocation("");
     }
+    setCityName(await reverseGeocodeCity(lat, lng));
   };
 
   const handlePickLocation = (lat: number, lng: number) => {
@@ -1076,6 +1302,7 @@ export default function HomeScreen() {
             initialCenter={initialCenterRef.current}
             region={mapRegion}
             userLocation={userLocation}
+            recenterNonce={recenterNonce}
             pets={visiblePets}
             onMarkerPress={async (petId) => {
               const pet = pets.find((p) => p.id === petId);
@@ -1120,17 +1347,10 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {locationEnabled === true && insideRadius === false && (
-          <View style={styles.locationWarning}>
-            <Ionicons name="location-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.locationWarningText}>
-              Você está fora da área de {selectedCity.name}. O app funciona
-              apenas dentro do raio da cidade.
-            </Text>
-          </View>
-        )}
-
         <View style={[styles.sideToolbar, { zIndex: 20 }]}>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={centerOnUserGps}>
+            <Ionicons name="locate" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideToolbarBtn}
             onPress={() => {
@@ -1158,34 +1378,6 @@ export default function HomeScreen() {
             }
           >
             <Ionicons name="search" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.sideToolbarBtn}
-            onPress={() => {
-              Share.share({
-                message:
-                  "🐾 iFujão — ajude a encontrar pets perdidos!\nCadastre e veja alertas de pets perto de você.\nhttps://ifujao.app",
-                title: "iFujão - Pets Perdidos",
-              })
-                .then((r) => {
-                  if (r.action === Share.dismissedAction) {
-                    showAlert(
-                      "share",
-                      "Compartilhar",
-                      "A janela foi fechada sem compartilhar.",
-                    );
-                  }
-                })
-                .catch((e) => {
-                  showAlert(
-                    "error",
-                    "Erro ao compartilhar",
-                    String(e?.message ?? e),
-                  );
-                });
-            }}
-          >
-            <Ionicons name="share-social" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideToolbarBtn}
@@ -1276,6 +1468,7 @@ export default function HomeScreen() {
               style={{ flex: 1 }}
               contentContainerStyle={styles.modalScrollView}
               keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled={true}
             >
               {isCameraOpen ? (
                 <View style={styles.cameraBox}>
@@ -1473,17 +1666,47 @@ export default function HomeScreen() {
                 <Ionicons name="locate" size={18} color="#0A84FF" />
                 <Text style={styles.useGpsText}>Usar meu GPS (onde estou)</Text>
               </TouchableOpacity>
+              {cityName ? (
+                <View style={styles.cityHintRow}>
+                  <Ionicons
+                    name="location"
+                    size={14}
+                    color={themeColors.icon}
+                  />
+                  <Text style={styles.cityHintText}>Cidade: {cityName}</Text>
+                </View>
+              ) : null}
 
-              <TextInput
-                ref={speciesRef}
-                style={styles.input}
-                placeholder="Espécie / Raça"
-                placeholderTextColor="#8E8E93"
-                value={species}
-                onChangeText={setSpecies}
-                returnKeyType="next"
-                onSubmitEditing={() => locationRef.current?.focus()}
-              />
+              <View style={styles.dropdownWrap}>
+                <SearchableSelect
+                  value={species}
+                  onChange={(t) => {
+                    setSpecies(t);
+                    // Se a nova espécie é conhecida e a raça atual não pertence
+                    // a ela, limpa a raça (evita "cão com raça de gato").
+                    const valid = SPECIES_BREEDS[t];
+                    if (valid && breed && !valid.includes(breed)) {
+                      setBreed("");
+                    }
+                  }}
+                  options={SPECIES_OPTIONS}
+                  placeholder="Espécie *"
+                  dropdownRef={speciesDropdownRef}
+                  onSelect={() => breedDropdownRef.current?.open()}
+                  styles={styles}
+                />
+              </View>
+              <View style={styles.dropdownWrap}>
+                <SearchableSelect
+                  value={breed}
+                  onChange={setBreed}
+                  options={SPECIES_BREEDS[species] ?? NO_BREEDS}
+                  placeholder="Raça *"
+                  dropdownRef={breedDropdownRef}
+                  onSelect={() => locationRef.current?.focus()}
+                  styles={styles}
+                />
+              </View>
               <TextInput
                 ref={locationRef}
                 style={styles.input}
@@ -1797,7 +2020,10 @@ export default function HomeScreen() {
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.demoName}>{selectedPet.species}</Text>
+                <Text style={styles.demoName}>
+                  {selectedPet.species}
+                  {selectedPet.breed ? ` (${selectedPet.breed})` : ""}
+                </Text>
                 <View style={styles.demoRow}>
                   <Ionicons
                     name="location"
@@ -1806,6 +2032,7 @@ export default function HomeScreen() {
                   />
                   <Text style={styles.demoLocation}>
                     {selectedPet.location}
+                    {selectedPet.city ? ` — ${selectedPet.city}` : ""}
                   </Text>
                 </View>
                 {formatLostDate(selectedPet.lostDate) ? (
@@ -1834,120 +2061,131 @@ export default function HomeScreen() {
                     <Text style={styles.demoDescBtnText}>Ver descrição</Text>
                   </TouchableOpacity>
                 ) : null}
-                <View style={styles.circularMenu}>
-                  <View style={styles.circularCenter}>
-                    <Text style={styles.circularCenterText}>Ações</Text>
-                  </View>
-                  {(() => {
-                    type MenuAction = {
-                      key: string;
-                      icon: string;
-                      label: string;
-                      color: string;
-                      reportedDisabled?: boolean;
-                      onPress: () => void;
-                    };
-                    // Não faz sentido "Denunciar" de novo um pet já denunciado:
-                    // oculta o botão sempre que reported=true (qualquer denúncia,
-                    // não importa quem fez). Quem denunciou vê "Apagar denúncia".
-                    const jaDenunciado = selectedPet.reported;
-                    const actions: MenuAction[] = [
-                      {
-                        key: "contact",
-                        icon: "logo-whatsapp",
-                        label: "Contato",
-                        color: "#25D366",
-                        reportedDisabled: true,
-                        onPress: () => {
-                          const pet = selectedPet;
-                          setSelectedPet(null);
-                          handleContact(pet);
-                        },
+              </View>
+              <View
+                style={[styles.demoActionBar, { bottom: insets.bottom + 16 }]}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
+                {(() => {
+                  type BarAction = {
+                    key: string;
+                    icon: string;
+                    label: string;
+                    color: string;
+                    reportedDisabled?: boolean;
+                    onPress: () => void;
+                  };
+                  // Não faz sentido "Denunciar" de novo um pet já denunciado:
+                  // oculta o botão sempre que reported=true (qualquer denúncia,
+                  // não importa quem fez). Quem denunciou vê "Apagar denúncia".
+                  const jaDenunciado = selectedPet.reported;
+                  const actions: BarAction[] = [
+                    {
+                      key: "contact",
+                      icon: "logo-whatsapp",
+                      label: "Contato",
+                      color: "#25D366",
+                      reportedDisabled: true,
+                      onPress: () => {
+                        const pet = selectedPet;
+                        setSelectedPet(null);
+                        handleContact(pet);
                       },
-                      ...(jaDenunciado
-                        ? []
-                        : [
-                            {
-                              key: "report",
-                              icon: "flag",
-                              label: "Denunciar",
-                              color: "#FF9500",
-                              onPress: () => reportPet(selectedPet),
-                            } as MenuAction,
-                          ]),
-                      {
-                        key: "share",
-                        icon: "share-social",
-                        label: "Compartilhar",
-                        color: "#25D366",
-                        reportedDisabled: true,
-                        onPress: () => sharePetCard(selectedPet),
-                      },
-                    ];
-                    if (isOwner(selectedPet, myDeviceId, myPhone)) {
-                      actions.push({
-                        key: "delete",
-                        icon: "trash",
-                        label: "Apagar",
-                        color: "#FF3B30",
-                        onPress: () => deletePet(selectedPet.id),
-                      });
-                    }
-                    if (
-                      selectedPet.reported &&
-                      isReporter(selectedPet, myDeviceId, myPhone)
-                    ) {
-                      actions.push({
-                        key: "undoReport",
-                        icon: "flag",
-                        label: "Apagar denúncia",
-                        color: "#0A84FF",
-                        onPress: () => {
-                          commitPets(
-                            pets.map((p) =>
-                              p.id === selectedPet.id
-                                ? {
-                                    ...p,
-                                    reported: false,
-                                    reportReason: undefined,
-                                    reportedBy: undefined,
-                                    dirty: true,
-                                  }
-                                : p,
-                            ),
-                          );
-                          setSelectedPet(null);
-                        },
-                      });
-                    }
-                    const RADIUS = 85;
-                    const BUTTON_W = 60;
-                    return actions.map((item, index) => {
-                      const angle =
-                        (index * 2 * Math.PI) / actions.length - Math.PI / 2;
-                      const x = RADIUS * Math.cos(angle);
-                      const y = RADIUS * Math.sin(angle);
-                      const disabled =
-                        item.reportedDisabled && selectedPet.reported;
-                      return (
-                        <CircularActionButton
-                          key={item.key}
-                          index={index}
-                          progress={menuProgress}
-                          x={x}
-                          y={y}
-                          size={BUTTON_W}
-                          color={item.color}
-                          icon={item.icon}
-                          label={item.label}
-                          disabled={disabled}
-                          onPress={item.onPress}
-                          styles={styles}
-                        />
-                      );
+                    },
+                    ...((jaDenunciado || isOwner(selectedPet, myDeviceId, myPhone))
+                      ? []
+                      : [
+                          {
+                            key: "report",
+                            icon: "flag",
+                            label: "Denunciar",
+                            color: "#FF9500",
+                            onPress: () => reportPet(selectedPet),
+                          } as BarAction,
+                        ]),
+                    {
+                      key: "share",
+                      icon: "share-social",
+                      label: "Compartilhar",
+                      color: "#25D366",
+                      reportedDisabled: true,
+                      onPress: () => sharePetCard(selectedPet),
+                    },
+                  ];
+                  if (isOwner(selectedPet, myDeviceId, myPhone)) {
+                    actions.push({
+                      key: "delete",
+                      icon: "trash",
+                      label: "Apagar",
+                      color: "#FF3B30",
+                      onPress: () => deletePet(selectedPet.id),
                     });
-                  })()}
-                </View>
+                  }
+                  if (
+                    selectedPet.reported &&
+                    !!myDeviceId &&
+                    selectedPet.reporterDeviceId === myDeviceId
+                  ) {
+                    actions.push({
+                      key: "undoReport",
+                      icon: "flag",
+                      label: "Apagar denúncia",
+                      color: "#0A84FF",
+                      onPress: () => {
+                        commitPets(
+                          pets.map((p) =>
+                            p.id === selectedPet.id
+                              ? {
+                                  ...p,
+                                  reported: false,
+                                  reportReason: undefined,
+                                  reportedBy: undefined,
+                                  dirty: true,
+                                }
+                              : p,
+                          ),
+                        );
+                        setSelectedPet(null);
+                      },
+                    });
+                  }
+                  return (
+                    <View style={styles.demoActionRow}>
+                      {actions.map((item) => {
+                        const disabled =
+                          item.reportedDisabled && selectedPet.reported;
+                        return (
+                          <TouchableOpacity
+                            key={item.key}
+                            style={[
+                              styles.demoActionBtn,
+                              { borderColor: item.color },
+                              disabled && styles.demoActionBtnDisabled,
+                            ]}
+                            disabled={disabled}
+                            activeOpacity={0.7}
+                            onPress={item.onPress}
+                          >
+                            <Ionicons
+                              name={item.icon as any}
+                              size={22}
+                              color={disabled ? "#8E8E93" : item.color}
+                            />
+                            <Text
+                              numberOfLines={1}
+                              style={[
+                                styles.demoActionLabel,
+                                { color: disabled ? "#8E8E93" : item.color },
+                              ]}
+                            >
+                              {item.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                })()}
               </View>
             </View>
           </Modal>
@@ -1980,6 +2218,7 @@ export default function HomeScreen() {
                 <Ionicons name="location" size={28} color="#FF3B30" />
                 <Text style={styles.shareCardLocation}>
                   {selectedPet.location || "Local não informado"}
+                  {selectedPet.city ? ` — ${selectedPet.city}` : ""}
                 </Text>
                 <Text style={styles.shareCardCoords}>
                   {selectedPet.latitude.toFixed(4)},{" "}
@@ -2081,7 +2320,11 @@ export default function HomeScreen() {
         visible={viewerVisible && viewerImages.length > 0}
         images={viewerImages}
         index={viewerIndex}
-        title={selectedPet ? selectedPet.species : undefined}
+        title={
+          selectedPet
+            ? `${selectedPet.species}${selectedPet.breed ? ` (${selectedPet.breed})` : ""}`
+            : undefined
+        }
         onClose={() => setViewerVisible(false)}
         onIndexChange={setViewerIndex}
       />
@@ -2138,7 +2381,6 @@ const MapPicker = ({
       <script>
         var map = L.map('map', { attributionControl: false, tap: true, dragging: true, scrollWheelZoom: true, doubleClickZoom: true, zoomControl: true, inertia: true }).setView([${start.latitude}, ${start.longitude}], 15);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        L.circle([${city.latitude}, ${city.longitude}], { radius: ${city.radiusMeters}, color: '#0A84FF', weight: 2, fillColor: '#0A84FF', fillOpacity: 0.12 }).addTo(map);
         var marker = L.marker([${start.latitude}, ${start.longitude}], { draggable: true }).addTo(map);
         map.on('click', function(e){ marker.setLatLng(e.latlng); window.ReactNativeWebView.postMessage(JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng })); });
         marker.on('dragend', function(){ var p = marker.getLatLng(); window.ReactNativeWebView.postMessage(''+JSON.stringify({ lat: p.lat, lng: p.lng })); });
@@ -2160,7 +2402,6 @@ const MapPicker = ({
     start.longitude,
     city.latitude,
     city.longitude,
-    city.radiusMeters,
   ]);
 
   useEffect(() => {
@@ -2288,6 +2529,7 @@ const MapLeaflet = ({
   initialCenter,
   region,
   userLocation,
+  recenterNonce,
   pets,
   onMarkerPress,
   theme,
@@ -2296,6 +2538,7 @@ const MapLeaflet = ({
   initialCenter: { latitude: number; longitude: number } | null;
   region: Region;
   userLocation: { latitude: number; longitude: number } | null;
+  recenterNonce: number;
   pets: PetPost[];
   onMarkerPress: (petId: string) => void;
   theme: "light" | "dark";
@@ -2327,13 +2570,19 @@ const MapLeaflet = ({
     <body>
       <div id="map"></div>
       <script>
-        var city_lat = ${city.latitude};
-        var city_lng = ${city.longitude};
         var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19
         }).addTo(map);
-        L.circle([${city.latitude}, ${city.longitude}], { radius: ${city.radiusMeters}, color: '#0A84FF', weight: 2, fillColor: '#0A84FF', fillOpacity: 0.12 }).addTo(map);
+
+        // Corrige mapa preto/cinza quando o container ainda está com tamanho 0
+        // na inicialização (Leaflet calcula tiles com tamanho 0). Recalcula o
+        // tamanho em vários momentos e quando os tiles terminam de carregar.
+        var __invalidate = function(){ try { if (window.__map) window.__map.invalidateSize(); } catch (e) {} };
+        setTimeout(__invalidate, 200);
+        setTimeout(__invalidate, 500);
+        setTimeout(__invalidate, 1000);
+        map.on('load', __invalidate);
 
         var pawIcon = L.divIcon({
           className: 'paw-pin',
@@ -2434,24 +2683,13 @@ const MapLeaflet = ({
   }, [mapReady, pets, SPIDER_DELTA]);
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
-  // (incluindo quando definida tarde no emulador). Usa um limiar para não
-  // "pular" o mapa a cada pequeno ruído de GPS.
+  // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a
+  // cada pequeno ruído de GPS. Válido em qualquer lugar do mundo.
   const lastPanRef = useRef<{ latitude: number; longitude: number } | null>(
     null,
   );
   useEffect(() => {
     if (!mapReady || !webRef.current || !userLocation) return;
-    // Só recentraliza se a posição do GPS estiver DENTRO de uma área atendida.
-    // Evita focar na posição padrão do emulador (Mountain View) quando o GPS
-    // não entrega a localização real. `city` é a cidade mais próxima do usuário.
-    const within =
-      distanceMeters(
-        userLocation.latitude,
-        userLocation.longitude,
-        city.latitude,
-        city.longitude,
-      ) <= city.radiusMeters;
-    if (!within) return;
     const last = lastPanRef.current;
     if (
       last &&
@@ -2465,9 +2703,18 @@ const MapLeaflet = ({
       return;
     }
     lastPanRef.current = userLocation;
-    const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 15)); } })();`;
+    const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 13)); } })();`;
     webRef.current.injectJavaScript(js);
   }, [mapReady, userLocation]);
+
+  // Força o recentramento quando o botão "Centralizar no meu GPS" é clicado
+  // (recenterNonce muda), ignorando o limiar de ruído de GPS — o botão deve
+  // centralizar sempre, mesmo já estando próximo.
+  useEffect(() => {
+    if (!mapReady || !webRef.current || !userLocation) return;
+    const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 13)); } })();`;
+    webRef.current.injectJavaScript(js);
+  }, [recenterNonce]);
 
   // Desenha/atualiza o círculo do usuário via JS (sem recarregar o WebView a
   // cada mudança de GPS — antes o userLocation estava no html e forcava reload +
@@ -2496,6 +2743,11 @@ const MapLeaflet = ({
       onLoad={() => {
         setMapReady(true);
         webRef.current?.injectJavaScript(renderPetsJs(petsRef.current));
+        // Garante que o Leaflet recalcule o tamanho do container após o WebView
+        // ter dimensões reais (evita mapa preto/cinza por tamanho 0).
+        webRef.current?.injectJavaScript(
+          "setTimeout(function(){ if (window.__map) window.__map.invalidateSize(); }, 300);",
+        );
       }}
       onMessage={(e) => {
         try {
@@ -2729,7 +2981,14 @@ const makeStyles = (c: typeof Colors.light) =>
       flex: 1,
       backgroundColor: c.background,
     },
-    modalScrollView: { padding: 20 },
+    modalScrollView: { padding: 20, overflow: "visible" as const },
+    // Container pai do dropdown: zIndex/elevation altos para a lista flutuante
+    // (renderizada em Modal pela lib) não ser sobreposta por campos irmãos.
+    dropdownWrap: {
+      position: "relative",
+      zIndex: 2000,
+      elevation: 2000,
+    },
     modalHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
@@ -2875,6 +3134,18 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 14,
       fontWeight: "600",
     },
+    cityHintRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    cityHintText: {
+      marginLeft: 6,
+      color: c.text,
+      fontSize: 14,
+      fontWeight: "600",
+    },
     cameraBox: {
       position: "relative",
       height: 440,
@@ -2998,6 +3269,43 @@ const makeStyles = (c: typeof Colors.light) =>
     inputError: {
       borderColor: "#FF3B30",
     },
+    dropdown: {
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 12,
+      paddingHorizontal: 15,
+      paddingVertical: 15,
+      marginBottom: 15,
+    },
+    dropdownContainer: {
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 12,
+    },
+    dropdownPlaceholder: {
+      color: "#8E8E93",
+      fontSize: 16,
+    },
+    dropdownSelectedText: {
+      color: c.text,
+      fontSize: 16,
+    },
+    dropdownInputSearch: {
+      color: c.text,
+      fontSize: 16,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      margin: 6,
+    },
+    dropdownItemText: {
+      color: c.text,
+      fontSize: 15,
+    },
     fieldError: {
       color: "#FF3B30",
       fontSize: 13,
@@ -3115,11 +3423,12 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     sideToolbar: {
       position: "absolute",
-      top: "38%",
+      top: "50%",
       right: 16,
       gap: 18,
       zIndex: 20,
       elevation: 20,
+      transform: [{ translateY: "-50%" }],
     },
     sideToolbarBtn: {
       width: 46,
@@ -3245,6 +3554,7 @@ const makeStyles = (c: typeof Colors.light) =>
       justifyContent: "center",
       alignItems: "center",
       padding: 24,
+      paddingBottom: 120,
     },
     demoCard: {
       width: "100%",
@@ -3539,6 +3849,52 @@ const makeStyles = (c: typeof Colors.light) =>
       color: "#FFFFFF",
       fontSize: 13,
       fontWeight: "bold",
+    },
+    demoActionBar: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 16,
+      backgroundColor: c.card,
+      borderRadius: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      flexDirection: "row",
+      justifyContent: "space-around",
+      alignItems: "center",
+      elevation: 8,
+      shadowColor: "#000",
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: -2 },
+    },
+    demoActionRow: {
+      flexDirection: "row",
+      justifyContent: "space-evenly",
+      alignItems: "center",
+      width: "100%",
+    },
+    demoActionBtn: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 6,
+      marginHorizontal: 2,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: "#25D366",
+      backgroundColor: "transparent",
+    },
+    demoActionBtnDisabled: {
+      borderColor: "#8E8E93",
+      opacity: 0.5,
+    },
+    demoActionLabel: {
+      marginTop: 4,
+      fontSize: 10,
+      fontWeight: "600",
+      textAlign: "center",
+      flexWrap: "nowrap",
     },
     circularBtn: {
       position: "absolute",

@@ -212,48 +212,53 @@ create policy "pets insert own"
 --     denúncia de outra pessoa). Por isso o `with check` bloqueia o dono de
 --     fazer reported=true->false, mas libera o repórter (owner_device_id <>
 --     current) de denunciar e apagar livremente.
+-- CORREÇÃO (2026-08-19): ANTES HAVIA DUAS policies de UPDATE ("pets update own" e
+-- "pets report update"). O Postgres combina o WITH CHECK de policies permissivas
+-- de UPDATE com AND — então o que passava numa falhava na outra (whack-a-mole).
+-- SOLUÇÃO: UMA SÓ policy "pets update", cujo WITH CHECK é um OR explícito dos
+-- casos válidos. Assim não há AND cruzado entre policies.
+--   CASO A: dono edita CONTEÚDO (conteúdo livre) ou faz soft-delete.
+--           repórter IMUTÁVEL; dono NÃO esconde denúncia alheia (reported true->false).
+--   CASO B: finder denuncia 1ª vez (reporter null -> current, reported=true).
+--   CASO C: o PRÓPRIO repórter confirma (reported=true) ou apaga (reported=false)
+--           a própria denúncia; repórter inalterado.
+-- IMPORTANTE: NÃO há comparação de `payload` nesta policy. O app, no ramo de
+-- denúncia (lib/sync.ts), NÃO reescreve o `payload` — só atualiza as COLUNAS DE
+-- TOPO (reported/reporter_device_id), que são a fonte autoritativa (toLocalPet
+-- lê delas). Tentar comparar `payload` era frágil: o payload local do finder
+-- divergia do do servidor (ex.: images como URI local vs URL remota) e barrava
+-- a denúncia com "new row violates row-level security policy"; e reescrever o
+-- payload corromperia o conteúdo. Conteúdo só muda pelo CASO A (dono).
+-- Em todos os casos o owner_device_id é IMUTÁVEL (ninguém rouba posse).
 drop policy if exists "pets update own" on public.pets;
-create policy "pets update own"
-  on public.pets for update to authenticated
-  using (
-    owner_device_id = public.current_device_id()
-    or reporter_device_id = public.current_device_id()
-  )
-  with check (
-    owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
-    and reporter_device_id = (select p.reporter_device_id from public.pets p where p.id = pets.id)
-    and (
-      owner_device_id <> public.current_device_id()
-      or not (
-        (select p.reported from public.pets p where p.id = pets.id) = true
-        and reported = false
-      )
-    )
-  );
-
--- (B) pets report update: finder (não dono, não repórter) só pode DENUNCIAR —
--- ou seja, definir reported=true e reporter_device_id=si mesmo, sem mexer na
--- posse, sem apagar (deleted_at deve continuar nulo) e apenas na 1ª denúncia
--- (reporter_device_id precisava estar nulo).
--- CONTEÚDO PROTEGIDO: exige que o conteúdo do pet (espécie, local, descrição,
--- fotos, coordenadas, data) não mude — só os campos de denúncia. Assim o finder
--- denuncia mas não "picha" o alerta alheio via API. Comparamos o payload sem as
--- chaves de sync/denúncia; as chaves de conteúdo precisam ser idênticas.
 drop policy if exists "pets report update" on public.pets;
-create policy "pets report update"
+drop policy if exists "pets update" on public.pets;
+create policy "pets update"
   on public.pets for update to authenticated
   using (true)
   with check (
     owner_device_id = (select p.owner_device_id from public.pets p where p.id = pets.id)
-    and deleted_at is null
-    and (select p.reporter_device_id from public.pets p where p.id = pets.id) is null
-    and reporter_device_id = public.current_device_id()
-    and reported = true
     and (
-      payload - '{id,contact,ownerPhone,ownerDeviceId,reporterDeviceId,reported,reportReason,reportedBy,dirty,remoteImageUrls,updatedAt,deletedAt}'::text[]
-    ) = (
-      (select p.payload from public.pets p where p.id = pets.id)
-      - '{id,contact,ownerPhone,ownerDeviceId,reporterDeviceId,reported,reportReason,reportedBy,dirty,remoteImageUrls,updatedAt,deletedAt}'::text[]
+      -- CASO A: dono edita conteúdo ou soft-delete.
+      ( owner_device_id = public.current_device_id()
+        and reporter_device_id is not distinct from (select p.reporter_device_id from public.pets p where p.id = pets.id)
+        and ( owner_device_id <> public.current_device_id()
+              or not ( (select p.reported from public.pets p where p.id = pets.id) = true
+                       and reported = false ) )
+      )
+      -- CASO B: finder denuncia pela 1ª vez (reporter null -> current, reported=true).
+      or ( (select p.reporter_device_id from public.pets p where p.id = pets.id) is null
+           and owner_device_id <> public.current_device_id()
+           and reporter_device_id = public.current_device_id()
+           and reported = true
+           and deleted_at is null )
+      -- CASO C: o próprio repórter confirma (reported=true) ou apaga (reported=false) a denúncia.
+      --   repórter inalterado. Só quem é o repórter pode; o dono continua travado
+      --   de esconder denúncia alheia (não entra no CASO A).
+      or ( (select p.reporter_device_id from public.pets p where p.id = pets.id) = public.current_device_id()
+           and owner_device_id <> public.current_device_id()
+           and reporter_device_id = public.current_device_id()
+           and deleted_at is null )
     )
   );
 

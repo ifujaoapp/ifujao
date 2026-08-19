@@ -9,6 +9,7 @@ const PHOTOS_DIR = new Directory(Paths.document, 'pet_photos');
 export interface PetRecord {
   id: string;
   species: string;
+  breed?: string;
   location: string;
   description: string;
   contact: string;
@@ -18,6 +19,7 @@ export interface PetRecord {
   images: string[];
   latitude: number;
   longitude: number;
+  city?: string;
   reported?: boolean;
   reportReason?: string;
   reportedBy?: string;

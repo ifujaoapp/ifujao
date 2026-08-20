@@ -23,6 +23,7 @@ import {
   KeyboardAvoidingView,
   Linking,
   Modal,
+  PanResponder,
   Platform,
   ScrollView,
   Share,
@@ -30,6 +31,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { Dropdown, type IDropdownRef } from "react-native-element-dropdown";
@@ -514,6 +516,31 @@ export default function HomeScreen() {
   const [aiQuery, setAiQuery] = useState("");
   const [aiResults, setAiResults] = useState<SearchResult[] | null>(null);
   const [aiSearching, setAiSearching] = useState(false);
+  // Barra de busca: visível só ao clicar em "Pesquisar"; posição arrastável.
+  const [aiSearchVisible, setAiSearchVisible] = useState(false);
+  const [titleBarH, setTitleBarH] = useState(0);
+  const { width: screenW, height: screenH } = useWindowDimensions();
+  const [aiBarXY, setAiBarXY] = useState({ x: 12, y: insets.top + 72 });
+  const aiBarXYRef = useRef(aiBarXY);
+  const aiDragStart = useRef({ x: 0, y: 0 });
+  const aiPan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        aiDragStart.current = { ...aiBarXYRef.current };
+      },
+      onPanResponderMove: (_, g) => {
+        const ny = aiDragStart.current.y + g.dy;
+        const next = {
+          x: 12,
+          y: Math.max(8, Math.min(ny, screenH - 120)),
+        };
+        aiBarXYRef.current = next;
+        setAiBarXY(next);
+      },
+    })
+  ).current;
   const menuProgress = useSharedValue(0);
   useEffect(() => {
     if (selectedPet !== null) {
@@ -1341,7 +1368,10 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <View style={{ paddingTop: insets.top }}>
-        <View style={styles.titleBar}>
+        <View
+          style={styles.titleBar}
+          onLayout={(e) => setTitleBarH(e.nativeEvent.layout.height)}
+        >
           <Ionicons
             style={styles.clockIcon}
             name={isDay ? "sunny" : "moon"}
@@ -1387,34 +1417,45 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* Barra de busca semântica por IA (Gemini) */}
-      <View style={[styles.aiSearchBar, { top: insets.top + 52 }]}>
-        <Ionicons name="search" size={16} color="#8E8E93" style={{ marginLeft: 8 }} />
-        <TextInput
-          style={styles.aiSearchInput}
-          placeholder="Buscar pet com IA (ex.: cachorro castanho, orelhas caídas)"
-          placeholderTextColor="#8E8E93"
-          value={aiQuery}
-          onChangeText={setAiQuery}
-          onSubmitEditing={runAiSearch}
-          returnKeyType="search"
-        />
-        {aiSearching ? (
-          <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
-        ) : aiResults ? (
-          <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
-            <Ionicons name="close-circle" size={18} color="#8E8E93" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.aiSearchBtn}
-            onPress={runAiSearch}
-            disabled={!aiQuery.trim()}
+      {/* Barra de busca semântica por IA (Gemini) — só aparece ao clicar em
+          "Pesquisar"; arrastável pelo pegador (ícone de grip) à esquerda. */}
+      {aiSearchVisible && (
+        <View
+          style={[styles.aiSearchBar, { top: aiBarXY.y }]}
+        >
+          <View
+            {...aiPan.panHandlers}
+            style={styles.aiDragHandle}
           >
-            <Text style={styles.aiSearchBtnText}>Buscar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+            <Ionicons name="reorder-two" size={18} color="#8E8E93" />
+          </View>
+          <Ionicons name="search" size={16} color="#8E8E93" />
+          <TextInput
+            style={styles.aiSearchInput}
+            placeholder="Buscar pet com IA (ex.: cachorro castanho, orelhas caídas)"
+            placeholderTextColor="#8E8E93"
+            value={aiQuery}
+            onChangeText={setAiQuery}
+            onSubmitEditing={runAiSearch}
+            returnKeyType="search"
+          />
+          {aiSearching ? (
+            <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
+          ) : aiResults ? (
+            <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
+              <Ionicons name="close-circle" size={18} color="#8E8E93" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.aiSearchBtn}
+              onPress={runAiSearch}
+              disabled={!aiQuery.trim()}
+            >
+              <Text style={styles.aiSearchBtnText}>Buscar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
 
       <View style={styles.mapArea}>
         <View
@@ -1441,6 +1482,7 @@ export default function HomeScreen() {
             userLocation={userLocation}
             recenterNonce={recenterNonce}
             pets={visiblePets}
+            fitToResults={!!aiResults}
             onMarkerPress={async (petId) => {
               const pet = pets.find((p) => p.id === petId);
               if (pet) setSelectedPet(pet);
@@ -1510,11 +1552,18 @@ export default function HomeScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideToolbarBtn}
-            onPress={() =>
-              showAlert("search", "Buscar", "Funcionalidade de busca em breve.")
-            }
+            onPress={() => {
+              const nv = !aiSearchVisible;
+              setAiSearchVisible(nv);
+              if (nv) setAiBarXY({ x: 12, y: insets.top + (titleBarH || 64) + 8 });
+              if (!nv) setAiResults(null);
+            }}
           >
-            <Ionicons name="search" size={24} color="#FFFFFF" />
+            <Ionicons
+              name={aiSearchVisible ? "close" : "search"}
+              size={24}
+              color="#FFFFFF"
+            />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideToolbarBtn}
@@ -2711,6 +2760,7 @@ const MapLeaflet = ({
   onMarkerPress,
   theme,
   city,
+  fitToResults,
 }: {
   initialCenter: { latitude: number; longitude: number } | null;
   region: Region;
@@ -2720,6 +2770,7 @@ const MapLeaflet = ({
   onMarkerPress: (petId: string) => void;
   theme: "light" | "dark";
   city: import("@/constants/cities").City;
+  fitToResults?: boolean;
 }) => {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
@@ -2867,6 +2918,9 @@ const MapLeaflet = ({
   );
   useEffect(() => {
     if (!mapReady || !webRef.current || !userLocation) return;
+    // Em modo busca (fitToResults) não roubamos o enquadramento dos resultados
+    // com o auto-pan do GPS a cada poll de 5s.
+    if (fitToResults) return;
     const last = lastPanRef.current;
     if (
       last &&
@@ -2904,6 +2958,30 @@ const MapLeaflet = ({
     })();`;
     webRef.current.injectJavaScript(js);
   }, [mapReady, userLocation]);
+
+  // Quando a busca por IA está ativa (fitToResults), enquadra o mapa em todos
+  // os pets resultantes. Sem isso, o pin do pet aparece fora da tela (ex.: gato
+  // preto em Aracoiaba da Serra fica a dezenas de km do centro padrão/Sorocaba)
+  // e a busca "não traz nada" no mapa. Re-enquadra a cada mudança de resultados.
+  useEffect(() => {
+    if (!mapReady || !webRef.current || !fitToResults) return;
+    if (!pets || pets.length === 0) return;
+    const pts = pets
+      .filter(
+        (p) =>
+          typeof p.latitude === "number" && typeof p.longitude === "number",
+      )
+      .map((p) => ({ latitude: p.latitude, longitude: p.longitude }));
+    if (pts.length === 0) return;
+    const js = `(function(){
+      if (!window.__map) return;
+      var pts = ${JSON.stringify(pts)};
+      if (!pts.length) return;
+      var bounds = L.latLngBounds(pts.map(function(p){ return [p.latitude, p.longitude]; }));
+      window.__map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+    })();`;
+    webRef.current.injectJavaScript(js);
+  }, [mapReady, pets, fitToResults]);
 
   const source = useMemo(() => ({ html }), [html]);
 
@@ -3579,6 +3657,11 @@ const makeStyles = (c: typeof Colors.light) =>
       shadowOpacity: 0.15,
       shadowRadius: 4,
       elevation: 4,
+    },
+    aiDragHandle: {
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      marginRight: 2,
     },
     aiSearchInput: {
       flex: 1,

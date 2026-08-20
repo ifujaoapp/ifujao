@@ -6,8 +6,10 @@ const corsHeaders = {
 
 const RATE_LIMIT = 20;
 const RATE_WINDOW_MS = 60000;
-// Modelo de embedding do Gemini (768 dimensões, igual ao embed-pets).
-const EMBED_MODEL = "gemini-embedding-001";
+const MATCH_COUNT = 20;
+// Modelo de embedding MULTIMODAL do Gemini (texto+imagem), igual ao embed-pets.
+const EMBED_MODEL = "gemini-embedding-2";
+const EMBED_DIM = 3072;
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -59,13 +61,16 @@ Deno.serve(async (req) => {
       return json({ error: "rate limit exceeded" }, 429);
     }
 
-    // 1) Embedding da consulta via Gemini.
+    // 1) Embedding da consulta via Gemini (multimodal, 3072 dims).
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/${EMBED_MODEL}:embedContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${geminiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: { parts: [{ text: query }] } }),
+        body: JSON.stringify({
+          content: { parts: [{ text: query }] },
+          outputDimensionality: EMBED_DIM,
+        }),
       }
     );
     if (!geminiRes.ok) {
@@ -83,7 +88,7 @@ Deno.serve(async (req) => {
       method: "POST",
       body: JSON.stringify({
         query_embedding: `[${emb.join(",")}]`,
-        match_count: 20,
+        match_count: MATCH_COUNT,
       }),
     });
     const rows = await rpcRes.json();
@@ -92,13 +97,35 @@ Deno.serve(async (req) => {
       return json({ error: "search failed" }, 500);
     }
 
+    const all = Array.isArray(rows) ? rows : [];
+    if (all.length === 0) return json({ results: [] }, 200);
+
+    // Busca SÓ POR IMAGEM (vetor do pet = só a foto). O `match_pets` ranqueia
+    // por similaridade coseno. Não usamos o campo `species` do payload (pode
+    // estar inconsistente e não reflete a foto).
+    // Limiar RELATIVO à melhor imagem: mantém só as fotos próximas do topo.
+    //  - Consulta genérica ("gato"): o cluster de gatos é apertado em torno do
+    //    melhor, então todos os gatos entram; fotos de outras espécies (muito
+    //    abaixo) saem.
+    //  - Consulta específica ("gato preto"): o gato preto é o topo e os gatos
+    //    não-pretos caem bem abaixo -> só a melhor imagem de gato preto fica.
+    const best = all.reduce(
+      (m, r) => Math.max(m, (r?.similarity ?? 0) as number),
+      0
+    );
+    const REL_MARGIN = 0.06;
+    const threshold = Math.max(best - REL_MARGIN, 0.2);
+    const results = all.filter(
+      (r) => (r?.similarity ?? 0) >= threshold
+    );
+
     // 3) Registra o uso (para rate-limit). Tabela opcional; ignora erro.
     await rest("ai_searches", {
       method: "POST",
       body: JSON.stringify({ user_id: userId, query }),
     }).catch(() => {});
 
-    return json({ results: rows ?? [] }, 200);
+    return json({ results }, 200);
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

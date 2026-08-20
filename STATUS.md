@@ -981,3 +981,46 @@ do Gemini + pgvector no Supabase.
 
 - Validação: `tsc --noEmit` limpo. Backfill executado com sucesso (3/3 pets).
   Requer **rebuild nativo** (`npx expo run:android`) para testar a UI.
+
+## Atualizações (2026-08-20, fim) — busca híbrida (texto + vetor) — REVERTIDA
+
+Bug: "gato preto" retornava resultados, mas "gato" não retornava nada.
+
+### Causa raiz
+O embedding de cada pet é gerado **só a partir da FOTO**
+(`embed-pets/index.ts:172` → `parts: img ? [img] : [{ text }]`). A busca
+`search-pets` ranqueia por similaridade **visual** (piso `MATCH_THRESHOLD = 0.4`).
+- "gato preto": o texto "preto" afunila o casamento visual com a foto do gato
+  preto → passa do limite.
+- "gato": palavra única, embedding genérico comparado com fotos → cai abaixo de
+  `0.4` → nenhum resultado.
+
+### Tentativa híbrida (DESCARTADA)
+Primeiro fiz match por **texto** no `payload` (espécie/raça/descrição) para
+garantir "gato" → todos os gatos. Problemas: (1) o campo `species` do payload
+**pode estar inconsistente** e não reflete a foto; (2) "gato preto" acabava
+tragando todos os gatos (a espécie casava amplo). Decisão do usuário: **esquecer
+o campo espécie e checar SÓ a imagem** (se bater com o texto da pesquisa).
+
+### Correção final (`supabase/functions/search-pets/index.ts`)
+Busca **SÓ POR IMAGEM**, sem depender do `payload`:
+- Removido o helper `fetchTextMatches` e todo o match por texto/`species`.
+- **Limiar RELATIVO** à melhor imagem (`best - REL_MARGIN`, piso 0.2), não um
+  piso fixo. O `match_pets` devolve os top-20 por similaridade coseno e aí
+  filtramos por perto do topo:
+  - Consulta genérica ("gato"): cluster de gatos apertado em torno do melhor →
+    **todos os gatos** entram; outras espécies (muito abaixo) saem.
+  - Consulta específica ("gato preto"): o gato preto é o topo, os não-pretos
+    caem bem abaixo → **só a melhor imagem de gato preto** fica (NÃO todos os
+    gatos). Quem decide é a imagem, não o rótulo de texto.
+
+### Deploy
+`supabase functions deploy search-pets` (só a função mudou; sem SQL/RLS novo).
+Não precisa de rebuild do app (a UI consome só o `id`).
+
+### Lição (não repetir)
+- Quando o embedding do pet é **só-foto**, a busca deve ser **só visual**;
+  não inventar match por campo de texto (`species`) que pode estar errado e
+  divergir da foto. O piso de similaridade que corta palavras genéricas foi a
+  causa de "gato" não voltar nada — remover o corte (top-N por similaridade)
+  resolve sem misturar critérios.

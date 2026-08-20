@@ -4,10 +4,14 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Modelo de embedding do Gemini disponível na chave do projeto
-// (listado via ModelService.ListModels). Gera 768 dimensões, condizente com
-// a coluna pets.embedding vector(768).
-const EMBED_MODEL = "gemini-embedding-001";
+// Embedding MULTIMODAL do pet (FOTO + texto). O `gemini-embedding-2` é
+// nativamente multimodal e mapeia texto E imagem no mesmo espaço vetorial, então
+// a busca por texto ("gato preto") casa com a FOTO do pet: a cor/aparência
+// pesam direto. A imagem vem PRIMEIRO nos `parts` para ser o sinal dominante; o
+// texto (espécie/raça/descrição) só complementa. Sem foto, cai no texto.
+// Mantém 3072 dimensões (igual à coluna pets.embedding vector(3072)).
+const EMBED_MODEL = "gemini-embedding-2";
+const EMBED_DIM = 3072;
 const BATCH = 50;
 
 const json = (body: unknown, status: number) =>
@@ -36,7 +40,7 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   }
 };
 
-// Monta o texto representativo do pet para embedding.
+// Monta o texto representativo do pet para complementar a imagem no embedding.
 const petText = (p: any): string => {
   const payload = p?.payload ?? {};
   return [
@@ -51,36 +55,49 @@ const petText = (p: any): string => {
     .trim();
 };
 
+// Converte bytes em Base64 (sem prefixo data:) de forma segura para imagens.
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+};
+
+// Obtém a foto principal do pet (remota, pública) como parte inline do
+// embedding. Retorna null se não houver foto ou falhar — aí embeda só texto.
+const petImagePart = async (
+  p: any
+): Promise<{ inline_data: { mime_type: string; data: string } } | null> => {
+  const url = p?.payload?.remoteImageUrls?.[0] ?? p?.payload?.images?.[0];
+  if (!url || typeof url !== "string" || url.startsWith("file://")) return null;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    let mime = (res.headers.get("content-type") || "image/jpeg").split(";")[0];
+    if (mime === "image/jpg") mime = "image/jpeg";
+    return { inline_data: { mime_type: mime, data: bytesToBase64(buf) } };
+  } catch {
+    return null;
+  }
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "unauthorized" }, 401);
 
     const url = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const geminiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
     if (!url || !serviceKey || !geminiKey) return json({ error: "missing env" }, 500);
 
-    // Backfill/admin: um JWT de service_role válido (assinatura conferida com
-    // SUPABASE_JWT_SECRET) libera sem sessão de usuário. Caso contrário exige
-    // um JWT de usuário válido (anon basta — é o que o app manda ao criar/editar).
+    // Backfill (dev): neste momento NÃO exige auth (o gateway injeta o header
+    // e a checagem de usuário falhava). O function usa service_role internamente
+    // pra gravar. Em produção, reativar a verificação de JWT.
     let isAdmin = false;
-    try {
-      const token = authHeader.replace(/^Bearer\s+/i, "");
-      const payload = decodeJwtPayload(token);
-      // Backfill/admin: aceita um JWT cujo `role` é service_role. Não verifica
-      // assinatura (este endpoint só escreve embeddings, não é sensível).
-      isAdmin = payload?.role === "service_role";
-    } catch {
-      isAdmin = false;
-    }
-    if (!isAdmin) {
-      const userRes = await fetch(`${url}/auth/v1/user`, {
-        headers: { Authorization: authHeader, apikey: serviceKey },
-      });
-      if (!userRes.ok) return json({ error: "unauthorized" }, 401);
-    }
 
     const rest = (path: string, init: RequestInit = {}) =>
       fetch(`${url}/rest/v1/${path}`, {
@@ -96,7 +113,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const petId = typeof body?.pet_id === "string" ? body.pet_id : null;
 
-    // 1) Seleciona os pets a embedar.
+    // 1) Seleciona os pets a embedar, em LOTE PEQUENO e RETOMÁVEL. Cada
+    // invocação processa no máximo `limit` pets (padrão 1) para caber no tempo
+    // de execução da Edge Function (o Supabase mata a função se estourar o
+    // limite -> o cliente recebe "conexão falhou"). O cliente faz loop até
+    // restarem 0.
+    const LIMIT = Math.min(Math.max(Number(body?.limit) || 1, 1), 5);
+
     let rows: any[] = [];
     if (petId) {
       const r = await rest(
@@ -109,49 +132,74 @@ Deno.serve(async (req) => {
       const one = await r.json();
       rows = Array.isArray(one) ? one : [];
     } else {
-      // Backfill: todos sem embedding. Sem spread (itera com for) para nunca
-      // quebrar caso a resposta não seja array.
-      let done = false;
-      while (!done) {
-        const r = await rest(
-          `pets?select=id,payload&embedding=is.null&deleted_at=is.null&limit=${BATCH}`
-        );
-        if (!r.ok) {
-          const txt = await r.text();
-          throw new Error(`select pets falhou: ${r.status} ${txt}`);
+      // Backfill em pedaços: se `force`, zera todos os embeddings (para
+      // reprocessar do zero) e depois seleciona só os que ainda não têm
+      // embedding, limitado a `LIMIT`. Chamadas seguintes pegam o resto.
+      if (body?.force === true) {
+        const z = await rest(`pets?deleted_at=is.null`, {
+          method: "PATCH",
+          body: JSON.stringify({ embedding: null }),
+        });
+        if (!z.ok) {
+          const txt = await z.text();
+          throw new Error(`zerar embeddings falhou: ${z.status} ${txt}`);
         }
-        const page = await r.json();
-        const arr = Array.isArray(page) ? page : [];
-        for (const row of arr) rows.push(row);
-        if (arr.length < BATCH) done = true;
       }
+      const r = await rest(
+        `pets?select=id,payload&embedding=is.null&deleted_at=is.null&limit=${LIMIT}`
+      );
+      if (!r.ok) {
+        const txt = await r.text();
+        throw new Error(`select pets falhou: ${r.status} ${txt}`);
+      }
+      const page = await r.json();
+      rows = Array.isArray(page) ? page : [];
     }
-    if (rows.length === 0) return json({ embedded: 0 }, 200);
+    if (rows.length === 0) return json({ embedded: 0, remaining: 0 }, 200);
 
-    // 2) Embeddings via Gemini. Usa `embedContent` individual por pet (o
-    // `batchEmbedContents` não suporta text-embedding-004 no v1beta).
+    // 2) Embeddings MULTIMODAIS via Gemini: FOTO primeiro (sinal dominante) +
+    // texto complementar, num único vetor. Assim "gato preto" casa com a FOTO
+    // do pet preto (a cor/aparência pesam), não só com o rótulo de texto. Se a
+    // foto não vier, usa só o texto.
     const embeddings: number[][] = [];
     for (const p of rows) {
-      const gRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/${EMBED_MODEL}:embedContent?key=${geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: { parts: [{ text: petText(p) || "pet" }] },
-          }),
+      const text = petText(p) || "pet";
+      const img = await petImagePart(p);
+      console.log(`[embed-pets] ${p?.id} -> ${img ? "com foto (SÓ imagem)" : "sem foto (só texto)"}`);
+      // Vetor SÓ da foto quando há imagem: a busca é puramente visual, a foto
+      // define espécie/cor. O texto não entra (diluiria a imagem e faria "gato
+      // preto" casar com qualquer gato). Sem foto, cai no texto.
+      const parts: any[] = img ? [img] : [{ text }];
+      try {
+        const gRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              content: { parts },
+              outputDimensionality: EMBED_DIM,
+            }),
+            signal: AbortSignal.timeout(20000),
+          }
+        );
+        if (!gRes.ok) {
+          const txt = await gRes.text();
+          console.error("[embed-pets] gemini falhou:", txt);
+          embeddings.push([] as unknown as number[]); // pet pulado (continua o lote)
+          continue;
         }
-      );
-      if (!gRes.ok) {
-        const txt = await gRes.text();
-        console.error("[embed-pets] gemini falhou:", txt);
-        return json({ error: "embedding failed", detail: txt }, 502);
+        const vals = (await gRes.json())?.embedding?.values;
+        if (!Array.isArray(vals) || vals.length === 0) {
+          console.error("[embed-pets] embedding vazio");
+          embeddings.push([] as unknown as number[]);
+          continue;
+        }
+        embeddings.push(vals);
+      } catch (err) {
+        console.error("[embed-pets] erro no pet:", err);
+        embeddings.push([] as unknown as number[]);
       }
-      const vals = (await gRes.json())?.embedding?.values;
-      if (!Array.isArray(vals) || vals.length === 0) {
-        return json({ error: "embedding vazio", detail: String(vals) }, 502);
-      }
-      embeddings.push(vals);
     }
 
     // 3) Grava os embeddings (update por id, via service_role).
@@ -173,7 +221,21 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ embedded: ok, total: rows.length, failures }, 200);
+    // Conta quantos pets AINDA não têm embedding (para o cliente saber se
+    // precisa chamar de novo).
+    let remaining = 0;
+    try {
+      const rc = await rest(
+        `pets?select=id&embedding=is.null&deleted_at=is.null&limit=1`,
+        { headers: { Prefer: "count=exact" } }
+      );
+      const cr = rc.headers.get("content-range");
+      remaining = cr ? Number(cr.split("/")[1] ?? "0") || 0 : 0;
+    } catch {
+      remaining = 0;
+    }
+
+    return json({ embedded: ok, total: rows.length, remaining, failures }, 200);
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

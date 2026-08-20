@@ -815,6 +815,14 @@ no dispositivo físico e o **seletor de arquivos** só no emulador.
 - Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (duas deps
   nativas novas: `expo-document-picker`, `expo-device`).
 
+## Atualizações (2026-08-20) — remoção do warning de deprecação do ImagePicker
+
+`expo-image-picker@17` deprecou `ImagePicker.MediaTypeOptions.Images`. O
+`MediaType` é só um tipo (`'images' | 'videos' | 'livePhotos'`), não um enum
+valor, então não dá para usar `ImagePicker.MediaType.Images`. Trocado em
+`app/(tabs)/index.tsx` (`abrirGaleria`) para `mediaTypes: ["images"]` (forma
+não-depreciada, aceita `MediaType | MediaType[]`). `tsc --noEmit` limpo.
+
 ## Atualizações (2026-08-20) — erro de bundle `better-sqlite3` (op-sqlite no Node)
 
 Sintoma: ao rodar o dev server, o Metro falhava com

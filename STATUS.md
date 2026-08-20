@@ -814,3 +814,36 @@ no dispositivo físico e o **seletor de arquivos** só no emulador.
   para antes do branch (evita pedir permissão quando já no limite).
 - Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (duas deps
   nativas novas: `expo-document-picker`, `expo-device`).
+
+## Atualizações (2026-08-20) — erro de bundle `better-sqlite3` (op-sqlite no Node)
+
+Sintoma: ao rodar o dev server, o Metro falhava com
+`Unable to resolve module better-sqlite3` vindo de
+`node_modules/@op-engineering/op-sqlite/node/dist/database.js`, na pilha
+`expo-router/node/render.js` → `lib/storage.ts` → `@op-engineering/op-sqlite`.
+
+### Causa raiz
+`app.json` tinha `"web": { "output": "static" }`. Isso ativa o **Static Rendering
+(SSG)** do `expo-router`, que gera um bundle de **renderização no Node**
+(`expo-router/node/render.js`) importando o app inteiro. Nesse contexto Node, o
+`op-sqlite` resolve para a variante `node/` que faz `import Database from
+"better-sqlite3"` — módulo nativo do Node ausente no projeto → Metro quebra.
+
+Importante: o **bundle nativo do app funcionava** (log `SYNC concluído -> pets
+no estado: 3` aparecia); só o bundle de render estático (web/Node) falhava.
+
+### Correção
+- Removido o bloco `"web"` inteiro de `app.json`. O app é **nativo-only**
+  (`platforms: ["ios","android"]` e depende de `op-sqlite`/câmera/location, que
+  não rodam na web), então o static rendering não é viável nem necessário. Sem
+  `output: "static"`, o `expo-router` não gera o bundle Node de render.
+- `metro.config.js` já prioriza `conditionNames: ['react-native', ...]`,
+  correto para o build nativo.
+
+### Validação
+- Após a mudança, **reiniciar** o dev server (e, se persistir cache,
+  `Remove-Item -Recurse -Force .expo, node_modules\.cache`). O erro de
+  `better-sqlite3` some; só o bundle nativo é gerado.
+- Alternativa (se um dia quiserem web de verdade): manter `web` mas stubar
+  `better-sqlite3` no Metro (`resolveRequest`) ou trocar o storage local por
+  implementação web — fora de escopo hoje.

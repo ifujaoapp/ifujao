@@ -20,6 +20,7 @@ export interface PetRecord {
   latitude: number;
   longitude: number;
   city?: string;
+  reward?: number;
   reported?: boolean;
   reportReason?: string;
   reportedBy?: string;

@@ -357,6 +357,7 @@ export default function HomeScreen() {
   const [location, setLocation] = useState("");
   const [cityName, setCityName] = useState("");
   const [description, setDescription] = useState("");
+  const [reward, setReward] = useState("");
   const [contact, setContact] = useState("");
   const [contactError, setContactError] = useState("");
   const [lostDate, setLostDate] = useState<Date | null>(null);
@@ -960,6 +961,7 @@ export default function HomeScreen() {
       longitude,
       city: cityName || getCityForLocation(petLocation)?.name,
       lostDate: lostDate ? lostDate.toISOString() : undefined,
+      reward: reward.trim() ? Number(reward.replace(/\D/g, "")) : undefined,
       dirty: true,
     };
     commitPets([newPet, ...pets]);
@@ -968,6 +970,7 @@ export default function HomeScreen() {
     setLocation("");
     setCityName("");
     setDescription("");
+    setReward("");
     setContact("");
     setContactError("");
     setImages([]);
@@ -1677,6 +1680,7 @@ export default function HomeScreen() {
                 </View>
               ) : null}
 
+              <Text style={styles.fieldLabel}>Espécie *</Text>
               <View style={styles.dropdownWrap}>
                 <SearchableSelect
                   value={species}
@@ -1690,37 +1694,40 @@ export default function HomeScreen() {
                     }
                   }}
                   options={SPECIES_OPTIONS}
-                  placeholder="Espécie *"
+                  placeholder="Selecione a espécie"
                   dropdownRef={speciesDropdownRef}
                   onSelect={() => breedDropdownRef.current?.open()}
                   styles={styles}
                 />
               </View>
+              <Text style={styles.fieldLabel}>Raça *</Text>
               <View style={styles.dropdownWrap}>
                 <SearchableSelect
                   value={breed}
                   onChange={setBreed}
                   options={SPECIES_BREEDS[species] ?? NO_BREEDS}
-                  placeholder="Raça *"
+                  placeholder="Selecione a raça"
                   dropdownRef={breedDropdownRef}
                   onSelect={() => locationRef.current?.focus()}
                   styles={styles}
                 />
               </View>
+              <Text style={styles.fieldLabel}>Última Localização Vista *</Text>
               <TextInput
                 ref={locationRef}
                 style={styles.input}
-                placeholder="Última Localização Vista"
+                placeholder="Ex.: Rua das Flores, perto da praça"
                 placeholderTextColor="#8E8E93"
                 value={location}
                 onChangeText={setLocation}
                 returnKeyType="next"
                 onSubmitEditing={() => descriptionRef.current?.focus()}
               />
+              <Text style={styles.fieldLabel}>Descrição Adicional (opcional)</Text>
               <TextInput
                 ref={descriptionRef}
                 style={[styles.input, styles.textArea]}
-                placeholder="Descrição Adicional (opcional)"
+                placeholder="Detalhes que ajudem a identificar o pet"
                 placeholderTextColor="#8E8E93"
                 value={description}
                 onChangeText={setDescription}
@@ -1728,10 +1735,25 @@ export default function HomeScreen() {
                 returnKeyType="next"
                 onSubmitEditing={() => contactRef.current?.focus()}
               />
+              <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
+              <View style={styles.rewardField}>
+                <Text style={styles.rewardPrefix}>R$</Text>
+                <TextInput
+                  style={styles.rewardInput}
+                  placeholder="0,00"
+                  placeholderTextColor="#8E8E93"
+                  value={reward ? Number(reward).toLocaleString("pt-BR") : ""}
+                  onChangeText={(t) => setReward(t.replace(/\D/g, ""))}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                  onSubmitEditing={() => contactRef.current?.focus()}
+                />
+              </View>
+              <Text style={styles.fieldLabel}>Contato (WhatsApp) *</Text>
               <TextInput
                 ref={contactRef}
                 style={[styles.input, contactError ? styles.inputError : null]}
-                placeholder="Contato (WhatsApp)"
+                placeholder="(15) 99999-9999"
                 placeholderTextColor="#8E8E93"
                 value={contact}
                 onChangeText={(t) => {
@@ -2044,6 +2066,23 @@ export default function HomeScreen() {
                     />
                     <Text style={styles.demoDate}>
                       Sumiu em {formatLostDate(selectedPet.lostDate)}
+                    </Text>
+                  </View>
+                ) : null}
+                {typeof selectedPet.reward === "number" &&
+                Number.isFinite(selectedPet.reward) ? (
+                  <View style={styles.demoRow}>
+                    <Ionicons
+                      name="cash"
+                      size={16}
+                      color={themeColors.primaryButton}
+                    />
+                    <Text style={styles.demoReward}>
+                      Recompensa:{" "}
+                      {new Intl.NumberFormat("pt-BR", {
+                        style: "currency",
+                        currency: "BRL",
+                      }).format(selectedPet.reward)}
                     </Text>
                   </View>
                 ) : null}
@@ -3269,6 +3308,28 @@ const makeStyles = (c: typeof Colors.light) =>
     inputError: {
       borderColor: "#FF3B30",
     },
+    rewardField: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 12,
+      paddingHorizontal: 15,
+      paddingVertical: 15,
+      marginBottom: 15,
+    },
+    rewardPrefix: {
+      fontSize: 16,
+      color: c.text,
+      fontWeight: "600",
+      marginRight: 8,
+    },
+    rewardInput: {
+      flex: 1,
+      fontSize: 16,
+      color: c.text,
+    },
     dropdown: {
       backgroundColor: c.card,
       borderWidth: 1,
@@ -3654,6 +3715,11 @@ const makeStyles = (c: typeof Colors.light) =>
     demoDate: {
       fontSize: 14,
       color: c.text,
+    },
+    demoReward: {
+      fontSize: 14,
+      color: c.text,
+      fontWeight: "600",
     },
     demoDescription: {
       fontSize: 14,

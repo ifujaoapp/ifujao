@@ -725,5 +725,39 @@ As mudanças em `lib/sync.ts` e `app/(tabs)/index.tsx` **exigem rebuild do app**
 - Não comparar `payload` jsonb em RLS para "garantir conteúdo inalterado": é
   frágil (URI vs URL, campos extras) e quebra o cliente legítimo. Em vez disso,
   o app deve atualizar só as colunas de topo relevantes.
-- Validar com teste de Postgres real (ex.: PGlite) ANTES de passar SQL.
-- O dono não deve denunciar o próprio alerta (regra de negócio + evita erro de RLS).
+  - Validar com teste de Postgres real (ex.: PGlite) ANTES de passar SQL.
+  - O dono não deve denunciar o próprio alerta (regra de negócio + evita erro de RLS).
+
+## Atualizações (2026-08-20) — campo Recompensa no report e rótulos do modal
+
+Pedido: adicionar um campo **Recompensa** (opcional) no modal "Reportar Pet
+Perdido"; se preenchido, mostrar no card do pet como **R$**. Também adicionar
+**rótulos** acima de todos os campos do modal.
+
+### Implementação
+- `lib/storage.ts`: `PetRecord.reward?: number` (viaja dentro do `payload`
+  jsonb já sincronizado — **sem mudança em `schema.sql`/RLS**).
+- `app/(tabs)/index.tsx`:
+  - Novo estado `reward` (`number-pad`, só dígitos).
+  - Modal "Reportar Pet Perdido": campo de recompensa com **prefixo `R$`
+    fixo dentro do campo** (estilo de moeda) e formatação de milhar ao digitar
+    (`Number(reward).toLocaleString("pt-BR")`). `placeholder="0,00"`.
+  - `handleAddPet`: grava `reward` (número, só se preenchido) e reseta o estado.
+  - Card do pet: linha **"Recompensa: R$ 1.234,56"** via
+    `Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })`
+    (só quando `typeof reward === "number"` e finito).
+  - Estilos: `rewardField` (container com prefixo), `rewardPrefix` (`R$`),
+    `rewardInput`; reuso de `demoRow` + novo `demoReward` no card.
+  - **Rótulos** (`fieldLabel`) acima de todos os campos: "Espécie *", "Raça *",
+    "Última Localização Vista *", "Descrição Adicional (opcional)",
+    "Contato (WhatsApp) *" e "Recompensa (opcional)". Placeholders dos
+    dropdowns/textos ajustados para não duplicar o rótulo.
+
+### Validação
+- `tsc --noEmit` limpo.
+- Requer **rebuild nativo** (`npx expo run:android`) para testar a UI.
+
+### Notas
+- O campo aceita só dígitos (reais inteiros); centavos não entram pelo
+  `number-pad`. Se no futuro quiserem centavos, trocar para `decimal-pad` e
+  reformatar no `onChangeText`.

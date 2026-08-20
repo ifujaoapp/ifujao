@@ -823,6 +823,12 @@ valor, então não dá para usar `ImagePicker.MediaType.Images`. Trocado em
 `app/(tabs)/index.tsx` (`abrirGaleria`) para `mediaTypes: ["images"]` (forma
 não-depreciada, aceita `MediaType | MediaType[]`). `tsc --noEmit` limpo.
 
+## Atualizações (2026-08-20) — cidade na mensagem de compartilhar do card
+
+A mensagem de compartilhar (`sharePetCard`, `app/(tabs)/index.tsx`) só levava
+`pet.location`. Agora inclui a **cidade** quando houver, no mesmo formato do
+card: `local — cidade` (ex.: "Rua X — Sorocaba"). `tsc --noEmit` limpo.
+
 ## Atualizações (2026-08-20) — erro de bundle `better-sqlite3` (op-sqlite no Node)
 
 Sintoma: ao rodar o dev server, o Metro falhava com

@@ -485,7 +485,8 @@ export default function HomeScreen() {
 
   const sharePetCard = async (pet: PetPost) => {
     const link = `https://ifujaoapp.github.io/ifujao-links/pet/?id=${pet.id}`;
-    const message = `🐾 Ajude a encontrar este pet perdido em ${pet.location || "Sorocaba"}!\n${link}`;
+    const place = `${pet.location || "Sorocaba"}${pet.city ? ` — ${pet.city}` : ""}`;
+    const message = `🐾 Ajude a encontrar este pet perdido em ${place}!\n${link}`;
     try {
       await Share.share({ message });
     } catch {

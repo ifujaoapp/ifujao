@@ -388,6 +388,44 @@ export default function HomeScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+  // Cidade exibida no mapa (canto inferior esquerdo). Obtida por geocoding
+  // reverso da posição REAL do GPS (não mais a lista fixa de CITIES). Começa em
+  // Sorocaba como fallback e só troca quando o GPS devolve um município válido.
+  const [gpsCity, setGpsCity] = useState<string>(CITIES[0].name);
+  const lastGeocodeRef = useRef<{ latitude: number; longitude: number } | null>(
+    null,
+  );
+  // Geocodifica a cidade real a partir do GPS. Respeita um limiar de 500m para
+  // não martelar o geocoder nativo a cada poll de GPS (5s). Mantém o último
+  // valor válido em caso de falha/offline (não zera para "").
+  useEffect(() => {
+    if (!userLocation) return;
+    const last = lastGeocodeRef.current;
+    if (
+      last &&
+      distanceMeters(
+        last.latitude,
+        last.longitude,
+        userLocation.latitude,
+        userLocation.longitude,
+      ) < 500
+    ) {
+      return;
+    }
+    let cancelled = false;
+    lastGeocodeRef.current = {
+      latitude: userLocation.latitude,
+      longitude: userLocation.longitude,
+    };
+    reverseGeocodeCity(userLocation.latitude, userLocation.longitude).then(
+      (name) => {
+        if (!cancelled && name) setGpsCity(name);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [userLocation]);
   // Incrementado pelo botão "Centralizar no meu GPS" para forçar o
   // recentramento do mapa, ignorando o limiar de ruído de GPS.
   const [recenterNonce, setRecenterNonce] = useState(0);
@@ -1213,7 +1251,7 @@ export default function HomeScreen() {
     atualizarEndereco(coords.latitude, coords.longitude);
   };
 
-  const openWhatsApp = (contactNumber: string, petId?: string) => {
+  const openWhatsApp = (contactNumber: string, pet?: PetRecord) => {
     let phoneNumber = contactNumber.replace(/\D/g, "");
     if (!isValidPhone(phoneNumber)) {
       showAlert(
@@ -1224,11 +1262,16 @@ export default function HomeScreen() {
       return;
     }
     if (!phoneNumber.startsWith("55")) phoneNumber = `55${phoneNumber}`;
-    const link = petId
-      ? `\nhttps://ifujaoapp.github.io/ifujao-links/pet/?id=${petId}`
+    // Quem contata é o finder (viu/encontrou o pet) falando com o DONO: não
+    // faz sentido enviar o card do pet para quem já o conhece. A mensagem foca
+    // em avisar o dono que o pet foi avistado/encontrado.
+    const petLabel = pet
+      ? `${pet.species}${pet.breed ? ` - ${pet.breed}` : ""}`
       : "";
     const message = encodeURIComponent(
-      `Olá! Vi seu alerta de pet perdido no iFujão. Posso ajudar a encontrá-lo?${link}`,
+      petLabel
+        ? `Olá! Vi o alerta do seu pet (${petLabel}) no iFujão e acho que tenho informações sobre ele. Podemos conversar?`
+        : `Olá! Vi o alerta do seu pet no iFujão e acho que tenho informações sobre ele. Podemos conversar?`,
     );
     const url =
       Platform.OS === "android"
@@ -1251,7 +1294,7 @@ export default function HomeScreen() {
       );
       return;
     }
-    openWhatsApp(contact, pet.id);
+    openWhatsApp(contact, pet);
   };
 
   // Filtro da barra lateral: "Todos" (padrão) ou "Somente meus alertas"
@@ -1469,7 +1512,7 @@ export default function HomeScreen() {
         >
           <View style={styles.cityButton}>
             <Ionicons name="location" size={14} color="#FFFFFF" />
-            <Text style={styles.cityButtonText}>{selectedCity.name}</Text>
+            <Text style={styles.cityButtonText}>{gpsCity}</Text>
           </View>
         </SafeAreaView>
       </View>
@@ -2074,7 +2117,7 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.demoName}>
                   {selectedPet.species}
-                  {selectedPet.breed ? ` (${selectedPet.breed})` : ""}
+                  {selectedPet.breed ? ` - ${selectedPet.breed}` : ""}
                 </Text>
                 <View style={styles.demoRow}>
                   <Ionicons
@@ -2149,18 +2192,22 @@ export default function HomeScreen() {
                   // não importa quem fez). Quem denunciou vê "Apagar denúncia".
                   const jaDenunciado = selectedPet.reported;
                   const actions: BarAction[] = [
-                    {
-                      key: "contact",
-                      icon: "logo-whatsapp",
-                      label: "Contato",
-                      color: "#25D366",
-                      reportedDisabled: true,
-                      onPress: () => {
-                        const pet = selectedPet;
-                        setSelectedPet(null);
-                        handleContact(pet);
-                      },
-                    },
+                    ...(isOwner(selectedPet, myDeviceId, myPhone)
+                      ? []
+                      : [
+                          {
+                            key: "contact",
+                            icon: "logo-whatsapp",
+                            label: "Contatar tutor",
+                            color: "#25D366",
+                            reportedDisabled: true,
+                            onPress: () => {
+                              const pet = selectedPet;
+                              setSelectedPet(null);
+                              handleContact(pet);
+                            },
+                          } as BarAction,
+                        ]),
                     ...((jaDenunciado || isOwner(selectedPet, myDeviceId, myPhone))
                       ? []
                       : [

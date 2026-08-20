@@ -861,3 +861,53 @@ no estado: 3` aparecia); só o bundle de render estático (web/Node) falhava.
 - Alternativa (se um dia quiserem web de verdade): manter `web` mas stubar
   `better-sqlite3` no Metro (`resolveRequest`) ou trocar o storage local por
   implementação web — fora de escopo hoje.
+
+## Atualizações (2026-08-20, fim) — botão Contato (finder→tutor), mensagem WhatsApp e cidade real no mapa
+
+Trabalho desta sessão (validado com `tsc --noEmit`; **rebuild nativo
+(`npx expo run:android`) necessário** para testar a UI).
+
+### 1. Botão Contato some para o dono / rótulo "Contatar tutor"
+- **Bug de UX:** o botão "Contato" era adicionado incondicionalmente na
+  `demoActionBar`, então o **dono** do anúncio via "Contatar dono" e, ao clicar,
+  revelava/abria o próprio WhatsApp — não faz sentido.
+- **Correção (`app/(tabs)/index.tsx`):** o item `contact` agora entra no array
+  de ações **só quando não é o dono** (`isOwner(selectedPet, myDeviceId,
+  myPhone)`), exatamente como o botão "Denunciar" já fazia.
+- Rótulo mudou de "Contato" para **"Contatar tutor"**.
+
+### 2. Mensagem do WhatsApp (finder → tutor)
+- **Problema:** a mensagem anterior mandava o **link do card do pet para o
+  tutor**, que já conhece o próprio pet — inútil. O texto "Posso ajudar a
+  encontrá-lo?" também pressupunha errado que quem envia é o dono.
+- **Correção:** `openWhatsApp` agora recebe o `pet` (não o `id`) e **não envia
+  mais o link**. Mensagem para quem avistou/encontrou:
+  `Olá! Vi o alerta do seu pet (Espécie - Raça) no iFujão e acho que tenho
+  informações sobre ele. Podemos conversar?`
+- Espécie/Raça formatada com **hífen** (`Cão - Shih Tzu`), sem parênteses
+  aninhados. Caller `handleContact` passa `pet` em vez de `pet.id`.
+
+### 3. Card do pet: espécie/raça com hífen
+- `demoName` (nome no card do modal) agora exibe `Espécie - Raça` (antes
+  `Espécie (Raça)`), padronizando com a mensagem do WhatsApp.
+
+### 4. Cidade real no mapa (geocoding reverso)
+- **Antes:** o rótulo de cidade no canto inferior esquerdo (`cityBox`) usava
+  `getCityForLocation` (busca na lista fixa `CITIES`, só Sorocaba/Votorantim) —
+  só alternava entre essas duas e **nunca** mostrava a cidade real do GPS.
+- **Agora:** usa `reverseGeocodeCity` (geocoder nativo do aparelho, offline, sem
+  chave de API — `lib/geocode.ts`) da posição real do GPS:
+  - Estado `gpsCity` (fallback "Sorocaba"); `useEffect` dispara no
+    `userLocation` com **limiar de 500m** (evita martelar o geocoder a cada
+    poll de 5s do GPS).
+  - Mantém o último valor válido em caso de falha/offline (não zera para "").
+- `selectedCity` (busca na lista fixa) **permanece** nos demais usos (centro
+  padrão do mapa e modal de reportar), que ainda dependem de coordenadas
+  conhecidas.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | botão Contato só p/ não-dono + label "Contatar tutor"; `openWhatsApp(pet)` sem link; `demoName` com hífen; `gpsCity` por reverse geocode no `cityBox`. |
+
+- Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (`npx expo run:android`).

@@ -4,6 +4,7 @@ import { ImageViewerModal } from "@/src/components/ImageViewerModal";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Application from "expo-application";
+import { isDevice } from "expo-device";
 import { BlurView } from "expo-blur";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
 import React, {
@@ -803,15 +804,6 @@ export default function HomeScreen() {
 
   const abrirGaleria = async () => {
     fecharFonte();
-    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!granted) {
-      showAlert(
-        "permission",
-        "Permissão Negada",
-        "Precisamos de permissão para acessar sua galeria.",
-      );
-      return;
-    }
     if (images.length >= MAX_IMAGES) {
       showAlert(
         "warning",
@@ -821,7 +813,17 @@ export default function HomeScreen() {
       return;
     }
     let assets: { uri: string; fileSize?: number | null }[] | null = null;
-    try {
+    if (isDevice) {
+      // Dispositivo físico: galeria padrão do Android/iOS.
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        showAlert(
+          "permission",
+          "Permissão Negada",
+          "Precisamos de permissão para acessar sua galeria.",
+        );
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
@@ -834,11 +836,8 @@ export default function HomeScreen() {
           fileSize: a.fileSize ?? null,
         }));
       }
-    } catch (e) {
-      // Emulador sem app de galeria (ex.: AVD "Google APIs" sem Play)
-      // fecha o picker sem destinatário. Cai no seletor de arquivos, que
-      // funciona em qualquer AVD.
-      console.warn("[index] galeria indisponível, usando document picker:", e);
+    } else {
+      // Emulador: sem app de galeria nativa -> seletor de arquivos.
       try {
         const res = await DocumentPicker.getDocumentAsync({
           type: "image/*",
@@ -851,8 +850,8 @@ export default function HomeScreen() {
             fileSize: a.size ?? null,
           }));
         }
-      } catch (e2) {
-        console.warn("[index] document picker falhou:", e2);
+      } catch (e) {
+        console.warn("[index] document picker falhou:", e);
       }
     }
     if (assets && assets.length > 0) {

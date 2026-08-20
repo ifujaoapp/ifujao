@@ -791,3 +791,26 @@ de galeria/Photos para atender o intent, o picker fecha sem destinatário.
 - Se o `launchImageLibraryAsync` resolver silenciosamente com `canceled:true`
   (em vez de lançar) num AVD sem galeria, o fallback não dispara. Caso isso
   ocorra, adicionar uma opção "Arquivos" direta no action sheet de foto.
+
+## Atualizações (2026-08-20, fim) — galeria padrão no dispositivo, arquivos no emulador
+
+Ajuste de comportamento pedido: o usuário **não** queria o document picker como
+fallback silencioso no aparelho — queria a **galeria padrão do SO** (Android/iOS)
+no dispositivo físico e o **seletor de arquivos** só no emulador.
+
+### Implementação
+- `npx expo install expo-device` (compatível com SDK 54).
+- `app/(tabs)/index.tsx` (`abrirGaleria`): ramifica por `isDevice` (de
+  `expo-device`):
+  - **Dispositivo físico (`isDevice === true`):** pede permissão e abre a
+    galeria padrão via `ImagePicker.launchImageLibraryAsync` (mesmo UX de
+    sempre no celular).
+  - **Emulador (`isDevice === false`):** abre direto
+    `DocumentPicker.getDocumentAsync({ type: "image/*", multiple: true,
+    copyToCacheDirectory: true })` (seletor de arquivos), pois o AVD sem
+    Google Play não tem app de galeria para atender o intent.
+- Os dois caminhos unificam `uri` + `fileSize` e seguem o mesmo pipeline de
+  redimensionar/filtrar/`setImages`. A checagem de `MAX_IMAGES` foi movida
+  para antes do branch (evita pedir permissão quando já no limite).
+- Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (duas deps
+  nativas novas: `expo-document-picker`, `expo-device`).

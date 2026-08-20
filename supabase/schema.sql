@@ -11,7 +11,12 @@
 --   N4. Índice parcial p/ registros ativos (deleted_at is null).
 --   N5. Índice GIN em payload p/ filtros dentro do jsonb.
 --   N6. id com default UUID + owner_device_id NOT NULL (quando não há nulos).
+--   N7. Busca semântica (IA): coluna `embedding vector(3072)` + função
+--       `match_pets` (pgvector + Gemini embeddings).
 -- ============================================================================
+
+-- Extensão pgvector (já disponível no Supabase).
+create extension if not exists vector;
 
 -- Tabela de pets (cada pet é um JSON em `payload`; colunas espelhadas p/ RLS/filtro)
 create table if not exists public.pets (
@@ -22,7 +27,8 @@ create table if not exists public.pets (
   reported boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  embedding vector(3072)
 );
 
 -- CORREÇÃO N6: default UUID para novas linhas (cliente ainda pode enviar o id;
@@ -263,6 +269,40 @@ create policy "pets update"
   );
 
 -- ============================================================================
+-- Busca semântica (IA / pgvector + Gemini embeddings)
+-- A Edge Function `search-pets` gera o embedding da consulta (Gemini) e chama
+-- esta função (via service_role) para ranquear os pets por similaridade coseno.
+-- SECURITY DEFINER: executa como dono, ignora RLS; só retorna pets ativos.
+-- ============================================================================
+-- NOTA: pgvector limita HNSW a 2000 dims; embedding é 3072, então não há
+-- índice ANN. A busca usa `<=>` (scan exato), suficiente na escala do app.
+
+ create or replace function public.match_pets(
+  query_embedding vector(3072),
+  match_count int default 20
+)
+returns table (
+  id text,
+  payload jsonb,
+  similarity float
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    p.id,
+    p.payload,
+    1 - (p.embedding <=> query_embedding) as similarity
+  from public.pets p
+  where p.deleted_at is null
+    and p.embedding is not null
+  order by p.embedding <=> query_embedding
+  limit match_count;
+$$;
+
+-- ============================================================================
 -- Grants: as roles anon/authenticated precisam de acesso em nível de tabela
 -- (a RLS cuida da linha; o GRANT cuida do objeto).
 -- CORREÇÃO N3: removido DELETE em pets. O app faz soft-delete via
@@ -280,6 +320,22 @@ grant insert, delete on storage.objects to anon, authenticated;
 -- explícito nessas tabelas, senão a query falha com "permission denied".
 grant select, insert, update, delete on table public.pet_contacts to service_role;
 grant select, insert, update, delete on table public.contact_reveals to service_role;
+-- As Edge Functions embed-pets e search-pets usam service_role para ler/escrever
+-- pets e chamar match_pets. O service_role PRECISA de GRANT explícito em pets,
+-- senão a query falha com "permission denied for table pets".
+grant select, insert, update, delete on table public.pets to service_role;
+-- A Edge Function search-pets usa service_role para chamar match_pets (busca
+-- semântica). Precisa de GRANT de EXECUTE na função.
+grant execute on function public.match_pets(vector(3072), int) to service_role;
+
+-- Tabela de auditoria/rate-limit das buscas por IA.
+create table if not exists public.ai_searches (
+  id bigserial primary key,
+  user_id uuid not null,
+  query text,
+  created_at timestamptz default now()
+);
+grant insert on table public.ai_searches to service_role;
 
 -- ============================================================================
 -- IMPORTANTE: ative o "Anonymous Sign-ins" em

@@ -911,3 +911,73 @@ Trabalho desta sessão (validado com `tsc --noEmit`; **rebuild nativo
 | `app/(tabs)/index.tsx` | botão Contato só p/ não-dono + label "Contatar tutor"; `openWhatsApp(pet)` sem link; `demoName` com hífen; `gpsCity` por reverse geocode no `cityBox`. |
 
 - Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (`npx expo run:android`).
+
+## Atualizações (2026-08-20, noite) — busca semântica por IA (Gemini + pgvector)
+
+Botão "Buscar com IA" no topo do mapa: o usuário descreve em linguagem natural
+(ex.: "cachorro castanho, orelhas caídas") e o app ranqueia os pets por
+similaridade (não correspondência exata de texto). Implementado com embeddings
+do Gemini + pgvector no Supabase.
+
+### Arquitetura
+- `supabase/migrate_embeddings.sql` (idempotente, produção): extensão `vector`,
+  coluna `pets.embedding`, função `match_pets(query_embedding, match_count)`
+  (similaridade coseno via `<=>`, só pets ativos), tabela `ai_searches`
+  (rate-limit). `schema.sql` atualizado para refletir (projetos novos).
+- `supabase/functions/search-pets/index.ts`: autentica (anon), rate-limit
+  20/min, gera embedding da consulta via Gemini e chama `match_pets` (service_role).
+- `supabase/functions/embed-pets/index.ts`: gera/backfill dos embeddings dos
+  pets (chamado pelo push do app ao criar/editar e via backfill manual).
+- `lib/search.ts` (`searchPets(query)`) e `lib/embed.ts` (`embedPet(id)`,
+  fire-and-forget no push de `lib/sync.ts`).
+- `app/(tabs)/index.tsx`: barra de busca no topo + filtro do mapa pelos
+  resultados + botão limpar.
+
+### Deploy (ordem)
+1. SQL Editor: `migrate_embeddings.sql` (uma vez).
+2. `supabase secrets set GEMINI_API_KEY=<chave>` (projeto, não vai no código).
+3. `supabase functions deploy search-pets` e
+   `supabase functions deploy embed-pets --no-verify-jwt`.
+4. Backfill (1x): `curl -X POST <url>/functions/v1/embed-pets` com header
+   `Authorization: Bearer <service_role_key>` e body `{}` (preenche pets
+   existentes). Pets novos já ganham embedding no push.
+5. App: `npx expo run:android`.
+
+### Lições / armadilhas vencidas (não repetir)
+- **Modelo Gemini:** a chave deste projeto NÃO tem `text-embedding-004`. Os
+  modelos de embedding disponíveis são **`gemini-embedding-001`** e
+  **`gemini-embedding-2`** (via `ModelService.ListModels`). Usar `gemini-embedding-001`.
+- **Dimensão:** `gemini-embedding-001` gera **3072 dimensões** (não 768). A
+  coluna/função são `vector(3072)`.
+- **HNSW do pgvector limita a 2000 dimensões** — NÃO cria índice ANN para 3072.
+  A busca usa `<=>` (scan exato), instantânea na escala do app. (Se um dia usar
+  modelo ≤2000 dims, aí sim cria o `pets_embedding_idx` HNSW.)
+- **GRANT service_role em `pets`:** as Edge Functions usam `service_role` para
+  ler/escrever `pets` e chamar `match_pets`; sem `grant select, insert, update,
+  delete on public.pets to service_role` a query falha com "permission denied".
+  (Mesma classe de bug do `reveal-contact` — ver seção de PII.)
+- **`embed-pets` (backfill) admin:** aceita JWT `role: service_role` decodificado
+  (sem verificar assinatura — endpoint só escreve embeddings). Deploy com
+  `--no-verify-jwt` para o gateway não barrar o token de service_role.
+- **Gemini `embedContent` (individual) funciona; `batchEmbedContents` NÃO é
+  suportado para `gemini-embedding-001` no v1/v1beta** (erro "not supported for
+  embedContent"). Usar `embedContent` por pet.
+- **SQL Editor é transação única:** ao falhar, faz ROLLBACK de tudo. Um índice
+  HNSW antigo (em 768) travou o `ALTER` para 3072 — é preciso `drop index if
+  exists` ANTES do `alter column type`.
+- A chave Gemini foi colada no chat nesta sessão; **revogá-la/regenerar** e
+  atualizar o secret.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `supabase/migrate_embeddings.sql` | criação de embedding(3072), `match_pets`, `ai_searches`, grants. |
+| `supabase/schema.sql` | coluna `embedding vector(3072)`, `match_pets(3072)`, grants (sem índice HNSW). |
+| `supabase/functions/search-pets/index.ts` | busca semântica (Gemini `embedContent`, `gemini-embedding-001`, rota `v1`). |
+| `supabase/functions/embed-pets/index.ts` | gera/backfill embeddings (admin via service_role). |
+| `lib/search.ts` / `lib/embed.ts` | cliente de busca e de embedding. |
+| `lib/sync.ts` | chama `embedPet` no push de pet criado/atualizado. |
+| `app/(tabs)/index.tsx` | barra "Buscar com IA" + filtro do mapa + estilos. |
+
+- Validação: `tsc --noEmit` limpo. Backfill executado com sucesso (3/3 pets).
+  Requer **rebuild nativo** (`npx expo run:android`) para testar a UI.

@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { ensureSession, isSupabaseConfigured } from './supabase';
 import { uploadPetPhotos } from './photos';
+import { embedPet } from './embed';
 import { type PetRecord } from './storage';
 
 const PENDING_DELETES_KEY = 'ifujao_pending_deletes';
@@ -198,6 +199,10 @@ export const runSync = async (
         pet.remoteImageUrls = remoteUrls;
         pet.dirty = false;
         pet.updatedAt = now;
+        // Gera/atualiza o embedding para a busca semântica (IA). Fire-and-forget:
+        // não deve bloquear o push — se falhar, o pet simplesmente não aparece
+        // na busca por IA até o próximo backfill.
+        embedPet(pet.id).catch(() => {});
       }
     } catch (e) {
       console.warn('[sync] erro no push:', e);

@@ -55,6 +55,7 @@ import { useThemeMode } from "@/hooks/use-theme-mode";
 import { revealContact, resolveContact } from "@/lib/contacts";
 import { reverseGeocodeCity } from "@/lib/geocode";
 import { consumePendingPetId, onDeepLinkPet } from "@/lib/deeplink";
+import { searchPets, type SearchResult } from "@/lib/search";
 import { deletePetPhotos } from "@/lib/photos";
 import {
   clearPhotos,
@@ -508,6 +509,11 @@ export default function HomeScreen() {
   const [viewerImages, setViewerImages] = useState<string[]>([]);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerVisible, setViewerVisible] = useState(false);
+  // Busca semântica por IA (Gemini). Quando `aiResults` não é null, o mapa fica
+  // filtrado só para os pets ranqueados pela busca.
+  const [aiQuery, setAiQuery] = useState("");
+  const [aiResults, setAiResults] = useState<SearchResult[] | null>(null);
+  const [aiSearching, setAiSearching] = useState(false);
   const menuProgress = useSharedValue(0);
   useEffect(() => {
     if (selectedPet !== null) {
@@ -1297,12 +1303,38 @@ export default function HomeScreen() {
     openWhatsApp(contact, pet);
   };
 
-  // Filtro da barra lateral: "Todos" (padrão) ou "Somente meus alertas"
-  // (criados por mim). Aplica-se só à visualização no mapa; o estado completo
-  // (pets) continua sendo usado para abrir o card via marcador.
-  const visiblePets = showOnlyMine
-    ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
-    : pets;
+  // Busca semântica por IA (Gemini): ranqueia pets por linguagem natural e
+  // filtra o mapa só para os resultados. Quando `aiResults` é null, o mapa
+  // volta ao comportamento normal (Todos / Somente meus).
+  const runAiSearch = async () => {
+    const q = aiQuery.trim();
+    if (!q) return;
+    setAiSearching(true);
+    const results = await searchPets(q);
+    setAiSearching(false);
+    if (results.length === 0) {
+      showAlert("info", "Sem resultados", "Nenhum pet encontrado para essa busca.");
+      return;
+    }
+    setAiResults(results);
+  };
+  const clearAiSearch = () => {
+    setAiResults(null);
+    setAiQuery("");
+  };
+
+  // Filtro da barra lateral + busca por IA. Aplica-se só à visualização no
+  // mapa; o estado completo (pets) continua abrindo o card pelo marcador.
+  const visiblePets = (() => {
+    let base = showOnlyMine
+      ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
+      : pets;
+    if (aiResults) {
+      const ids = new Set(aiResults.map((r) => r.id));
+      base = base.filter((p) => ids.has(p.id));
+    }
+    return base;
+  })();
   const petsDenunciados = visiblePets.filter((p) => p.reported);
   const totalPetsNoMapa = visiblePets.length;
 
@@ -1353,6 +1385,35 @@ export default function HomeScreen() {
             />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* Barra de busca semântica por IA (Gemini) */}
+      <View style={[styles.aiSearchBar, { top: insets.top + 52 }]}>
+        <Ionicons name="search" size={16} color="#8E8E93" style={{ marginLeft: 8 }} />
+        <TextInput
+          style={styles.aiSearchInput}
+          placeholder="Buscar pet com IA (ex.: cachorro castanho, orelhas caídas)"
+          placeholderTextColor="#8E8E93"
+          value={aiQuery}
+          onChangeText={setAiQuery}
+          onSubmitEditing={runAiSearch}
+          returnKeyType="search"
+        />
+        {aiSearching ? (
+          <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
+        ) : aiResults ? (
+          <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
+            <Ionicons name="close-circle" size={18} color="#8E8E93" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.aiSearchBtn}
+            onPress={runAiSearch}
+            disabled={!aiQuery.trim()}
+          >
+            <Text style={styles.aiSearchBtnText}>Buscar</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.mapArea}>
@@ -3498,6 +3559,46 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     titleInfoBtn: {
       marginLeft: "auto",
+      padding: 4,
+    },
+    aiSearchBar: {
+      position: "absolute",
+      left: 12,
+      right: 12,
+      zIndex: 30,
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      paddingVertical: 4,
+      paddingRight: 8,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 4,
+    },
+    aiSearchInput: {
+      flex: 1,
+      color: c.text,
+      fontSize: 14,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+    },
+    aiSearchBtn: {
+      backgroundColor: c.primaryButton,
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    aiSearchBtnText: {
+      color: "#FFFFFF",
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    aiSearchClear: {
       padding: 4,
     },
     counterFloat: {

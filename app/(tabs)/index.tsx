@@ -70,6 +70,7 @@ import {
 } from "@/lib/sync";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -819,18 +820,47 @@ export default function HomeScreen() {
       );
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-      allowsMultipleSelection: true,
-      selectionLimit: MAX_IMAGES - images.length,
-    });
-    if (!result.canceled) {
-      const uris = result.assets.map((a) => a.uri);
+    let assets: { uri: string; fileSize?: number | null }[] | null = null;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsMultipleSelection: true,
+        selectionLimit: MAX_IMAGES - images.length,
+      });
+      if (!result.canceled) {
+        assets = result.assets.map((a) => ({
+          uri: a.uri,
+          fileSize: a.fileSize ?? null,
+        }));
+      }
+    } catch (e) {
+      // Emulador sem app de galeria (ex.: AVD "Google APIs" sem Play)
+      // fecha o picker sem destinatário. Cai no seletor de arquivos, que
+      // funciona em qualquer AVD.
+      console.warn("[index] galeria indisponível, usando document picker:", e);
+      try {
+        const res = await DocumentPicker.getDocumentAsync({
+          type: "image/*",
+          multiple: true,
+          copyToCacheDirectory: true,
+        });
+        if (!res.canceled && res.assets?.length) {
+          assets = res.assets.map((a: any) => ({
+            uri: a.uri,
+            fileSize: a.size ?? null,
+          }));
+        }
+      } catch (e2) {
+        console.warn("[index] document picker falhou:", e2);
+      }
+    }
+    if (assets && assets.length > 0) {
+      const uris = assets.map((a) => a.uri);
       const redimensionadas = await Promise.all(
         uris.map(redimensionarPara1080p),
       );
-      const sizes = result.assets.map((a) => a.fileSize ?? null);
+      const sizes = assets.map((a) => a.fileSize ?? null);
       const aceitas = await filtrarPorTamanho(redimensionadas, sizes);
       if (aceitas.length > 0) {
         setImages((prev) => [...prev, ...aceitas].slice(0, MAX_IMAGES));

@@ -761,3 +761,33 @@ Perdido"; se preenchido, mostrar no card do pet como **R$**. Também adicionar
 - O campo aceita só dígitos (reais inteiros); centavos não entram pelo
   `number-pad`. Se no futuro quiserem centavos, trocar para `decimal-pad` e
   reformatar no `onChangeText`.
+
+## Atualizações (2026-08-20, tarde) — fallback de galeria no emulador
+
+Sintoma: no emulador (AVD "Google APIs" sem Google Play) o botão "Galeria"
+fecha na hora; no aparelho físico abre normal. Causa: o `ImagePicker
+.launchImageLibraryAsync` dispara o seletor de imagens do sistema; sem um app
+de galeria/Photos para atender o intent, o picker fecha sem destinatário.
+
+### Implementação
+- `npx expo install expo-document-picker` (compatível com SDK 54).
+- `app/(tabs)/index.tsx` (`abrirGaleria`):
+  - Mantém o `requestMediaLibraryPermissionsAsync` + `launchImageLibraryAsync`.
+  - Em `try/catch`: se o picker de imagens **lançar** (galeria indisponível),
+    cai no `DocumentPicker.getDocumentAsync({ type: "image/*", multiple: true,
+    copyToCacheDirectory: true })`, que usa o seletor de arquivos genérico e
+    funciona em qualquer AVD.
+  - O fallback **só** dispara em erro (não em cancelamento do usuário). Os
+    assets de ambos os caminhos são unificados (uri + fileSize) e seguem o
+    mesmo pipeline de redimensionar/filtrar/`setImages`.
+- Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** após a nova
+  dependência nativa (`npx expo run:android`).
+
+### Alternativa de ambiente (sem código)
+- Usar um AVD de imagem **"Google Play"** (em AVD Manager) em vez de "Google
+  APIs": já traz o app Photos e o photo picker funciona.
+
+### Notas / risco
+- Se o `launchImageLibraryAsync` resolver silenciosamente com `canceled:true`
+  (em vez de lançar) num AVD sem galeria, o fallback não dispara. Caso isso
+  ocorra, adicionar uma opção "Arquivos" direta no action sheet de foto.

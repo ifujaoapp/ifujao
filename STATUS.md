@@ -1084,3 +1084,77 @@ identidade por **`device_id`**.
 | `app/(tabs)/index.tsx` | aviso de limite diário; barra de busca em coluna + dica quebra-linha. |
 
 - Validação: `tsc --noEmit` limpo.
+
+## Atualizações (2026-08-21, tarde) — Espécie/Raça: "Cachorro", ordem alfabética e correção do autocomplete da Raça
+
+Trabalho nesta sessão em `app/(tabs)/index.tsx` (validado com `tsc --noEmit`).
+
+### 1. Espécie "Cão" → "Cachorro" + ordem alfabética
+- Chave do `SPECIES_BREEDS` renomeada de `"Cão"` para `"Cachorro"` (linha ~101).
+- `SPECIES_OPTIONS` (Espécie) já é ordenado em tempo de definição com
+  `localeCompare("pt-BR")`. As **raças** de cada espécie também passaram a ser
+  ordenadas **uma vez** na definição (ver item 2).
+- Observação: pets já cadastrados com `species: "Cão"` mantêm o valor antigo no
+  servidor (o card mostra "Cão"); só os novos usam "Cachorro". Backfill opcional.
+
+### 2. BUG RAIZ: autocomplete do dropdown "Raça" não filtrava ao digitar
+- **Sintoma:** no modal "Reportar Pet Perdido", ao abrir o dropdown da Raça e
+  digitar para achar a raça, a lista **não filtrava** (o Espécie filtrava normal).
+- **Causa raiz:** a versão anterior desta sessão ordenava as raças **por render**
+  (`options={[...].sort(...)}`), criando um **array novo a cada render**. O
+  `react-native-element-dropdown` captura o `data` por closure na função interna
+  de busca (`onSearch`, `node_modules/.../Dropdown/index.js:268`), cujas deps
+  **não incluem `data`** — então ele conserva o `data` da 1ª montagem (geralmente
+  vazio / `NO_BREEDS`) e passa a filtrar contra a lista errada → "não filtra".
+  O Espécie funcionava porque `SPECIES_OPTIONS` é uma **constante estável** de
+  módulo.
+- **Correção:**
+  - Ordena-se as raças **uma vez** na definição de `SPECIES_BREEDS`
+    (`Object.values(SPECIES_BREEDS).forEach(list => list.sort(...))`), mantendo a
+    **referência do array estável**.
+  - O `options` da Raça voltou a ser a constante direta:
+    `options={SPECIES_BREEDS[species] ?? NO_BREEDS}` (sem `.sort()` por render).
+  - Regra (não repetir): **nunca** criar `options` novo a cada render em dropdown
+    com busca interna — ordene na fonte ou use `useMemo`, senão a busca interna
+    da lib filtra contra `data` obsoleto.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | `"Cão"`→`"Cachorro"`; `SPECIES_BREEDS` com raças ordenadas 1× na definição; `options` da Raça estável (sem `.sort()` por render). |
+
+- Validação: `tsc --noEmit` limpo. Requer **rebuild nativo** (`npx expo run:android`).
+
+## ESTADO ATUAL — ONDE PARAMOS (leia isto ao retomar)
+
+> Atualizado em 2026-08-21 (fim da sessão). Próxima sessão: leia daqui pra baixo.
+
+### Concluído e em produção (ou rebuild já feito pelo usuário)
+- **Rate-limit diário da busca por IA**: 20 buscas/dia por `device_id`, janela
+  UTC. SQL aplicado, `search-pets` redeployado, app rebuildado (usuário confirmou
+  "ja rodei tudo"). Aviso "Limite de buscas atingido" implementado.
+- **Dica da busca por IA** corrigida para o que a IA faz de fato (só-visual) e
+  sem cortar (barra em coluna + quebra-linha).
+- **Espécie/Raça**: "Cachorro", ordem alfabética PT-BR, e autocomplete da Raça
+  consertado (commit desta sessão, pendente de rebuild/teste do usuário).
+
+### Pendências / em aberto
+1. **Busca por IA e acentos (cão vs cao):** explicada a causa (embedding do pet é
+   só-foto; "cao" sem acento gera similaridade abaixo do piso fixo de `0.2` em
+   `search-pets/index.ts:117` → zero resultados; "cão" passa). **Não foi aplicada
+   correção** — opções propostas: (A) baixar o piso `0.2→0.15`; (B) embedding
+   híbrido do pet (foto+texto, excluindo `species` inconsistente); (C) log de
+   diagnóstico primeiro. Aguarda decisão do usuário.
+2. **Backfill opcional** de pets antigos `species:"Cão"` → `"Cachorro"` (apenas
+   cosmético no card).
+3. **Rebuild nativo pendente** das últimas mudanças de `app/(tabs)/index.tsx`
+   (ordenação + autocomplete da Raça) para validação em emulador/dispositivo.
+
+### Regras de ouro deste projeto (já no topo, reforço de aprendizado desta sessão)
+- Não criar `options`/arrays novos a cada render em dropdowns com busca interna
+  (`react-native-element-dropdown`) — a busca interna da lib trava em `data`
+  obsoleto por closure.
+- Não chutar causa raiz sem prova; perguntar quando ambíguo (ex.: "pesquisa por
+  raça" precisou ser esclarecida entre autocomplete do dropdown vs filtro no mapa).
+- Busca por IA é **só-visual** (foto do pet vs texto); `location`/`city` não
+  entram no embedding quando há foto.

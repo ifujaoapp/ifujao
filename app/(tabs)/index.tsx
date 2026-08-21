@@ -98,7 +98,7 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 // escolher uma raça de gato para um cão). A espécie é editável (texto livre)
 // e sugerida a partir destas opções; a raça também aceita texto livre.
 const SPECIES_BREEDS: Record<string, string[]> = {
-  "Cão": [
+  "Cachorro": [
     "Shih Tzu", "Golden Retriever", "Labrador Retriever", "Poodle",
     "Buldogue Francês", "Spitz Alemão (Lulu da Pomerânia)", "Pastor Alemão",
     "Pinscher", "Yorkshire Terrier", "Beagle", "Rottweiler", "Doberman",
@@ -186,7 +186,18 @@ const SPECIES_BREEDS: Record<string, string[]> = {
   ],
 };
 
-const SPECIES_OPTIONS = Object.keys(SPECIES_BREEDS);
+// Ordena as raças alfabeticamente (pt-BR) UMA vez, aqui na definição, para que a
+// referência de cada array permaneça estável. O dropdown de busca interna da lib
+// captura `data` por closure e quebra se a referência mudar a cada render (a
+// busca passa a filtrar contra a lista da 1ª montagem). Por isso NÃO se faz
+// `.sort()` no `options` por render — ordena-se aqui, de forma estável.
+Object.values(SPECIES_BREEDS).forEach((list) =>
+  list.sort((a, b) => a.localeCompare(b, "pt-BR")),
+);
+
+const SPECIES_OPTIONS = Object.keys(SPECIES_BREEDS).sort((a, b) =>
+  a.localeCompare(b, "pt-BR"),
+);
 const NO_BREEDS: string[] = [];
 
 const formatBytes = (bytes: number) => {

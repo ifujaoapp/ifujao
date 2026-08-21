@@ -1337,8 +1337,16 @@ export default function HomeScreen() {
     const q = aiQuery.trim();
     if (!q) return;
     setAiSearching(true);
-    const results = await searchPets(q);
+    const { results, rateLimited } = await searchPets(q);
     setAiSearching(false);
+    if (rateLimited) {
+      showAlert(
+        "warning",
+        "Limite de buscas atingido",
+        "Você fez 20 buscas hoje. Tente novamente amanhã.",
+      );
+      return;
+    }
     if (results.length === 0) {
       showAlert("info", "Sem resultados", "Nenhum pet encontrado para essa busca.");
       return;
@@ -1423,37 +1431,42 @@ export default function HomeScreen() {
         <View
           style={[styles.aiSearchBar, { top: aiBarXY.y }]}
         >
-          <View
-            {...aiPan.panHandlers}
-            style={styles.aiDragHandle}
-          >
-            <Ionicons name="reorder-two" size={18} color="#8E8E93" />
-          </View>
-          <Ionicons name="search" size={16} color="#8E8E93" />
-          <TextInput
-            style={styles.aiSearchInput}
-            placeholder="Buscar pet com IA (ex.: cachorro castanho, orelhas caídas)"
-            placeholderTextColor="#8E8E93"
-            value={aiQuery}
-            onChangeText={setAiQuery}
-            onSubmitEditing={runAiSearch}
-            returnKeyType="search"
-          />
-          {aiSearching ? (
-            <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
-          ) : aiResults ? (
-            <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
-              <Ionicons name="close-circle" size={18} color="#8E8E93" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.aiSearchBtn}
-              onPress={runAiSearch}
-              disabled={!aiQuery.trim()}
+          <View style={styles.aiSearchRow}>
+            <View
+              {...aiPan.panHandlers}
+              style={styles.aiDragHandle}
             >
-              <Text style={styles.aiSearchBtnText}>Buscar</Text>
-            </TouchableOpacity>
-          )}
+              <Ionicons name="reorder-two" size={18} color="#8E8E93" />
+            </View>
+            <Ionicons name="search" size={16} color="#8E8E93" />
+            <TextInput
+              style={styles.aiSearchInput}
+              placeholder="Buscar pet com IA"
+              placeholderTextColor="#8E8E93"
+              value={aiQuery}
+              onChangeText={setAiQuery}
+              onSubmitEditing={runAiSearch}
+              returnKeyType="search"
+            />
+            {aiSearching ? (
+              <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
+            ) : aiResults ? (
+              <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
+                <Ionicons name="close-circle" size={18} color="#8E8E93" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.aiSearchBtn}
+                onPress={runAiSearch}
+                disabled={!aiQuery.trim()}
+              >
+                <Text style={styles.aiSearchBtnText}>Buscar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.aiSearchHint}>
+            Descreva a aparência do pet: espécie, cor e marcações. Ex.: gato cinza com manchas brancas
+          </Text>
         </View>
       )}
 
@@ -3644,19 +3657,23 @@ const makeStyles = (c: typeof Colors.light) =>
       left: 12,
       right: 12,
       zIndex: 30,
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection: "column",
       backgroundColor: c.card,
       borderRadius: 12,
       borderWidth: 1,
       borderColor: c.cardStroke,
-      paddingVertical: 4,
-      paddingRight: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 8,
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.15,
       shadowRadius: 4,
       elevation: 4,
+    },
+    aiSearchRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      width: "100%",
     },
     aiDragHandle: {
       paddingHorizontal: 10,
@@ -3669,6 +3686,13 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 14,
       paddingHorizontal: 8,
       paddingVertical: 6,
+    },
+    aiSearchHint: {
+      fontSize: 11,
+      color: "#8E8E93",
+      paddingHorizontal: 4,
+      paddingTop: 4,
+      paddingBottom: 2,
     },
     aiSearchBtn: {
       backgroundColor: c.primaryButton,

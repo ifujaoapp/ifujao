@@ -4,8 +4,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const RATE_LIMIT = 20;
-const RATE_WINDOW_MS = 60000;
+const DAILY_LIMIT = 20;
 const MATCH_COUNT = 20;
 // Modelo de embedding MULTIMODAL do Gemini (texto+imagem), igual ao embed-pets.
 const EMBED_MODEL = "gemini-embedding-2";
@@ -33,7 +32,9 @@ Deno.serve(async (req) => {
       headers: { Authorization: authHeader, apikey: serviceKey },
     });
     if (!userRes.ok) return json({ error: "unauthorized" }, 401);
-    const userId = (await userRes.json())?.id;
+    const userJson = await userRes.json();
+    const userId = userJson?.id;
+    const deviceId = userJson?.user_metadata?.device_id;
     if (!userId) return json({ error: "unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
@@ -51,14 +52,19 @@ Deno.serve(async (req) => {
         },
       });
 
-    // Rate-limit simples por usuário.
-    const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
+    // Rate-limit DIÁRIO (20/dia) por device_id, janela em UTC (início do dia UTC).
+    const startOfUtcDay = new Date();
+    startOfUtcDay.setUTCHours(0, 0, 0, 0);
+    const since = startOfUtcDay.toISOString();
+    const rlKey = deviceId
+      ? `device_id=eq.${encodeURIComponent(deviceId)}`
+      : `user_id=eq.${encodeURIComponent(userId)}`;
     const rl = await rest(
-      `ai_searches?user_id=eq.${userId}&created_at=gte.${encodeURIComponent(since)}&select=id`
+      `ai_searches?${rlKey}&created_at=gte.${encodeURIComponent(since)}&select=id`
     );
     const rlRows = await rl.json();
-    if ((rlRows?.length ?? 0) >= RATE_LIMIT) {
-      return json({ error: "rate limit exceeded" }, 429);
+    if ((rlRows?.length ?? 0) >= DAILY_LIMIT) {
+      return json({ error: "daily limit exceeded" }, 429);
     }
 
     // 1) Embedding da consulta via Gemini (multimodal, 3072 dims).
@@ -119,10 +125,10 @@ Deno.serve(async (req) => {
       (r) => (r?.similarity ?? 0) >= threshold
     );
 
-    // 3) Registra o uso (para rate-limit). Tabela opcional; ignora erro.
+    // 3) Registra o uso (para rate-limit diário). Tabela opcional; ignora erro.
     await rest("ai_searches", {
       method: "POST",
-      body: JSON.stringify({ user_id: userId, query }),
+      body: JSON.stringify({ user_id: userId, device_id: deviceId ?? null, query }),
     }).catch(() => {});
 
     return json({ results }, 200);

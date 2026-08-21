@@ -1019,8 +1019,68 @@ Busca **SÓ POR IMAGEM**, sem depender do `payload`:
 Não precisa de rebuild do app (a UI consome só o `id`).
 
 ### Lição (não repetir)
-- Quando o embedding do pet é **só-foto**, a busca deve ser **só visual**;
-  não inventar match por campo de texto (`species`) que pode estar errado e
-  divergir da foto. O piso de similaridade que corta palavras genéricas foi a
-  causa de "gato" não voltar nada — remover o corte (top-N por similaridade)
-  resolve sem misturar critérios.
+  - Quando o embedding do pet é **só-foto**, a busca deve ser **só visual**;
+    não inventar match por campo de texto (`species`) que pode estar errado e
+    divergir da foto. O piso de similaridade que corta palavras genéricas foi a
+    causa de "gato" não voltar nada — remover o corte (top-N por similaridade)
+    resolve sem misturar critérios.
+
+## Atualizações (2026-08-21) — rate-limit diário da busca por IA por device_id + UX
+
+Motivo: a busca por IA chama o Gemini a cada consulta (custo de tokens). O
+limite anterior era **20/MINUTO por `user_id`** em `search-pets/index.ts` —
+suficiente para estourar os tokens se a busca ficasse livre. Decisão (confirmada
+com o usuário): limite de **20 buscas/dia por dispositivo**, janela em **UTC**,
+identidade por **`device_id`**.
+
+### Implementação
+- `supabase/functions/search-pets/index.ts`:
+  - Constantes `RATE_LIMIT`/`RATE_WINDOW_MS` (20/min) → `DAILY_LIMIT = 20`.
+  - Extrai `device_id` do `user_metadata` do JWT (`/auth/v1/user` já buscado,
+    `search-pets/index.ts:37`).
+  - Rate-limit conta `ai_searches` por `device_id` desde o **início do dia UTC**
+    (`setUTCHours(0,0,0,0)`); cai para `user_id` se `device_id` faltar (não
+    deixa ilimitado). Responde `429` quando estoura.
+  - Grava `device_id` na tabela `ai_searches` (`search-pets/index.ts:131`).
+- `supabase/schema.sql`: `ai_searches` ganha `device_id text` + `alter table ...
+  add column if not exists` idempotente (não recria a tabela em produção) + índice
+  `(device_id, created_at)`.
+- `lib/search.ts`: `searchPets` retorna `{ results, rateLimited }`; detecta o
+  `429` (`error.status === 429`) e sinaliza `rateLimited`.
+- `app/(tabs)/index.tsx` (`runAiSearch`): ao `rateLimited`, exibe aviso
+  **"Limite de buscas atingido" — "Você fez 20 buscas hoje. Tente novamente
+  amanhã."** (antes só mostrava "Sem resultados" para todo mundo).
+- Ajuste da dica da barra de busca: o `placeholder` longo estourava e **cortava**.
+  A barra virou **coluna** (linha de busca + dica que **quebra em várias linhas**
+  sem cortar). A dica foi corrigida para refletir o que a IA realmente usa: a
+  busca é **só-visual** (embedding da FOTO do pet vs. texto da consulta, via
+  `match_pets` por cosseno) — `location`/`city` **não** entram no embedding
+  quando há foto (ver `embed-pets/index.ts:172`). Dica final:
+  **"Descreva a aparência do pet: espécie, cor e marcações. Ex.: gato cinza com
+  manchas brancas"**.
+
+### Aplicar em produção (ordem)
+1. SQL Editor (idempotente, não recria tabela):
+   ```sql
+   alter table if exists public.ai_searches add column if not exists device_id text;
+   create index if not exists ai_searches_device_day_idx on public.ai_searches (device_id, created_at);
+   ```
+2. Redeploy: `supabase functions deploy search-pets`.
+3. App: **rebuild nativo** (`npx expo run:android`) — mudou `lib/search.ts` e a UI.
+
+### Notas
+- `ai_searches.created_at` é `timestamptz` (armazenado em **UTC**); o reset do
+  limite ocorre à meia-noite UTC.
+- `device_id` é spoofável (trade-off aceito no projeto); para limitar custo de
+  tokens é suficiente.
+- O `reveal-contact` mantém seu próprio limite de 10/min (separado).
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `supabase/functions/search-pets/index.ts` | `DAILY_LIMIT=20`; rate-limit diário por `device_id` (UTC); grava `device_id`. |
+| `supabase/schema.sql` | `ai_searches.device_id` + índice `(device_id, created_at)`. |
+| `lib/search.ts` | `searchPets` retorna `{ results, rateLimited }`. |
+| `app/(tabs)/index.tsx` | aviso de limite diário; barra de busca em coluna + dica quebra-linha. |
+
+- Validação: `tsc --noEmit` limpo.

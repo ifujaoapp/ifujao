@@ -332,9 +332,14 @@ grant execute on function public.match_pets(vector(3072), int) to service_role;
 create table if not exists public.ai_searches (
   id bigserial primary key,
   user_id uuid not null,
+  device_id text,
   query text,
   created_at timestamptz default now()
 );
+-- Idempotente: adiciona a coluna em bancos já existentes (não recria a tabela).
+alter table if exists public.ai_searches add column if not exists device_id text;
+create index if not exists ai_searches_device_day_idx
+  on public.ai_searches (device_id, created_at);
 grant insert on table public.ai_searches to service_role;
 
 -- ============================================================================

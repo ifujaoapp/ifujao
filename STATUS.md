@@ -1283,5 +1283,6 @@ Todas as mudanças em `app/(tabs)/index.tsx`; exigem **rebuild nativo**
 |---|---|
 | `app/(tabs)/index.tsx` | DropDownPicker: `maxHeight` + `marginTop` inset; `demoOverlay` `paddingTop`; action sheet `SafeAreaView` externo; campo Localização após GPS; `ImageCarousel` `contain` + fundo borrado. |
 
-### Pendências conhecidas
-- Rebuild nativo pendente para validar todas as mudanças de UI acima.
+### Validação
+- Rebuild nativo (`npx expo run:android`) **já executado** e validado no
+  emulador/dispositivo — as mudanças de UI acima estão confirmadas em runtime.

@@ -1805,6 +1805,17 @@ export default function HomeScreen() {
                 </View>
               ) : null}
 
+              <Text style={styles.fieldLabel}>Última Localização Vista *</Text>
+              <TextInput
+                ref={locationRef}
+                style={styles.input}
+                placeholder="Ex.: Rua das Flores, perto da praça"
+                placeholderTextColor="#8E8E93"
+                value={location}
+                onChangeText={setLocation}
+                returnKeyType="next"
+                onSubmitEditing={() => descriptionRef.current?.focus()}
+              />
               <Text style={styles.fieldLabel}>Espécie *</Text>
               <DropDownPicker
                 open={speciesPickerOpen}
@@ -1826,16 +1837,20 @@ export default function HomeScreen() {
                   if (valid && breed && !valid.includes(breed)) {
                     setBreed("");
                   }
-                  // Abre o picker de Raça logo em seguida.
-                  setBreedPickerOpen(true);
+                  // Não abre o picker de Raça automaticamente: o usuário
+                  // toca no campo Raça quando quiser.
                 }}
                 listMode="MODAL"
+                maxHeight={400}
                 placeholder="Selecione a espécie"
                 searchPlaceholder="Digite para buscar"
                 searchable
                 modalTitle="Selecione a Espécie"
                 modalTitleStyle={styles.rdpModalTitle}
-                modalContentContainerStyle={styles.rdpModalContent}
+                modalContentContainerStyle={[
+                  styles.rdpModalContent,
+                  { marginTop: insets.top + 8 },
+                ]}
                 modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
                 style={styles.rdpPicker}
                 dropDownContainerStyle={styles.rdpDropdown}
@@ -1857,30 +1872,23 @@ export default function HomeScreen() {
                   )
                 }
                 listMode="MODAL"
+                maxHeight={400}
                 placeholder="Selecione a raça"
                 searchPlaceholder="Digite para buscar"
                 searchable
                 disabled={breedItems.length === 0}
                 modalTitle="Selecione a Raça"
                 modalTitleStyle={styles.rdpModalTitle}
-                modalContentContainerStyle={styles.rdpModalContent}
+                modalContentContainerStyle={[
+                  styles.rdpModalContent,
+                  { marginTop: insets.top + 8 },
+                ]}
                 modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
                 style={styles.rdpPicker}
                 dropDownContainerStyle={styles.rdpDropdown}
                 textStyle={styles.rdpText}
                 placeholderStyle={styles.rdpPlaceholder}
                 searchTextInputStyle={styles.rdpText}
-              />
-              <Text style={styles.fieldLabel}>Última Localização Vista *</Text>
-              <TextInput
-                ref={locationRef}
-                style={styles.input}
-                placeholder="Ex.: Rua das Flores, perto da praça"
-                placeholderTextColor="#8E8E93"
-                value={location}
-                onChangeText={setLocation}
-                returnKeyType="next"
-                onSubmitEditing={() => descriptionRef.current?.focus()}
               />
               <Text style={styles.fieldLabel}>Descrição Adicional (opcional)</Text>
               <TextInput
@@ -1943,21 +1951,23 @@ export default function HomeScreen() {
         </SafeAreaView>
       </Modal>
 
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isPhotoSourceVisible}
-        onRequestClose={fecharFonte}
-      >
-        <TouchableOpacity
-          style={styles.actionSheetOverlay}
-          activeOpacity={1}
-          onPress={fecharFonte}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={isPhotoSourceVisible}
+          onRequestClose={fecharFonte}
         >
-          <View
-            style={[styles.actionSheet, { paddingBottom: 24 + insets.bottom }]}
+          <SafeAreaView
+            edges={["bottom"]}
+            style={styles.actionSheetOverlay}
           >
-            <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
+            <TouchableOpacity
+              style={{ flex: 1, justifyContent: "flex-end" }}
+              activeOpacity={1}
+              onPress={fecharFonte}
+            >
+              <View style={styles.actionSheet}>
+                <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
             <TouchableOpacity
               style={styles.actionSheetOption}
               onPress={abrirCamera}
@@ -1985,9 +1995,10 @@ export default function HomeScreen() {
                 Cancelar
               </Text>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+              </View>
+            </TouchableOpacity>
+          </SafeAreaView>
+        </Modal>
 
       <Modal
         animationType="fade"
@@ -2172,7 +2183,7 @@ export default function HomeScreen() {
             onRequestClose={() => setSelectedPet(null)}
           >
             <View
-              style={styles.demoOverlay}
+              style={[styles.demoOverlay, { paddingTop: insets.top + 24 }]}
               onStartShouldSetResponder={() => true}
               onTouchStart={() => setSelectedPet(null)}
             >
@@ -3044,11 +3055,33 @@ const ImageCarousel = ({
         style={StyleSheet.absoluteFill}
       >
         {images.map((uri, i) => (
-          <View key={i} style={{ width: width || "100%", height: 180 }}>
+          <View
+            key={i}
+            style={{
+              width: width || "100%",
+              height: 180,
+              overflow: "hidden",
+              position: "relative",
+              backgroundColor: "#000",
+            }}
+          >
+            {/* Fundo: mesma imagem distorcida (stretch) e BORRADA para preencher */}
             <Image
               source={{ uri }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
+              style={[StyleSheet.absoluteFill, { resizeMode: "stretch" }]}
+              blurRadius={20}
+            />
+            {/* Escurece o fundo para a foto da frente destacar */}
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: "rgba(0,0,0,0.55)" },
+              ]}
+            />
+            {/* Frente: foto inteira, centralizada, sem distorcer */}
+            <Image
+              source={{ uri }}
+              style={[StyleSheet.absoluteFill, { resizeMode: "contain" }]}
               blurRadius={blurRadius}
             />
             <BlurView
@@ -3059,7 +3092,7 @@ const ImageCarousel = ({
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: "rgba(0,0,0,0.25)" },
+                { backgroundColor: "rgba(0,0,0,0.15)" },
               ]}
             />
             <TouchableOpacity
@@ -3818,6 +3851,7 @@ const makeStyles = (c: typeof Colors.light) =>
       borderTopLeftRadius: 18,
       borderTopRightRadius: 18,
       paddingHorizontal: 16,
+      marginBottom: 8,
     },
     actionSheetTitle: {
       fontSize: 13,

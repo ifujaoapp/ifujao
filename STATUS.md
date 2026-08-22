@@ -1221,7 +1221,7 @@ Troca do `react-native-element-dropdown` (v2) pelo **`react-native-dropdown-pick
 - `app/(tabs)/index.tsx`:
   - Import default de `DropDownPicker`.
   - Dois `DropDownPicker` (`speciesPickerOpen` / `breedPickerOpen`) com `listMode="MODAL"` — a lista abre num `Modal` próprio do RN, isolada do `ScrollView` do formulário e do teclado (resolveu de vez o conflito scroll/teclado das tentativas anteriores com `element-dropdown`).
-  - `items` de Raça derivam de `SPECIES_BREEDS[species] ?? []`; `disabled` quando vazio. `onChangeValue` da Espécie limpa a Raça se incompatível e abre o picker de Raça (`setBreedPickerOpen(true)`).
+  - `items` de Raça derivam de `SPECIES_BREEDS[species] ?? []`; `disabled` quando vazio. `onChangeValue` da Espécie limpa a Raça se incompatível, mas **não** abre o picker de Raça automaticamente (usuário toca no campo Raça quando quer).
   - `modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}` para o picker cobrir a tela; `searchable` com `searchPlaceholder="Digite para buscar"`.
   - Estilos: `rdpPicker`, `rdpDropdown`, `rdpText`, `rdpPlaceholder`, `rdpModalTitle`, `rdpModalContent` (temáticos). Removidos os estilos órfãos do `element-dropdown` (`dropdown`, `dropdownContainer`, `dropdownPlaceholder`, `dropdownSelectedText`, `dropdownInputSearch`).
 - Validação: `tsc --noEmit` limpo. Rebuild nativo (`npx expo run:android`) necessário para testar a UI (lib nova nativa).
@@ -1230,3 +1230,58 @@ Troca do `react-native-element-dropdown` (v2) pelo **`react-native-dropdown-pick
 > `react-native-autocomplete-dropdown` (v5.1.0) como a lib final. Isso NÃO
 > confere com o código/package.json em disco, que usam `react-native-dropdown-picker`.
 > Esta seção é a fonte autoritativa.
+
+## Atualizações (2026-08-21, noite) — safe area, ordem de campo e imagem do card
+
+Sessão de correções de UX/layout (validado com `tsc --noEmit` a cada passo).
+Todas as mudanças em `app/(tabs)/index.tsx`; exigem **rebuild nativo**
+(`npx expo run:android`) para validar no emulador/dispositivo.
+
+### 1. Dropdown Espécie/Raça — não invade a status bar (safe area da lib)
+- `DropDownPicker` (`listMode="MODAL"`) agora recebe `maxHeight={400}` (limita a
+  altura da lista, que rola internamente) e `modalContentContainerStyle` injeta
+  `{ marginTop: insets.top + 8 }` para a janela da lib descer abaixo da status
+  bar. A lista é renderizada pela biblioteca, então o ajuste é via props, não
+  por `Modal`/`FlatList` nosso.
+
+### 2. Card de pet (demoOverlay) — safe area superior
+- O `demoOverlay` (fundo do modal do card) ganhou `paddingTop: insets.top + 24`
+  (inline), empurrando o cartão para baixo da status bar em telas com notch.
+  `paddingBottom: 120` (barra de ações) e `maxHeight: "90%"` do card mantidos.
+
+### 3. Action sheet "Adicionar foto" — card inteiro acima da nav bar
+- `SafeAreaView edges={["bottom"]}` agora é o **container externo** do action
+  sheet (não mais só o card). Assim o card inteiro (fundo arredondado incluso)
+  fica acima da barra de navegação do sistema. Antes, `paddingBottom: 24 +
+  insets.bottom` vinha 0 dentro do `<Modal>` no Android e o "Cancelar" ficava
+  sob o menu de sistema; o fundo do card também sobrepunha a nav bar. Toque fora
+  para fechar preservado.
+
+### 4. Modal "Reportar Pet" — ordem dos campos
+- Campo **"Última Localização Vista *"** movido para logo após o botão
+  **"Usar meu GPS (onde estou)"** (e o hint de Cidade), antes de Espécie/Raça.
+  Nova ordem: Usar GPS → Cidade → Última Localização Vista → Espécie → Raça →
+  Descrição → Recompensa → Contato. Encadeamento de foco mantido
+  (Localização → Descrição → Contato).
+
+### 5. ImageCarousel — foto inteira centralizada + fundo borrado (estilo Instagram)
+- Antes usava `resizeMode="cover"` (centralizado com recorte). O usuário pediu a
+  foto **inteira, centralizada e sem distorcer** → `resizeMode="contain"`.
+- Para o efeito Instagram, cada slide tem camadas: (1) **fundo** = mesma imagem
+  com `resizeMode="stretch"` (distorcida) **e `blurRadius={20}` fixo** (sempre
+  borrada, independente de denúncia) + overlay escuro `rgba(0,0,0,0.55)`; (2)
+  **frente** = foto com `resizeMode="contain"` (inteira, nítida, centralizada).
+- Para pet **denunciado**, o `BlurView` por cima borra a frente (privacidade),
+  como antes. `tsc --noEmit` limpo.
+- **Armadilha evitada:** tentar top-anchor com `position:"absolute"` + sem
+  `height` fez a imagem sumir (RN colapsa altura em absoluto); e em `ScrollView`
+  horizontal o RN não infere altura natural em fluxo normal — por isso a solução
+  final foi `contain` + fundo borrado em vez de corte ancorado no topo.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | DropDownPicker: `maxHeight` + `marginTop` inset; `demoOverlay` `paddingTop`; action sheet `SafeAreaView` externo; campo Localização após GPS; `ImageCarousel` `contain` + fundo borrado. |
+
+### Pendências conhecidas
+- Rebuild nativo pendente para validar todas as mudanças de UI acima.

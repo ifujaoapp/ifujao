@@ -439,9 +439,15 @@ Validado com `tsc --noEmit` (limpo) e rebuild no emulador após conserto do AVD.
      NATIVO do aparelho (`expo-location` `reverseGeocodeAsync`), que sempre
      devolveu o município em `g.city`.
 3. **Perguntar em vez de chutar** quando o caminho for ambíguo ou tiver
-   custo/implicação (ex.: provedor de geocoding, chaves de API).
+    custo/implicação (ex.: provedor de geocoding, chaves de API).
 4. **Sinal de diagnóstico:** se o endereço (mesmo geocoder) vem certo, a fonte
    funciona — o bug está na extração/fallback, não na API.
+5. **Ao corrigir um bug, auditar o componente/arquivo inteiro, não só o ponto
+   citado.** Funções irmãs no mesmo arquivo costumam ter o MESMO defeito
+   (ex.: `handleSave` e `handleShare` no `ImageViewerModal` usavam URL remota
+   onde o RN/expo exige arquivo local — consertei o share e deixei o save
+   quebrado). Antes de entregar, varrer as funções relacionadas e consertar
+   todas as do mesmo padrão de uma vez.
 
 ### Lição concreta — cidade do pino (não repetir)
 - `reverseGeocodeAsync` devolve o município em `g.city` (locality). **NUNCA**

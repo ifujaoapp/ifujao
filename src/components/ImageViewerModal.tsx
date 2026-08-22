@@ -3,7 +3,7 @@ import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Ima
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { showAlert } from '@/src/components/AppAlert';
-import { Paths, File as FSFile } from 'expo-file-system';
+import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { useColorScheme } from 'react-native';
@@ -53,13 +53,27 @@ export function ImageViewerModal({ visible, images, index, title, onClose, onInd
         setSaving(false);
         return;
       }
-      await MediaLibrary.saveToLibraryAsync(current);
+      let uri = current;
+      // MediaLibrary.saveToLibraryAsync exige arquivo local (file://); a imagem
+      // do pet é URL remota após o sync, então baixamos para o cache antes.
+      if (/^https?:\/\//i.test(uri)) {
+        const rawExt = uri.includes('.')
+          ? uri.split('.').pop()!.split('?')[0]
+          : 'jpg';
+        const ext = /^[a-z0-9]+$/i.test(rawExt) ? rawExt : 'jpg';
+        const dest = `${cacheDirectory}save_${Date.now()}.${ext}`;
+        const dl = await downloadAsync(uri, dest);
+        uri = dl.uri;
+      }
+      await MediaLibrary.saveToLibraryAsync(uri);
       showAlert(
         'success',
         'Imagem salva',
         'A foto foi salva na galeria do seu dispositivo (pasta de fotos).'
       );
-    } catch {
+    } catch (e) {
+      console.error('[viewer] falha ao salvar:', e);
+      showAlert('error', 'Erro', 'Não foi possível salvar a imagem.');
     } finally {
       setSaving(false);
     }
@@ -69,14 +83,36 @@ export function ImageViewerModal({ visible, images, index, title, onClose, onInd
     if (!current || sharing) return;
     setSharing(true);
     try {
-      const ext = current.includes('.') ? current.split('.').pop()!.split('?')[0] : 'jpg';
-      const dest = new FSFile(Paths.cache, `share_${Date.now()}.${ext}`);
-      const src = new FSFile(current);
-      await (src.copy(dest) as unknown as Promise<void>);
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(dest.uri);
+      let uri = current;
+      // As imagens do pet ficam como URL remota após o sync (lib/sync.ts).
+      // Baixamos a foto para o cache e compartilhamos o ARQUIVO (foto de
+      // verdade). expo-sharing converte file:// em content:// via FileProvider
+      // (cobre cache-path), funcionando no Android.
+      if (/^https?:\/\//i.test(uri)) {
+        const rawExt = uri.includes('.')
+          ? uri.split('.').pop()!.split('?')[0]
+          : 'jpg';
+        const ext = /^[a-z0-9]+$/i.test(rawExt) ? rawExt : 'jpg';
+        const dest = `${cacheDirectory}share_${Date.now()}.${ext}`;
+        const dl = await downloadAsync(uri, dest);
+        uri = dl.uri;
       }
-    } catch {
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri);
+      } else {
+        showAlert(
+          'warning',
+          'Indisponível',
+          'O compartilhamento não está disponível neste dispositivo.',
+        );
+      }
+    } catch (e) {
+      console.error('[viewer] falha ao compartilhar:', e);
+      showAlert(
+        'error',
+        'Erro',
+        'Não foi possível compartilhar a imagem.',
+      );
     } finally {
       setSharing(false);
     }
@@ -319,9 +355,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
   },
-  titleText: { color: '#FFFFFF', fontSize: 17, fontWeight: '700', flex: 1 },
-  counterText: { color: '#FFFFFF', fontSize: 13, opacity: 0.8, marginLeft: 8 },
+  titleText: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    flex: 1,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  counterText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    opacity: 0.9,
+    marginLeft: 8,
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   imageArea: { flex: 1, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   navBtn: {
     position: 'absolute',

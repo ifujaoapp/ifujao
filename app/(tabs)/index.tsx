@@ -278,6 +278,7 @@ export default function HomeScreen() {
   const [breed, setBreed] = useState("");
   const [location, setLocation] = useState("");
   const [cityName, setCityName] = useState("");
+  const [searchAddress, setSearchAddress] = useState("");
   const [description, setDescription] = useState("");
   const [reward, setReward] = useState("");
   const [contact, setContact] = useState("");
@@ -1003,6 +1004,7 @@ export default function HomeScreen() {
     setReward("");
     setContact("");
     setContactError("");
+    setSearchAddress("");
     setImages([]);
     setLostDate(null);
     setIsCameraOpen(false);
@@ -1147,6 +1149,36 @@ export default function HomeScreen() {
       setLocation("");
     }
     setCityName(await reverseGeocodeCity(lat, lng));
+  };
+
+  // Geocoding direto (endereço -> coordenadas) usando o geocoder NATIVO do
+  // aparelho (Location.geocodeAsync, sem chave/API externa — igual ao padrão
+  // do reverseGeocodeAsync já usado). Move o pino e sincroniza o campo
+  // "Última Localização Vista" + cidade via atualizarEndereco.
+  const procurarEndereco = async () => {
+    const q = searchAddress.trim();
+    if (!q) return;
+    try {
+      const query = cityName ? `${q}, ${cityName}` : q;
+      const res = await Location.geocodeAsync(query);
+      if (!res.length) {
+        showAlert(
+          "warning",
+          "Endereço não encontrado",
+          "Não foi possível localizar esse endereço. Tente ser mais específico (rua, número e cidade).",
+        );
+        return;
+      }
+      const { latitude, longitude } = res[0];
+      setPetLocation({ latitude, longitude });
+      await atualizarEndereco(latitude, longitude);
+    } catch {
+      showAlert(
+        "error",
+        "Erro na busca",
+        "Não foi possível buscar o endereço. Verifique sua conexão e tente novamente.",
+      );
+    }
   };
 
   const handlePickLocation = (lat: number, lng: number) => {
@@ -1598,7 +1630,16 @@ export default function HomeScreen() {
               keyboardShouldPersistTaps="handled"
               nestedScrollEnabled={true}
             >
-              {isCameraOpen ? (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons
+                    name="images"
+                    size={16}
+                    color={themeColors.primaryButton}
+                  />
+                  <Text style={styles.sectionTitle}>Fotos</Text>
+                </View>
+                {isCameraOpen ? (
                 <View style={styles.cameraBox}>
                   <CameraView
                     ref={cameraRef}
@@ -1743,6 +1784,17 @@ export default function HomeScreen() {
                 </View>
               )}
 
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons
+                    name="location"
+                    size={16}
+                    color={themeColors.primaryButton}
+                  />
+                  <Text style={styles.sectionTitle}>Localização</Text>
+                </View>
               <Text style={styles.fieldLabel}>
                 Quando o pet sumiu? (opcional)
               </Text>
@@ -1769,6 +1821,23 @@ export default function HomeScreen() {
               </TouchableOpacity>
 
               <Text style={styles.pickLabel}>Onde o pet foi visto?</Text>
+              <View style={styles.searchAddressRow}>
+                <TextInput
+                  style={styles.searchAddressInput}
+                  placeholder="Rua, número, cidade"
+                  placeholderTextColor="#8E8E93"
+                  value={searchAddress}
+                  onChangeText={setSearchAddress}
+                  returnKeyType="search"
+                  onSubmitEditing={procurarEndereco}
+                />
+                <TouchableOpacity
+                  style={styles.searchAddressBtn}
+                  onPress={procurarEndereco}
+                >
+                  <Ionicons name="search" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
               <View
                 style={styles.pickMapWrap}
                 onStartShouldSetResponder={() => true}
@@ -1816,6 +1885,17 @@ export default function HomeScreen() {
                 returnKeyType="next"
                 onSubmitEditing={() => descriptionRef.current?.focus()}
               />
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons
+                    name="paw"
+                    size={16}
+                    color={themeColors.primaryButton}
+                  />
+                  <Text style={styles.sectionTitle}>Sobre o pet</Text>
+                </View>
               <Text style={styles.fieldLabel}>Espécie *</Text>
               <DropDownPicker
                 open={speciesPickerOpen}
@@ -1902,6 +1982,17 @@ export default function HomeScreen() {
                 returnKeyType="next"
                 onSubmitEditing={() => contactRef.current?.focus()}
               />
+              </View>
+
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Ionicons
+                    name="call"
+                    size={16}
+                    color={themeColors.primaryButton}
+                  />
+                  <Text style={styles.sectionTitle}>Contato e Recompensa</Text>
+                </View>
               <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
               <View style={styles.rewardField}>
                 <Text style={styles.rewardPrefix}>R$</Text>
@@ -1939,6 +2030,8 @@ export default function HomeScreen() {
               {contactError ? (
                 <Text style={styles.fieldError}>{contactError}</Text>
               ) : null}
+
+              </View>
 
               <TouchableOpacity
                 style={styles.submitButton}
@@ -3359,11 +3452,57 @@ const makeStyles = (c: typeof Colors.light) =>
       fontWeight: "600",
       color: c.text,
     },
+    searchAddressRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 10,
+    },
+    searchAddressInput: {
+      flex: 1,
+      backgroundColor: c.card,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      fontSize: 15,
+      color: c.text,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      textAlignVertical: "center",
+      includeFontPadding: false,
+    },
+    searchAddressBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: c.primaryButton,
+      alignItems: "center",
+      justifyContent: "center",
+    },
     fieldLabel: {
       marginTop: 18,
       marginBottom: 8,
       fontSize: 14,
       fontWeight: "600",
+      color: c.text,
+    },
+    section: {
+      backgroundColor: c.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      padding: 14,
+      marginBottom: 16,
+    },
+    sectionHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 12,
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: "700",
       color: c.text,
     },
     dateField: {

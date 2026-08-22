@@ -1292,3 +1292,45 @@ Todas as mudanças em `app/(tabs)/index.tsx`; exigem **rebuild nativo**
 ### Validação
 - Rebuild nativo (`npx expo run:android`) **já executado** e validado no
   emulador/dispositivo — as mudanças de UI acima estão confirmadas em runtime.
+
+## Atualizações (2026-08-22) — interface web de patrocinadores (pins no mapa)
+
+Pedido: interface web (Node local) para cadastrar patrocinadores; pins aparecem
+no mapa do app e, ao clicar, levam ao endereço/link cadastrado.
+
+### Arquitetura
+- **Backend:** tabela `public.sponsors` no Supabase (já é o backend do app).
+- **Interface web:** `sponsor-admin/` — Vite + React + TS, `react-leaflet` (mesma
+  lib Leaflet do `MapLeaflet`) e `@supabase/supabase-js`. Roda com `npm install`
+  && `npm run dev` (porta 5173). Reaproveita `EXPO_PUBLIC_SUPABASE_URL`/ANON_KEY
+  do `.env` do projeto (copiados para `sponsor-admin/.env` como `VITE_*`).
+- **Auth:** Supabase Auth (e-mail/senha) na interface. RLS da tabela:
+  - `select` **público** (anon) — o app mobile lista os pins.
+  - `all` (insert/update/delete) **só para `authenticated` NÃO anônimo**, via
+    claim `is_anonymous` do JWT (`(auth.jwt() ->> 'is_anonymous')::boolean is
+    distinct from true`). Isso bloqueia os usuários anônimos do app (que também
+    são `authenticated`) de escrever patrocinadores.
+- **App mobile:** `lib/sponsors.ts` (`fetchSponsors` via anon) → `MapLeaflet`
+  recebe `sponsors` e desenha pins **laranja (★)**; toque → `onSponsorPress`
+  abre `link` se houver, senão `https://maps.google.com/?q=lat,lng` via `Linking`.
+
+### Como rodar
+1. SQL Editor (Supabase): rodar `supabase/sponsors.sql` (cria tabela + RLS).
+2. Supabase: criar um usuário (e-mail/senha) para o admin em Authentication.
+3. Web: `cd sponsor-admin && npm install && npm run dev` → abrir `localhost:5173`,
+   logar e cadastrar patrocinadores (clique no mapa define lat/lng).
+4. App: rebuild nativo (`npx expo run:android`) — os pins de patrocinadores
+   aparecem no mapa e abrem o link/endereço ao toque.
+
+### Arquivos
+| Arquivo | O que mudou |
+|---|---|
+| `supabase/sponsors.sql` | tabela `sponsors` + RLS (read anon, write admin autenticado não-anônimo). |
+| `sponsor-admin/` | app web novo (Vite+React+TS): login, CRUD, mapa de seleção. |
+| `lib/sponsors.ts` | tipo `SponsorPin` + `fetchSponsors()` (anon). |
+| `app/(tabs)/index.tsx` | `MapLeaflet`: prop `sponsors`/`onSponsorPress`, ícone laranja, `__renderSponsors`; HomeScreen busca sponsors e trata o toque. |
+
+### Validação
+- `tsc --noEmit` limpo no app e no `sponsor-admin`; `npm run build` do web OK.
+- Pendente: rodar o SQL no Supabase, criar usuário admin e testar em runtime
+  (emulador/dispositivo) — não validado em runtime ainda.

@@ -59,6 +59,7 @@ import { reverseGeocodeCity } from "@/lib/geocode";
 import { consumePendingPetId, onDeepLinkPet } from "@/lib/deeplink";
 import { searchPets, type SearchResult } from "@/lib/search";
 import { deletePetPhotos } from "@/lib/photos";
+import { fetchSponsors, type SponsorPin } from "@/lib/sponsors";
 import {
   clearPhotos,
   loadPets,
@@ -265,6 +266,7 @@ export default function HomeScreen() {
   const styles = makeStyles(themeColors);
 
   const [pets, setPets] = useState<PetPost[]>([]);
+  const [sponsors, setSponsors] = useState<SponsorPin[]>([]);
   const [myPhone, setMyPhone] = useState("");
   const [myDeviceId, setMyDeviceId] = useState("");
   const petsRef = useRef<PetPost[]>([]);
@@ -541,6 +543,35 @@ export default function HomeScreen() {
   useEffect(() => {
     petsRef.current = pets;
   }, [pets]);
+
+  // Patrocinadores: pins de apoio no mapa, lidos publicamente do Supabase.
+  useEffect(() => {
+    let active = true;
+    fetchSponsors()
+      .then((list) => {
+        if (active) setSponsors(list);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Toque no pin de patrocinador: abre o link cadastrado; se não houver,
+  // abre o Maps na coordenada.
+  const handleSponsorPress = (s: SponsorPin) => {
+    const target =
+      s.link && s.link.trim()
+        ? s.link.trim()
+        : `https://maps.google.com/?q=${s.latitude},${s.longitude}`;
+    Linking.openURL(target).catch(() => {
+      showAlert(
+        "error",
+        "Erro",
+        "Não foi possível abrir o link do patrocinador.",
+      );
+    });
+  };
 
   // Deep link (link de contato do WhatsApp): abre o modal do card do pet na
   // aba principal, em vez da tela isolada app/pet/[id].tsx.
@@ -1456,6 +1487,8 @@ export default function HomeScreen() {
             userLocation={userLocation}
             recenterNonce={recenterNonce}
             pets={visiblePets}
+            sponsors={sponsors}
+            onSponsorPress={handleSponsorPress}
             fitToResults={!!aiResults}
             onMarkerPress={async (petId) => {
               const pet = pets.find((p) => p.id === petId);
@@ -2838,6 +2871,8 @@ const MapLeaflet = ({
   recenterNonce,
   pets,
   onMarkerPress,
+  sponsors,
+  onSponsorPress,
   theme,
   city,
   fitToResults,
@@ -2848,6 +2883,8 @@ const MapLeaflet = ({
   recenterNonce: number;
   pets: PetPost[];
   onMarkerPress: (petId: string) => void;
+  sponsors: SponsorPin[];
+  onSponsorPress: (s: SponsorPin) => void;
   theme: "light" | "dark";
   city: import("@/constants/cities").City;
   fitToResults?: boolean;
@@ -2857,6 +2894,8 @@ const MapLeaflet = ({
   const [mapReady, setMapReady] = useState(false);
   const petsRef = useRef(pets);
   petsRef.current = pets;
+  const sponsorsRef = useRef(sponsors);
+  sponsorsRef.current = sponsors;
   const center = initialCenter ?? {
     latitude: city.latitude,
     longitude: city.longitude,
@@ -2921,7 +2960,33 @@ const MapLeaflet = ({
         window.__map = map;
         window.__pawIcon = pawIcon;
         window.__reportedIcon = reportedIcon;
+
+        var sponsorIcon = L.divIcon({
+          className: 'paw-pin',
+          html: '<div style="position:relative;width:30px;height:40px;">' +
+            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#FF9500" stroke-width="2"/>' +
+            '</svg>' +
+            '<div class="paw-emoji" style="color:#FF9500;">★</div>' +
+            '</div>',
+          iconSize: [30, 40],
+          iconAnchor: [15, 40],
+          popupAnchor: [0, -36],
+        });
+
         window.__petMarkers = [];
+        window.__sponsorMarkers = [];
+        window.__renderSponsors = function(list){
+          if (!window.__sponsorMarkers) window.__sponsorMarkers = [];
+          window.__sponsorMarkers.forEach(function(m){ window.__map.removeLayer(m); });
+          window.__sponsorMarkers = [];
+          (list || []).forEach(function(s){
+            if (typeof s.latitude !== 'number' || typeof s.longitude !== 'number') return;
+            var m = L.marker([s.latitude, s.longitude], { icon: sponsorIcon }).addTo(window.__map);
+            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, link: s.link, address: s.address, latitude: s.latitude, longitude: s.longitude })); });
+            window.__sponsorMarkers.push(m);
+          });
+        };
         window.__renderPets = function(pets){
           if (!window.__petMarkers) window.__petMarkers = [];
           window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
@@ -2989,6 +3054,20 @@ const MapLeaflet = ({
     if (!mapReady || !webRef.current) return;
     webRef.current.injectJavaScript(renderPetsJs(pets));
   }, [mapReady, pets, SPIDER_DELTA]);
+
+  const renderSponsorsJs = (list: SponsorPin[]) =>
+    `(function(){
+      if (!window.__renderSponsors) {
+        setTimeout(function(){ if (window.__renderSponsors) window.__renderSponsors(${JSON.stringify(list)}); }, 200);
+        return;
+      }
+      window.__renderSponsors(${JSON.stringify(list)});
+    })();`;
+
+  useEffect(() => {
+    if (!mapReady || !webRef.current) return;
+    webRef.current.injectJavaScript(renderSponsorsJs(sponsors));
+  }, [mapReady, sponsors]);
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
   // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a
@@ -3078,6 +3157,7 @@ const MapLeaflet = ({
       onLoad={() => {
         setMapReady(true);
         webRef.current?.injectJavaScript(renderPetsJs(petsRef.current));
+        webRef.current?.injectJavaScript(renderSponsorsJs(sponsorsRef.current));
         // Garante que o Leaflet recalcule o tamanho do container após o WebView
         // ter dimensões reais (evita mapa preto/cinza por tamanho 0).
         webRef.current?.injectJavaScript(
@@ -3087,7 +3167,18 @@ const MapLeaflet = ({
       onMessage={(e) => {
         try {
           const data = JSON.parse(e.nativeEvent.data);
-          if (data.petId) onMarkerPress(data.petId);
+          if (data.sponsorId) {
+            onSponsorPress({
+              id: data.sponsorId,
+              name: "",
+              latitude: Number(data.latitude),
+              longitude: Number(data.longitude),
+              address: data.address ?? null,
+              link: data.link ?? null,
+            });
+          } else if (data.petId) {
+            onMarkerPress(data.petId);
+          }
         } catch {}
       }}
     />

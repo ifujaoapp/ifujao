@@ -34,7 +34,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Dropdown, type IDropdownRef } from "react-native-element-dropdown";
+import DropDownPicker from "react-native-dropdown-picker";
 import { type Region } from "react-native-maps";
 import Reanimated, {
   Easing,
@@ -258,100 +258,6 @@ const filtrarPorTamanho = async (
   return aceitas;
 };
 
-type SearchableSelectProps = {
-  value: string;
-  onChange: (text: string) => void;
-  options: string[];
-  placeholder: string;
-  dropdownRef?: React.Ref<IDropdownRef>;
-  onSelect?: () => void;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-const normalizeDiacritics = (s: string) =>
-  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
-// Dropdown com busca (react-native-element-dropdown) que também aceita texto
-// livre: o que o usuário digita na busca vira o valor ao fechar, e esse valor
-// digitado é injetado em `data` para continuar sendo exibido (a lib só mostra
-// o label de itens existentes em `data` quando fechado).
-const SearchableSelect = ({
-  value,
-  onChange,
-  options,
-  placeholder,
-  dropdownRef,
-  onSelect,
-  styles,
-}: SearchableSelectProps) => {
-  const typedRef = useRef("");
-  const selectedRef = useRef(false);
-
-  const data = useMemo(() => {
-    const list = options.map((o) => ({ label: o, value: o }));
-    if (value && !options.includes(value)) {
-      list.unshift({ label: value, value });
-    }
-    return list;
-  }, [options, value]);
-
-  return (
-    <Dropdown
-      ref={dropdownRef}
-      style={styles.dropdown}
-      containerStyle={styles.dropdownContainer}
-      placeholderStyle={styles.dropdownPlaceholder}
-      selectedTextStyle={styles.dropdownSelectedText}
-      itemTextStyle={styles.dropdownItemText}
-      activeColor="#0A84FF"
-      data={data}
-      labelField="label"
-      valueField="value"
-      value={value}
-      placeholder={placeholder}
-      search
-      maxHeight={220}
-      dropdownPosition="bottom"
-      searchQuery={(keyword, labelValue) =>
-        normalizeDiacritics(labelValue).includes(normalizeDiacritics(keyword))
-      }
-      renderInputSearch={(onSearch) => (
-        <TextInput
-          style={styles.dropdownInputSearch}
-          placeholder="Buscar..."
-          placeholderTextColor="#8E8E93"
-          autoCorrect={false}
-          onChangeText={(t) => {
-            typedRef.current = t;
-            onSearch(t);
-          }}
-        />
-      )}
-      flatListProps={{
-        // Altura fixa do item (~52px) para layout O(1) do FlatList interno.
-        getItemLayout: (_data, index) => ({
-          length: 52,
-          offset: 52 * index,
-          index,
-        }),
-      }}
-      onChange={(item) => {
-        selectedRef.current = true;
-        onChange(item.value as string);
-        onSelect?.();
-      }}
-      onBlur={() => {
-        // Ao fechar sem ter selecionado item, consolida o texto digitado.
-        if (!selectedRef.current && typedRef.current.trim()) {
-          onChange(typedRef.current.trim());
-        }
-        typedRef.current = "";
-        selectedRef.current = false;
-      }}
-    />
-  );
-};
-
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { theme, toggleTheme } = useThemeMode();
@@ -379,8 +285,20 @@ export default function HomeScreen() {
   const [lostDate, setLostDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [images, setImages] = useState<string[]>([]);
-  const speciesDropdownRef = useRef<IDropdownRef>(null);
-  const breedDropdownRef = useRef<IDropdownRef>(null);
+  const [speciesPickerOpen, setSpeciesPickerOpen] = useState(false);
+  const [breedPickerOpen, setBreedPickerOpen] = useState(false);
+  const speciesItems = useMemo(
+    () => SPECIES_OPTIONS.map((o) => ({ label: o, value: o })),
+    [],
+  );
+  const breedItems = useMemo(
+    () =>
+      (SPECIES_BREEDS[species] ?? NO_BREEDS).map((o) => ({
+        label: o,
+        value: o,
+      })),
+    [species],
+  );
   const locationRef = useRef<TextInput>(null);
   const descriptionRef = useRef<TextInput>(null);
   const contactRef = useRef<TextInput>(null);
@@ -1888,37 +1806,71 @@ export default function HomeScreen() {
               ) : null}
 
               <Text style={styles.fieldLabel}>Espécie *</Text>
-              <View style={styles.dropdownWrap}>
-                <SearchableSelect
-                  value={species}
-                  onChange={(t) => {
-                    setSpecies(t);
-                    // Se a nova espécie é conhecida e a raça atual não pertence
-                    // a ela, limpa a raça (evita "cão com raça de gato").
-                    const valid = SPECIES_BREEDS[t];
-                    if (valid && breed && !valid.includes(breed)) {
-                      setBreed("");
-                    }
-                  }}
-                  options={SPECIES_OPTIONS}
-                  placeholder="Selecione a espécie"
-                  dropdownRef={speciesDropdownRef}
-                  onSelect={() => breedDropdownRef.current?.open()}
-                  styles={styles}
-                />
-              </View>
+              <DropDownPicker
+                open={speciesPickerOpen}
+                value={species || null}
+                items={speciesItems}
+                setOpen={setSpeciesPickerOpen}
+                setValue={(v) =>
+                  setSpecies(
+                    typeof v === "function"
+                      ? (v as (p: string) => string)(species)
+                      : ((v as string) ?? ""),
+                  )
+                }
+                onChangeValue={(v) => {
+                  const t = v ?? "";
+                  // Se a nova espécie é conhecida e a raça atual não pertence
+                  // a ela, limpa a raça (evita "cão com raça de gato").
+                  const valid = SPECIES_BREEDS[t];
+                  if (valid && breed && !valid.includes(breed)) {
+                    setBreed("");
+                  }
+                  // Abre o picker de Raça logo em seguida.
+                  setBreedPickerOpen(true);
+                }}
+                listMode="MODAL"
+                placeholder="Selecione a espécie"
+                searchPlaceholder="Digite para buscar"
+                searchable
+                modalTitle="Selecione a Espécie"
+                modalTitleStyle={styles.rdpModalTitle}
+                modalContentContainerStyle={styles.rdpModalContent}
+                modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
+                style={styles.rdpPicker}
+                dropDownContainerStyle={styles.rdpDropdown}
+                textStyle={styles.rdpText}
+                placeholderStyle={styles.rdpPlaceholder}
+                searchTextInputStyle={styles.rdpText}
+              />
               <Text style={styles.fieldLabel}>Raça *</Text>
-              <View style={styles.dropdownWrap}>
-                <SearchableSelect
-                  value={breed}
-                  onChange={setBreed}
-                  options={SPECIES_BREEDS[species] ?? NO_BREEDS}
-                  placeholder="Selecione a raça"
-                  dropdownRef={breedDropdownRef}
-                  onSelect={() => locationRef.current?.focus()}
-                  styles={styles}
-                />
-              </View>
+              <DropDownPicker
+                open={breedPickerOpen}
+                value={breed || null}
+                items={breedItems}
+                setOpen={setBreedPickerOpen}
+                setValue={(v) =>
+                  setBreed(
+                    typeof v === "function"
+                      ? (v as (p: string) => string)(breed)
+                      : ((v as string) ?? ""),
+                  )
+                }
+                listMode="MODAL"
+                placeholder="Selecione a raça"
+                searchPlaceholder="Digite para buscar"
+                searchable
+                disabled={breedItems.length === 0}
+                modalTitle="Selecione a Raça"
+                modalTitleStyle={styles.rdpModalTitle}
+                modalContentContainerStyle={styles.rdpModalContent}
+                modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
+                style={styles.rdpPicker}
+                dropDownContainerStyle={styles.rdpDropdown}
+                textStyle={styles.rdpText}
+                placeholderStyle={styles.rdpPlaceholder}
+                searchTextInputStyle={styles.rdpText}
+              />
               <Text style={styles.fieldLabel}>Última Localização Vista *</Text>
               <TextInput
                 ref={locationRef}
@@ -3606,6 +3558,52 @@ const makeStyles = (c: typeof Colors.light) =>
     dropdownItemText: {
       color: c.text,
       fontSize: 15,
+    },
+    rdpPicker: {
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 12,
+      minHeight: 52,
+      paddingHorizontal: 15,
+      marginBottom: 15,
+    },
+    rdpDropdown: {
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      borderRadius: 12,
+      maxHeight: 320,
+    },
+    rdpModalContent: {
+      maxHeight: 400,
+      width: "90%",
+      alignSelf: "center",
+      backgroundColor: c.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+      overflow: "hidden",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.18,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    rdpModalTitle: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: c.text,
+      textAlign: "center",
+      paddingVertical: 14,
+    },
+    rdpText: {
+      fontSize: 16,
+      color: c.text,
+    },
+    rdpPlaceholder: {
+      fontSize: 16,
+      color: "#8E8E93",
     },
     fieldError: {
       color: "#FF3B30",

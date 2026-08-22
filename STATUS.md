@@ -1147,8 +1147,8 @@ Trabalho nesta sessão em `app/(tabs)/index.tsx` (validado com `tsc --noEmit`).
    diagnóstico primeiro. Aguarda decisão do usuário.
 2. **Backfill opcional** de pets antigos `species:"Cão"` → `"Cachorro"` (apenas
    cosmético no card).
-3. **Rebuild nativo pendente** das últimas mudanças de `app/(tabs)/index.tsx`
-   (ordenação + autocomplete da Raça) para validação em emulador/dispositivo.
+ 3. **Rebuild nativo pendente** das últimas mudanças de `app/(tabs)/index.tsx`
+    (ordenação + dropdown-picker da Raça) para validação em emulador/dispositivo.
 
 ### Regras de ouro deste projeto (já no topo, reforço de aprendizado desta sessão)
 - Não criar `options`/arrays novos a cada render em dropdowns com busca interna
@@ -1158,3 +1158,75 @@ Trabalho nesta sessão em `app/(tabs)/index.tsx` (validado com `tsc --noEmit`).
   raça" precisou ser esclarecida entre autocomplete do dropdown vs filtro no mapa).
 - Busca por IA é **só-visual** (foto do pet vs texto); `location`/`city` não
   entram no embedding quando há foto.
+
+## Atualizações (2026-08-21, noite) — modal "Reportar Pet": ordem de campos, sem auto-open e dropdowns em listMode=MODAL (react-native-dropdown-picker)
+
+Trabalho **não commitado** (desde o commit `d685116`), todo em
+`app/(tabs)/index.tsx`. `tsc --noEmit` limpo.
+
+### 1. Ordem dos campos do modal
+- Campo **"Última Localização Vista *"** movido para logo após o botão
+  **"Usar meu GPS (onde estou)"** (e a dica "Cidade: …"). Nova ordem:
+  mapa/pino → Usar meu GPS → Cidade → Última Localização Vista → Espécie →
+  Raça → Descrição → Recompensa → Contato.
+
+### 2. Espécie não abre Raça automaticamente
+- Removido o `onSelect` da Espécie que chamava `breedDropdownRef.current?.open()`.
+  Ao selecionar a Espécie, a Raça **não** abre sozinha; o usuário toca no campo
+  Raça quando quiser.
+
+### 3. Scroll do modal vs lista do dropdown + teclado (IDA E VOLTA — lição)
+- **Problema:** ao abrir Espécie/Raça, o scroll do modal "não funcionava" (a
+  lista interna sobrepõe e o gesto de rolagem conflita com o `ScrollView` do
+  modal).
+- **Tentativa A (travamento de scroll):** `scrollEnabled={!dropdownOpen}` no
+  `ScrollView` + estado `dropdownOpen` via `onFocus`/`onBlur`. Funcionou para a
+  lista, MAS o teclado passou a sobrepor Espécie/Raça (modal travado não sobe).
+- **Tentativa B (scroll programático):** ao `keyboardDidShow`, medir o campo com
+  `measureLayout`/`findNodeHandle` e `scrollTo`. **FALHOU em Fabric (nova
+  arquitetura):** `measureLayout` exigia ref nativo e `measure` deu
+  `Cannot read property '__internalInstanceHandle' of undefined`. Gambiarra
+  instável — **não repetir esse caminho**.
+- **SOLUÇÃO FINAL (limpa e robusta):** dropdowns em **`listMode="MODAL"`**
+  (`DropDownPicker` com `listMode="MODAL"`). A lista de opções abre
+  num **Modal próprio** do RN, isolada do `ScrollView` do formulário e do
+  teclado. Assim: some o conflito de scroll (a lista não fica aninhada no
+  ScrollView) e some a sobreposição do teclado (o picker é um Modal em tela
+  cheia). Os `onFocus`/`onBlur`/refs de travamento foram **removidos** (voltou ao
+  `SearchableSelect` original + `onBlur` que consolida o texto digitado).
+- **Trade-off:** o picker de Espécie/Raça agora é **tela cheia** (campo de busca
+  no topo), não mais o menu suspenso inline. É o comportamento padrão/mais seguro
+  da lib.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | Ordem dos campos (Localização após Usar meu GPS); Espécie não auto-abre Raça; dropdowns Espécie/Raça em `listMode="MODAL"` do `react-native-dropdown-picker`; removidos os hacks de `scrollEnabled`/`measure`/`keyboard`/refs. |
+
+### Pendente de validação
+- **Rebuild nativo** (`npx expo run:android`) para testar no emulador/dispositivo.
+- Conferir se o `mode="modal"` atende à UX (tela cheia). Se o usuário preferir o
+  menu inline, a alternativa seria `KeyboardAvoidingView` + `nestedScrollEnabled`
+  sem travamento (o caminho de medir/`scrollTo` está descartado).
+
+> **Nota:** as mudanças desde `d685116` (ordem de campos + Espécie não
+> auto-abre Raça + `listMode="MODAL"` do `react-native-dropdown-picker` + ajustes
+> de Espécie/Raça) foram consolidadas e **commitadas** num único commit. A
+> validação em emulador/dispositivo (`npx expo run:android`) segue pendente.
+## Atualizações (2026-08-21, fim) — Espécie/Raça via react-native-dropdown-picker
+
+Troca do `react-native-element-dropdown` (v2) pelo **`react-native-dropdown-picker` (v5.4.6)** nos campos Espécie e Raça do modal "Reportar Pet". Mantido o comportamento desejado: texto livre + busca filtrável (`searchable`), raça amarrada à espécie (limpa ao trocar espécie) e foco encadeado (ao selecionar Espécie, abre o picker de Raça).
+
+- `package.json`: removido `react-native-element-dropdown`; adicionado `react-native-dropdown-picker@^5.4.6` (peers satisfeitos: react 19, react-native 0.81).
+- `app/(tabs)/index.tsx`:
+  - Import default de `DropDownPicker`.
+  - Dois `DropDownPicker` (`speciesPickerOpen` / `breedPickerOpen`) com `listMode="MODAL"` — a lista abre num `Modal` próprio do RN, isolada do `ScrollView` do formulário e do teclado (resolveu de vez o conflito scroll/teclado das tentativas anteriores com `element-dropdown`).
+  - `items` de Raça derivam de `SPECIES_BREEDS[species] ?? []`; `disabled` quando vazio. `onChangeValue` da Espécie limpa a Raça se incompatível e abre o picker de Raça (`setBreedPickerOpen(true)`).
+  - `modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}` para o picker cobrir a tela; `searchable` com `searchPlaceholder="Digite para buscar"`.
+  - Estilos: `rdpPicker`, `rdpDropdown`, `rdpText`, `rdpPlaceholder`, `rdpModalTitle`, `rdpModalContent` (temáticos). Removidos os estilos órfãos do `element-dropdown` (`dropdown`, `dropdownContainer`, `dropdownPlaceholder`, `dropdownSelectedText`, `dropdownInputSearch`).
+- Validação: `tsc --noEmit` limpo. Rebuild nativo (`npx expo run:android`) necessário para testar a UI (lib nova nativa).
+
+> **Correção de registro:** uma anotação anterior deste arquivo citava
+> `react-native-autocomplete-dropdown` (v5.1.0) como a lib final. Isso NÃO
+> confere com o código/package.json em disco, que usam `react-native-dropdown-picker`.
+> Esta seção é a fonte autoritativa.

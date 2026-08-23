@@ -28,19 +28,31 @@ export const ensureSession = async (deviceId?: string): Promise<SupabaseClient |
   try {
     // Garante que o device_id esteja na metadata do usuário anônimo, pois as
     // policies de RLS (owner/reporter em pets, storage, pet_contacts) dependem
-    // de `current_device_id()`. O `signInAnonymously` grava o `device_id` na
-    // criação (confirmado em teste), MAS o `updateUser` de metadata em usuário
-    // anônimo NÃO persiste de forma confiável (retorna "sucesso" sem gravar),
-    // deixando `current_device_id()` NULL e quebrando o upsert dos pets.
-    // Por isso, quando não há sessão OU o device_id não bate, force um NOVO
-    // sign-in anônimo com o device_id — caminho comprovadamente funcional.
-    const { data: existing } = await sb.auth.getSession();
-    const current = existing.session?.user?.user_metadata?.device_id;
-    if (!existing.session || current !== deviceId) {
-      if (existing.session) await sb.auth.signOut().catch(() => {});
-      const { error } = deviceId
-        ? await sb.auth.signInAnonymously({ options: { data: { device_id: deviceId } } })
-        : await sb.auth.signInAnonymously();
+    // de `current_device_id()`. O campo `device_id` da metadata é RESERVADO
+    // pelo Gotrue para usuários anônimos (ele sobrescreve com um UUID próprio,
+    // de forma intermitente), então usamos a chave `app_device_id` (nossa).
+    // `signInAnonymously` grava `app_device_id` na criação; o `updateUser` de
+    // metadata em anon não persiste de forma confiável, por isso usamos
+    // `getUser()` (servidor, fonte da verdade) e, se o valor real não bater,
+    // forçamos um NOVO sign-in anônimo com o app_device_id.
+    if (!deviceId) {
+      const { data: ex } = await sb.auth.getSession();
+      if (!ex.session) {
+        const { error } = await sb.auth.signInAnonymously();
+        if (error) {
+          console.warn('[supabase] anon sign-in falhou:', error.message);
+          return null;
+        }
+      }
+      return sb;
+    }
+    const { data: userData } = await sb.auth.getUser();
+    const current = userData.user?.user_metadata?.app_device_id;
+    if (!userData.user || current !== deviceId) {
+      await sb.auth.signOut().catch(() => {});
+      const { error } = await sb.auth.signInAnonymously({
+        options: { data: { app_device_id: deviceId } },
+      });
       if (error) {
         console.warn('[supabase] anon sign-in falhou:', error.message);
         return null;

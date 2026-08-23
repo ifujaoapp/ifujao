@@ -91,6 +91,10 @@ create trigger pets_set_updated_at
 -- Isto é usado apenas para identidade/STORAGE; a escrita em pets é endurecida
 -- pela policy de UPDATE (ver N1). Para zero-trust, capture auth.uid()
 -- imutável em owner_user_id no INSERT e autorize por ele.
+-- IMPORTANTE: usa a chave `app_device_id` (NÃO `device_id`). O campo
+-- `device_id` da metadata é RESERVADO pelo Gotrue para usuários anônimos:
+-- ele sobrescreve com um UUID próprio (de forma intermitente), quebrando o
+-- RLS de forma imprevisível. A app grava `app_device_id` no sign-in anônimo.
 create or replace function public.current_device_id()
 returns text
 language sql
@@ -98,7 +102,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select raw_user_meta_data->>'device_id'
+  select raw_user_meta_data->>'app_device_id'
   from auth.users
   where id = auth.uid()
 $$;

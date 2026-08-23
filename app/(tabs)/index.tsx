@@ -1556,7 +1556,21 @@ export default function HomeScreen() {
                           style={styles.siBtn}
                           onPress={() => Linking.openURL(waUrl)}
                         >
-                          <Text style={styles.siBtnText}>💬 WhatsApp: {phone}</Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="whatsapp"
+                              size={18}
+                              color="#25D366"
+                            />
+                            <Text style={styles.siBtnText}>WhatsApp: {phone}</Text>
+                          </View>
                         </TouchableOpacity>
                       ) : null}
                       {igUrl ? (
@@ -1564,7 +1578,21 @@ export default function HomeScreen() {
                           style={styles.siBtn}
                           onPress={() => Linking.openURL(igUrl)}
                         >
-                          <Text style={styles.siBtnText}>📷 Instagram</Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="instagram"
+                              size={18}
+                              color="#E4405F"
+                            />
+                            <Text style={styles.siBtnText}>Instagram</Text>
+                          </View>
                         </TouchableOpacity>
                       ) : null}
                       {fbUrl ? (
@@ -1572,7 +1600,21 @@ export default function HomeScreen() {
                           style={styles.siBtn}
                           onPress={() => Linking.openURL(fbUrl)}
                         >
-                          <Text style={styles.siBtnText}>👍 Facebook</Text>
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <MaterialCommunityIcons
+                              name="facebook"
+                              size={18}
+                              color="#1877F2"
+                            />
+                            <Text style={styles.siBtnText}>Facebook</Text>
+                          </View>
                         </TouchableOpacity>
                       ) : null}
                       {link ? (

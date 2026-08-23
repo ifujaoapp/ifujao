@@ -1601,7 +1601,7 @@ export default function HomeScreen() {
                               size={18}
                               color="#E4405F"
                             />
-                            <Text style={styles.siBtnText}>{igLabel}</Text>
+                            <Text style={styles.siLabel}>{igLabel}</Text>
                           </View>
                         </TouchableOpacity>
                       ) : null}
@@ -1623,7 +1623,7 @@ export default function HomeScreen() {
                               size={18}
                               color="#1877F2"
                             />
-                            <Text style={styles.siBtnText}>{fbLabel}</Text>
+                            <Text style={styles.siLabel}>{fbLabel}</Text>
                           </View>
                         </TouchableOpacity>
                       ) : null}
@@ -4801,6 +4801,12 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     siBtnText: {
       fontSize: 15,
+      color: c.text,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    siLabel: {
+      fontSize: 13,
       color: c.text,
       fontWeight: "600",
       textAlign: "center",

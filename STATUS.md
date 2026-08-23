@@ -1469,3 +1469,74 @@ do telefone (que é o correto — o GPS do computador no admin web vinha errado)
   (`SponsorAdminModal` / `lib/sponsorAdmin`) **não existe no código atual** —
   só o admin web (`sponsor-admin`) cadastra patrocinadores. (Registro a
   confirmar/corrigir se necessário.)
+
+## Atualizações (2026-08-23, tarde/noite) — logo, Storage, compressão e segurança
+
+> `tsc --noEmit` limpo no app e no `sponsor-admin`; build do web OK.
+> Requer **rebuild nativo** e **rerodar `supabase/sponsors.sql`** (bucket +
+> coluna `logo` + policies).
+
+### 1. Legenda e botões do modal
+- **Legenda** do mapa atualizada para 🛍️ (igual ao pin; antes aparecia 🏪).
+- Botões de **Instagram/Facebook** mostram o **@usuário/perfil** cadastrado
+  (em vez de "Instagram"/"Facebook"); se for URL completa, extrai só o
+  usuário. Fonte do @ reduzida para **13** (evitar quebra de linha).
+- Botão de telefone: só ícone verde do WhatsApp + o número (sem rótulo).
+
+### 2. Logo do patrocinador (arquivo real, não URL externa)
+- Decisão: o `logo` deixou de ser uma URL externa (que sumia se o patrocinador
+  removesse a imagem) e passou a ser **upload de arquivo** para o
+  **Supabase Storage** (bucket `sponsor-logos`). O `logo` guarda a URL pública
+  estável do Storage.
+- `supabase/sponsors.sql`: coluna `logo text` + criação do bucket
+  `sponsor-logos` (público, limite 2MB, MIME só imagem) + policies.
+- `sponsor-admin/src/Admin.tsx`: campo "Logo" virou `<input type="file">` com
+  prévia; no `save`, o arquivo sobe via `supabase.storage.from('sponsor-logos')
+  .upload(...)` (path = id do patrocinador ou uuid) e o `logo` recebe
+  `getPublicUrl`.
+- `app/(tabs)/index.tsx`: modal exibe `<Image source={{ uri: logo }}>` no topo.
+
+### 3. Compressão da imagem (economia de Storage)
+- `sponsor-admin/src/Admin.tsx`: helper `compressImage()` usa **Canvas** para
+  redimensionar o maior lado para **256px** e exportar **WebP** (qualidade
+  0.8, com fallback JPEG). O arquivo que vai pro Storage já vai leve
+  (~10–40KB). Sem dependência nova.
+
+### 4. Ajuste de segurança do Storage (advisory "Clients can list all files")
+- O bucket é **público**, então a imagem é servida via URL pública (o app só
+  carrega a URL — não precisa de RLS para ler).
+- Removida a policy de **SELECT** (`sponsor logos public read`) e a policy
+  `for all` (que inclui SELECT) foi trocada por **3 policies separadas**
+  (`insert` / `update` / `delete`) para o admin — nenhuma concede SELECT, então
+  ninguém consegue `list()` via RLS.
+- O aviso do Security Advisor **persistiu**: em bucket público o `list()` é
+  permitido por *design* (não por policy). Como os logos são imagens de marca
+  públicas (baixa sensibilidade), decidiu-se **Dismiss** o aviso — postura já
+  está na configuração mais segura possível para bucket público. (Alternativa
+  seria bucket privado + URL assinada, desnecessária aqui.)
+
+### Arquivos alterados (complementar)
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | legenda 🛍️; botões IG/FB mostram @usuário (fonte 13); modal exibe `logo` (Image). |
+| `lib/sponsors.ts` | `SponsorPin` + fetch com `logo`. |
+| `supabase/sponsors.sql` | coluna `logo`; bucket `sponsor-logos` + policies (insert/update/delete, sem SELECT). |
+| `sponsor-admin/src/types.ts` | `Sponsor`/`SponsorInput` com `logo`. |
+| `sponsor-admin/src/Admin.tsx` | upload de arquivo de logo (+ prévia) + `compressImage()` (Canvas/WebP). |
+
+### Commits adicionais (2026-08-23)
+- `dbb4765` docs(status): sessao 2026-08-23 + legenda com 🛍️
+- `86a3002` feat(sponsors): botao mostra o @usuario do Instagram/Facebook
+- `7b4d4d2` fix(sponsors): fonte menor (13) no @usuario
+- `9c0c39d` feat(sponsors): campo logo (URL) no DB/admin e exibicao no modal
+- `d444ffc` feat(sponsors): upload de arquivo de logo p/ Supabase Storage
+- `3e7d9b5` feat(sponsors): comprime/redimensiona logo no browser (Canvas, WebP)
+- `f4dd87d` security(sponsors): remove SELECT policy do bucket publico
+- `ce30dbc` security(sponsors): restringe policy a insert/update/delete (sem SELECT) — **erro de sintaxe** (Postgres não aceita lista)
+- `879594a` fix(sponsors): policies de Storage separadas (insert/update/delete) sem SELECT
+- `status` (pendente de commit): esta seção
+
+### Pendências
+- **Reaplicar `supabase/sponsors.sql`** (cria bucket + coluna `logo` + policies)
+  e **rebuild nativo** para validar o fluxo de logo no emulador/dispositivo.
+- Dismiss do advisory de Storage confirmado (bucket público por design).

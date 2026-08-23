@@ -1633,3 +1633,60 @@ Série de bugs descobertos e corrigidos após quebra reportada na busca por IA.
 - Botão de patinha (FAB "reportar pet", `floatingButtonContainer`): adicionado anel pulsante igual aos pins do mapa — `Animated.loop` (1800ms) expande a escala `0.6→1.8` e some a opacidade `0.9→0`. Estilo `pawPulseRing` (`app/(tabs)/index.tsx`).
 - Só renderiza quando `canReport` (não aparece no estado desabilitado). `useNativeDriver: true`.
 - Validação: `tsc --noEmit` limpo. Exige **rebuild nativo** para validar.
+
+## Atualizações (2026-08-23, fim) — busca por IA híbrida (imagem + espécie)
+
+Sintoma reportado pelo usuário: ao buscar `cahorro` (ou `cachorro`/`cão`/`dog`),
+a busca devolvia um **Gato** (similaridade ~0,33–0,35) e o app mentia "achou um
+cachorro" — mesmo não havendo nenhum cachorro cadastrado.
+
+### Causa raiz (comprovada com testes reais na função deployada)
+A busca era **só-visual**: o `match_pets` ranqueia o pet cuja **foto** é mais
+parecida com o **texto** da consulta. Como o embedding do pet é da foto e o da
+consulta é do texto, palavras de animal ("cachorro") tiravam nota ~0,33 de uma
+foto de gato — passando do piso absoluto (0,32) e devolvendo o gato como se
+fosse a resposta. O piso sozinho não distingue "acerto" de "ruído de espécie
+errada" porque as faixas se sobrepõem (ruído 0,26–0,27; acerto 0,33+; mas
+espécie-errada-casando 0,33–0,35).
+
+### Decisão (usuário): busca HÍBRIDA
+Conferir também a **Espécie cadastrada** do pet. Se a consulta nomeia uma
+espécie, só devolvemos pets **daquela** espécie; se não houver nenhum, devolve
+vazio ("não tem"). Consultas que só descrevem aparência (sem espécie) continuam
+usando só a imagem (com o piso 0,32).
+
+### Implementação (`supabase/functions/search-pets/index.ts`)
+- Helpers: `stripDiacritics` (normaliza PT/EN, tira acento), `levenshtein`
+  (tolera digitação: `cahorro`≈`cachorro` = 1), `SPECIES_SYNONYMS`
+  (PT + EN + variantes, espelhando as chaves de `SPECIES_BREEDS` do app),
+  `SYN_TO_CANON`, `petCanon(payload)` e `detectImpliedSpecies(query)`.
+- Fluxo: `detectImpliedSpecies` descobre a espécie implícita na consulta (match
+  exato / substring de sinônimo ≥4 chars / Levenshtein ≤2 em tokens ≥4).
+  - Se há espécie implícita: `pool` = pets cujo `species` (canônico) bate OU
+    cuja `breed` casa com a consulta. `pool` vazio → `{results:[]}` (é o "não
+    tem" para `cachorro` sem cachorro no banco). Pula o piso absoluto (o rótulo
+    é a autoridade).
+  - Se não há espécie implícita: mantém o caminho visual com `MIN_BEST_SIMILARITY=0.32`.
+- Limiar relativo (`REL_MARGIN=0.06`) mantido para agrupar o cluster certo.
+
+### Evidência (função redeployada, banco só com gatos)
+| Consulta | Resultado |
+|---|---|
+| `cahorro` / `cachorro` / `cão` / `cao` / `dog` | **vazio** (não tem) ✓ |
+| `furacao` (perto de furão, mas ausente) | **vazio** ✓ |
+| `zxqwzk` | **vazio** ✓ |
+| `gato` | 2 Gatos ✓ |
+| `gato cinza com manchas brancas` | 2 Gatos ✓ |
+| `gato preto` | Gato (sim 0,44) ✓ |
+| `navio` (palavra sem animal) | Gato (sim 0,33) — caso conhecido, ver abaixo |
+
+### Deploy
+`supabase functions deploy search-pets` (só a função; sem SQL/RLS novo, sem
+rebuild do app). **Validação:** testes acima via chamada HTTP real à função.
+
+### Pendência conhecida (deixada assim por escolha do usuário)
+Palavras que **não nomeiam animal** (ex.: `navio`, sim 0,33) ainda podem
+devolver o pet mais próximo, pois caem no caminho visual e passam do piso 0,32.
+Para eliminar, subir `MIN_BEST_SIMILARITY` para ~0,34 — o trade-off é que
+buscas genéricas de gato podem mostrar 1 a menos nos empates (ex.: "gato cinza"
+segundo resultado 0,329 seria cortado). Não alterado a pedido.

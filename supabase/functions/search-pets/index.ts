@@ -16,6 +16,104 @@ const json = (body: unknown, status: number) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// ---- Busca HÍBRIDA (imagem + rótulo de espécie) --------------------------
+// A similaridade do Postgres é puramente VISUAL (embedding da FOTO do pet vs
+// texto da consulta). Sozinha, ela não sabe se o animal existe: "cachorro"
+// casava com a foto de um GATO (sim ~0.33) e o app mentia "achou um cachorro".
+// Aqui conferimos também a Espécie cadastrada: se a consulta nomeia uma
+// espécie, só devolvemos pets DAQUELA espécie; se não houver nenhum, devolvemos
+// vazio ("não tem"). Consultas que só descrevem aparência (sem espécie) continuam
+// usando só a imagem.
+
+// Remove acentos e baixa a caixa (ex.: "Cão" -> "cao", "Cachorro" -> "cachorro").
+const stripDiacritics = (s: string): string =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+// Distância de Levenshtein (tolera digitação: "cahorro" ~ "cachorro" = 1).
+const levenshtein = (a: string, b: string): number => {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  let curr = new Array<number>(n + 1).fill(0);
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+    }
+    const t = prev;
+    prev = curr;
+    curr = t;
+  }
+  return prev[n];
+};
+
+// Sinônimos (PT + EN + variantes) de cada espécie. A chave é o rótulo oficial
+// usado no app (deve espelhar SPECIES_BREEDS de app/(tabs)/index.tsx).
+const SPECIES_SYNONYMS: Record<string, string[]> = {
+  "Cachorro": ["cachorro", "cao", "dog", "cachorrinho", "cachorra", "cadela", "doguinho", "caozinho", "filhote de cachorro"],
+  "Gato": ["gato", "gata", "cat", "gatinho", "gatito", "felino"],
+  "Calopsita": ["calopsita", "cockatiel"],
+  "Papagaio": ["papagaio", "parrot"],
+  "Arara": ["arara", "macaw"],
+  "Cacatua": ["cacatua", "cockatoo"],
+  "Periquito-australiano": ["periquito", "budgerigar", "budgie"],
+  "Agapornis": ["agapornis", "lovebird"],
+  "Ferret": ["ferret", "furao", "furona", "furão"],
+  "Hámster": ["hamster", "hamster"],
+  "Coelho": ["coelho", "coelha", "rabbit", "bunny"],
+  "Porquinho-da-índia": ["porquinho", "guinea pig", "cobaia"],
+  "Gerbil": ["gerbil"],
+  "Rato Twister": ["rato", "ratinho"],
+  "Jabuti e Cágado": ["jabuti", "cagado", "tartaruga", "turtle"],
+  "Gecko": ["gecko"],
+  "Iguana": ["iguana"],
+  "Cobra": ["cobra", "snake", "serpente", "piton", "jiboia", "python"],
+};
+
+// Índice sinônimo (normalizado) -> espécie canônica.
+const SYN_TO_CANON: Record<string, string> = {};
+for (const [canon, syns] of Object.entries(SPECIES_SYNONYMS)) {
+  SYN_TO_CANON[stripDiacritics(canon)] = canon;
+  for (const s of syns) SYN_TO_CANON[stripDiacritics(s)] = canon;
+}
+
+// Espécie canônica de um pet a partir do rótulo cadastrado (ou null).
+const petCanon = (payload: any): string | null => {
+  const sp = payload?.species;
+  if (!sp) return null;
+  const key = stripDiacritics(String(sp));
+  if (SYN_TO_CANON[key]) return SYN_TO_CANON[key];
+  for (const [syn, canon] of Object.entries(SYN_TO_CANON)) {
+    if (syn.length >= 4 && levenshtein(key, syn) <= 2) return canon;
+  }
+  return null;
+};
+
+// Espécies implícitas na consulta (ex.: "cahorro" -> "Cachorro", "gato" -> "Gato").
+const detectImpliedSpecies = (query: string): Set<string> => {
+  const q = stripDiacritics(query);
+  const tokens = q.split(/[^a-z0-9]+/).filter(Boolean);
+  const implied = new Set<string>();
+  for (const tok of tokens) {
+    for (const [syn, canon] of Object.entries(SYN_TO_CANON)) {
+      if (tok === syn) {
+        implied.add(canon);
+        continue;
+      }
+      if (syn.length >= 4 && tok.includes(syn)) implied.add(canon);
+    }
+    if (tok.length >= 4) {
+      for (const [syn, canon] of Object.entries(SYN_TO_CANON)) {
+        if (syn.length >= 4 && levenshtein(tok, syn) <= 2) implied.add(canon);
+      }
+    }
+  }
+  return implied;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
@@ -106,22 +204,55 @@ Deno.serve(async (req) => {
     const all = Array.isArray(rows) ? rows : [];
     if (all.length === 0) return json({ results: [] }, 200);
 
-    // Busca SÓ POR IMAGEM (vetor do pet = só a foto). O `match_pets` ranqueia
-    // por similaridade coseno. Não usamos o campo `species` do payload (pode
-    // estar inconsistente e não reflete a foto).
+    // Busca HÍBRIDA: imagem (similaridade do Postgres) + rótulo de espécie.
+    const implied = detectImpliedSpecies(query);
+
+    // Se a consulta nomeia uma espécie, restringe aos pets DAQUELA espécie
+    // (rótulo cadastrado). Se não houver nenhum, devolve vazio ("não tem") —
+    // mesmo que a foto de outra espécie fosse "parecida" com o texto. Isso
+    // impede "cahorro"/"cachorro" de devolver um gato só porque a imagem é
+    // vagamente similar.
+    let pool = all;
+    if (implied.size > 0) {
+      const qNorm = stripDiacritics(query);
+      const qTokens = qNorm.split(/[^a-z0-9]+/).filter(Boolean);
+      pool = all.filter((r) => {
+        const canon = petCanon(r?.payload);
+        if (canon && implied.has(canon)) return true;
+        // Também aceita se a raça cadastrada casa com a consulta (ex.: "shih tzu").
+        const breed = stripDiacritics(String(r?.payload?.breed ?? ""));
+        if (breed) {
+          for (const tok of qTokens) {
+            if (tok.length < 4) continue;
+            if (breed.includes(tok) || levenshtein(tok, breed) <= 2) return true;
+          }
+        }
+        return false;
+      });
+      if (pool.length === 0) return json({ results: [] }, 200);
+    }
+
     // Limiar RELATIVO à melhor imagem: mantém só as fotos próximas do topo.
     //  - Consulta genérica ("gato"): o cluster de gatos é apertado em torno do
     //    melhor, então todos os gatos entram; fotos de outras espécies (muito
     //    abaixo) saem.
     //  - Consulta específica ("gato preto"): o gato preto é o topo e os gatos
     //    não-pretos caem bem abaixo -> só a melhor imagem de gato preto fica.
-    const best = all.reduce(
+    const best = pool.reduce(
       (m, r) => Math.max(m, (r?.similarity ?? 0) as number),
       0
     );
+    // Piso absoluto (só quando a consulta NÃO nomeia espécie): se a melhor
+    // similaridade estiver abaixo, a consulta não tem correspondência visual
+    // real (palavra que não existe / ruído) e deve retornar vazio. Calibrado
+    // por medição real: ruído ~0.26–0.27; acertos 0.33+. Acima do ruído.
+    const MIN_BEST_SIMILARITY = 0.32;
+    if (implied.size === 0 && best < MIN_BEST_SIMILARITY) {
+      return json({ results: [] }, 200);
+    }
     const REL_MARGIN = 0.06;
-    const threshold = Math.max(best - REL_MARGIN, 0.2);
-    const results = all.filter(
+    const threshold = best - REL_MARGIN;
+    const results = pool.filter(
       (r) => (r?.similarity ?? 0) >= threshold
     );
 

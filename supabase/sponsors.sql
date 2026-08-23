@@ -1,5 +1,7 @@
 -- Tabela de patrocinadores (pins no mapa do iFujão).
--- Reaplicar no Supabase (SQL Editor) uma única vez.
+-- Arquivo IDEMPOTENTE: pode ser rodado quantas vezes quiser no SQL Editor
+-- (o create table é `if not exists`, as policies fazem `drop` antes do
+-- `create`, e os índices/grant são repetíveis).
 --
 -- Segurança:
 --   * Leitura: PÚBLICA (anon) — o app mobile precisa listar os pins.
@@ -16,22 +18,30 @@ create table if not exists public.sponsors (
   address text,
   link text,
   active boolean not null default true,
+  visible_from timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+-- Se a tabela já existir sem a coluna (deploy anterior), adicione-a de forma
+-- idempotente. Em projeto novo o create acima já traz a coluna.
+alter table public.sponsors add column if not exists visible_from timestamptz;
+
 alter table public.sponsors enable row level security;
 
+drop policy if exists "sponsors public read" on public.sponsors;
 create policy "sponsors public read"
   on public.sponsors for select to anon, authenticated
   using (true);
 
+drop policy if exists "sponsors admin write" on public.sponsors;
 create policy "sponsors admin write"
   on public.sponsors for all to authenticated
   using ( (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true )
   with check ( (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true );
 
 create index if not exists sponsors_active_idx on public.sponsors (active);
+create index if not exists sponsors_visible_from_idx on public.sponsors (visible_from);
 
 grant usage on schema public to anon, authenticated;
 grant select on table public.sponsors to anon, authenticated;

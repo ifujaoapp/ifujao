@@ -1330,7 +1330,56 @@ no mapa do app e, ao clicar, levam ao endereço/link cadastrado.
 | `lib/sponsors.ts` | tipo `SponsorPin` + `fetchSponsors()` (anon). |
 | `app/(tabs)/index.tsx` | `MapLeaflet`: prop `sponsors`/`onSponsorPress`, ícone laranja, `__renderSponsors`; HomeScreen busca sponsors e trata o toque. |
 
+### Cadastro de patrocinador DENTRO do app (mobile) — 2026-08-22 (sessão seguinte)
+O usuário queria cadastrar o patrocinador **pelo próprio celular**, usando o GPS
+do telefone (que é o correto — o GPS do computador no admin web vinha errado) e
+**só como admin**. Adicionado fluxo de admin dentro do app:
+- Botão **Admin** (canto superior esquerdo do mapa) → modal de login (e-mail/senha
+  do painel) → tela de cadastro com **mapa Leaflet tocável**, botão **📍 Usar meu
+  GPS** (centraliza no celular), campo **Endereço + Procurar** (geocodifica e
+  posiciona o mapa) e campos **Nome\*** e **Link\*** (obrigatórios; o link é o que
+  abre ao tocar o pin). Ao abrir a tela, o mapa já centraliza no GPS do usuário.
+- O insert usa um **cliente Supabase separado** (`lib/sponsorAdmin.ts`, com
+  `storageKey` próprio) para não sobrescrever a sessão anônima dos pets; a RLS
+  `sponsors admin write` (`is_anonymous` distinto de true) libera a escrita.
+- `fetchSponsors` (`lib/sponsors.ts`) teve o filtro `.or()` do PostgREST trocado
+  por filtro client-side de validade (a comparação estrita escondia o pin no
+  próprio dia da data-limite); e o `sponsor-admin` grava `visible_from` como
+  fim-do-dia.
+
+| Arquivo | O que mudou |
+|---|---|
+| `lib/sponsorAdmin.ts` | NOVO: cliente Supabase de admin (storageKey próprio) + `addSponsorAdmin()`. |
+| `components/SponsorAdminModal.tsx` | NOVO: modal de login + cadastro (mapa Leaflet, GPS, endereço/Procurar, Nome/Link). |
+| `app/(tabs)/index.tsx` | botão **Admin** + `<SponsorAdminModal>` + `refreshSponsors`. |
+| `lib/sponsors.ts` | filtro de validade feito client-side (sem `.or()`). |
+| `sponsor-admin/src/Admin.tsx` | `visible_from` como fim-do-dia; botão de GPS do PC desligado (GPS do computador vinha errado). |
+
 ### Validação
 - `tsc --noEmit` limpo no app e no `sponsor-admin`; `npm run build` do web OK.
 - Pendente: rodar o SQL no Supabase, criar usuário admin e testar em runtime
   (emulador/dispositivo) — não validado em runtime ainda.
+
+### Problemas operacionais encontrados (2026-08-22)
+- **Vite não abre o navegador sozinho.** Adicionado `open: true` no
+  `server` do `vite.config.ts`. Se não abrir, acesse manualmente
+  `http://localhost:5173`.
+- **Página em branco / `GET /` retorna 404.** Causa quase sempre: **dois
+  processos `npm run dev`** (o do usuário + um do agente) disputando a 5173;
+  o mais antigo fica quebrado e responde 404 para `/` e `/index.html`.
+  Sintoma: `curl http://localhost:5173/` → 404; browser branco.
+  Correção: matar os PIDs em 5173 (`taskkill /PID <pid> /F`) e subir **um**
+  servidor limpo; confirmar `GET /` → 200 e `GET /index.html` → `<!doctype html>`.
+  Dica: encerrar o servidor no PowerShell com `Ctrl+C` antes de abrir outro.
+- **Criar usuário admin sem `service_role` no `.env`.** O `.env` do projeto só
+  tem URL + anon key. Use o endpoint de **signup** com a anon key
+  (header `apikey:`), que cria usuário e-mail/senha normal (não anônimo → RLS
+  de escrita aceita). Ex.:
+  `curl.exe -X POST "$URL/auth/v1/signup" -H "apikey: $ANON" -H "Content-Type: application/json" -d '{"email":"ifujaoapp@gmail.com","password":"Microsiga@9"}'`
+  - Se retornar `email_address_invalid`: há regra **Authorized email domains**
+    em Authentication → Providers → Email; use um domínio permitido ou limpe
+    a regra. (No projeto, `admin@ifujao.com` foi rejeitado; `ifujaoapp@gmail.com` ok.)
+  - `confirmation_sent_at` sem `email_confirmed_at`: e-mail não confirmado →
+    desmarque "Confirm email" ou crie pelo painel com Auto Confirm.
+- **`esbuild` bloqueado no install.** Se o `vite` falhar por postinstall do
+  esbuild, rodar `npm install-scripts approve esbuild` no `sponsor-admin`.

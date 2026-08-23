@@ -1,0 +1,10 @@
+{
+  "name": "sponsor-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Interface HTTPS (Node puro) que integra os pins do app iFujão: mostra pets + patrocinadores no mapa e permite adicionar patrocinadores.",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

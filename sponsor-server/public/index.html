@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>iFujão — Patrocinadores</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: system-ui, sans-serif; margin: 0; background: #f5f5f7; color: #1c1c1e; }
+      header { padding: 14px 16px; background: #fff; border-bottom: 1px solid #e5e5ea; }
+      h2 { margin: 0; font-size: 18px; }
+      .hint { font-size: 12px; color: #888; margin: 4px 0 0; }
+      .layout { display: grid; grid-template-columns: 1fr 340px; gap: 12px; padding: 12px; }
+      @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+      .panel { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+      #map { height: 380px; width: 100%; border-radius: 12px; margin-bottom: 10px; }
+      .clickhint { font-size: 13px; color: #666; margin: 0 0 10px; }
+      label { display: block; font-weight: 600; margin: 10px 0 4px; font-size: 13px; }
+      input { width: 100%; padding: 11px; border: 1px solid #ccc; border-radius: 10px; font-size: 15px; }
+      .row { display: flex; gap: 8px; }
+      .row > div { flex: 1; }
+      button { margin-top: 12px; width: 100%; padding: 13px; border: none; border-radius: 10px; background: #0A84FF; color: #fff; font-size: 15px; font-weight: 600; }
+      button.ghost { background: #fff; color: #0A84FF; border: 1px solid #0A84FF; }
+      .del { margin: 0; width: auto; padding: 6px 10px; font-size: 12px; background: #FF3B30; }
+      .edit { margin: 0 6px 0 0; width: auto; padding: 6px 10px; font-size: 12px; background: #fff; color: #0A84FF; border: 1px solid #0A84FF; }
+      #status { margin-top: 10px; font-size: 14px; min-height: 18px; }
+      .ok { color: #1a8f3c; } .err { color: #FF3B30; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #f0f0f3; vertical-align: top; }
+      th { font-size: 12px; color: #888; text-transform: uppercase; }
+      .badge { font-size: 11px; color: #FF9500; border: 1px solid #FF9500; border-radius: 6px; padding: 1px 6px; }
+      .inactive { color: #999; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h2>Patrocinadores — configuração web</h2>
+      <p class="hint">Clique no mapa para marcar onde o patrocinador aparece. Depois escreva o nome e Salvar.</p>
+    </header>
+
+    <div class="layout">
+      <div class="panel">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input id="search" placeholder="Buscar endereço (rua, número, cidade)" style="margin:0;" onkeydown="if(event.key==='Enter'){event.preventDefault(); doSearch();}" />
+          <button id="searchBtn" type="button" style="width:auto;margin:0;background:#FF9500;">🔎 Buscar</button>
+        </div>
+        <div id="map"></div>
+        <p class="clickhint" id="coords">Clique no mapa para definir a posição.</p>
+
+        <h3 id="formTitle" style="margin:14px 0 0;">Novo patrocinador</h3>
+        <input id="id" type="hidden" />
+        <label for="name">Nome *</label>
+        <input id="name" placeholder="Ex.: Pet Shop Centro" />
+
+        <div class="row">
+          <div>
+            <label for="latitude">Latitude *</label>
+            <input id="latitude" inputmode="decimal" placeholder="-23.5015" />
+          </div>
+          <div>
+            <label for="longitude">Longitude *</label>
+            <input id="longitude" inputmode="decimal" placeholder="-47.4582" />
+          </div>
+        </div>
+
+        <label for="link">Link (opcional)</label>
+        <input id="link" placeholder="Site ou Instagram" />
+        <label for="address">Endereço (opcional, texto)</label>
+        <input id="address" placeholder="Rua Exemplo, 123 — Sorocaba" />
+        <label for="visibleFrom">Expirar em (opcional)</label>
+        <input id="visibleFrom" type="date" />
+        <label style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+          <input id="active" type="checkbox" checked style="width:auto;" /> Ativo (visível no app)
+        </label>
+
+        <button id="save">Salvar</button>
+        <button id="cancel" class="ghost" style="display:none;">Cancelar edição</button>
+        <button type="button" id="useGps" class="ghost" style="background:#FF9500;color:#fff;border:none;">📍 Usar minha localização</button>
+        <button type="button" id="geoAddr" class="ghost" style="background:#34C759;color:#fff;border:none;">📍 Usar endereço para o GPS</button>
+        <div id="status"></div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0;">Patrocinadores</h3>
+        <table>
+          <thead><tr><th>Nome</th><th>Coord.</th><th>Link</th><th></th></tr></thead>
+          <tbody id="tbody"><tr><td colspan="4" style="color:#888;">carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      var statusEl = document.getElementById('status');
+      function setStatus(msg, kind) { statusEl.textContent = msg || ''; statusEl.className = kind || ''; }
+
+      // ---- MAPA ----
+      var map = L.map('map').setView([-23.5015, -47.4582], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+      var starIcon = L.divIcon({
+        className: 'sponsor-pin-wrap',
+        html: '<div style="width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35);">★</div>',
+        iconSize: [48, 48], iconAnchor: [24, 24],
+      });
+
+      var newMarker = null;
+      function setPoint(la, ln) {
+        document.getElementById('latitude').value = la.toFixed(6);
+        document.getElementById('longitude').value = ln.toFixed(6);
+        if (newMarker) newMarker.setLatLng([la, ln]);
+        else newMarker = L.marker([la, ln], { icon: starIcon, draggable: true, zIndexOffset: 1000 }).addTo(map);
+        newMarker.on('dragend', function (e) {
+          var p = e.target.getLatLng();
+          setPoint(p.lat, p.lng);
+        });
+        document.getElementById('coords').textContent = 'Posição: ' + la.toFixed(5) + ', ' + ln.toFixed(5);
+        document.getElementById('save').disabled = false;
+      }
+      map.on('click', function (e) { setPoint(e.latlng.lat, e.latlng.lng); });
+
+      function showSponsorsOnMap(list) {
+        (list || []).forEach(function (s) {
+          if (typeof s.latitude === 'number' && typeof s.longitude === 'number') {
+            L.marker([s.latitude, s.longitude], { icon: starIcon }).addTo(map);
+          }
+        });
+      }
+
+      // ---- FORMULÁRIO ----
+      function readForm() {
+        return {
+          id: document.getElementById('id').value,
+          name: document.getElementById('name').value,
+          latitude: document.getElementById('latitude').value,
+          longitude: document.getElementById('longitude').value,
+          link: document.getElementById('link').value,
+          address: document.getElementById('address').value,
+          visibleFrom: document.getElementById('visibleFrom').value,
+          active: document.getElementById('active').checked,
+        };
+      }
+      function fillForm(s) {
+        document.getElementById('id').value = s.id || '';
+        document.getElementById('name').value = s.name || '';
+        document.getElementById('latitude').value = s.latitude ?? '';
+        document.getElementById('longitude').value = s.longitude ?? '';
+        document.getElementById('link').value = s.link || '';
+        document.getElementById('address').value = s.address || '';
+        document.getElementById('visibleFrom').value = (s.visible_from || '').slice(0, 10);
+        document.getElementById('active').checked = s.active !== false;
+        document.getElementById('formTitle').textContent = 'Editando: ' + (s.name || '');
+        document.getElementById('cancel').style.display = 'block';
+        document.getElementById('save').disabled = false;
+        if (typeof s.latitude === 'number' && typeof s.longitude === 'number') {
+          map.setView([s.latitude, s.longitude], 15);
+          setPoint(s.latitude, s.longitude);
+        }
+        setStatus('');
+      }
+      function resetForm() {
+        ['id','name','latitude','longitude','link','address','visibleFrom'].forEach(function (k) { document.getElementById(k).value = ''; });
+        document.getElementById('active').checked = true;
+        document.getElementById('formTitle').textContent = 'Novo patrocinador';
+        document.getElementById('cancel').style.display = 'none';
+        document.getElementById('save').disabled = true;
+        if (newMarker) { map.removeLayer(newMarker); newMarker = null; }
+        document.getElementById('coords').textContent = 'Clique no mapa para definir a posição.';
+        setStatus('');
+      }
+
+      function loadList() {
+        fetch('/api/sponsors')
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            var tb = document.getElementById('tbody');
+            if (!res.ok || (res.j && res.j.error)) {
+              tb.innerHTML = '<tr><td colspan="4" style="color:#FF3B30;">ERRO ao carregar: ' +
+                (res.j && res.j.error ? res.j.error : 'status ' + res.status) + '</td></tr>';
+              return;
+            }
+            var list = res.j;
+            showSponsorsOnMap(list);
+            tb.innerHTML = '';
+            if (!Array.isArray(list) || !list.length) { tb.innerHTML = '<tr><td colspan="4" style="color:#888;">nenhum patrocinador</td></tr>'; return; }
+            list.forEach(function (s) {
+              var tr = document.createElement('tr');
+              if (s.active === false) tr.className = 'inactive';
+              tr.innerHTML =
+                '<td><strong>' + (s.name || '') + '</strong>' + (s.active === false ? ' <span class="badge">inativo</span>' : '') +
+                (s.address ? '<br><span style="font-size:12px;color:#666;">' + s.address + '</span>' : '') + '</td>' +
+                '<td style="font-size:12px;color:#666;">' + Number(s.latitude).toFixed(4) + '<br>' + Number(s.longitude).toFixed(4) + '</td>' +
+                '<td>' + (s.link ? '<a href="' + s.link + '" target="_blank">abrir</a>' : '—') + '</td>' +
+                '<td style="white-space:nowrap;"><button class="edit">Editar</button><button class="del">Excluir</button></td>';
+              tr.querySelector('.edit').onclick = function () { fillForm(s); };
+              tr.querySelector('.del').onclick = function () { removeSponsor(s.id); };
+              tb.appendChild(tr);
+            });
+          })
+          .catch(function (e) { console.warn(e); });
+      }
+
+      function removeSponsor(id) {
+        if (!confirm('Excluir este patrocinador?')) return;
+        fetch('/api/sponsors/' + encodeURIComponent(id), { method: 'DELETE' })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) { if (res.ok && res.j.ok) loadList(); else alert('Erro: ' + (res.j.error || '')); });
+      }
+
+      document.getElementById('save').addEventListener('click', function () {
+        var f = readForm();
+        if (!f.name.trim()) { setStatus('Informe o nome.', 'err'); return; }
+        if (!f.latitude || !f.longitude || isNaN(Number(f.latitude)) || isNaN(Number(f.longitude))) {
+          setStatus('Clique no mapa para marcar a posição primeiro.', 'err'); return;
+        }
+        setStatus('Salvando…');
+        var body = {
+          name: f.name, latitude: Number(f.latitude), longitude: Number(f.longitude),
+          link: f.link, address: f.address, visibleFrom: f.visibleFrom, active: f.active,
+        };
+        var method = f.id ? 'PUT' : 'POST';
+        var url = f.id ? ('/api/sponsors/' + encodeURIComponent(f.id)) : '/api/sponsors';
+        fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (res.ok && res.j.ok) { setStatus('Salvo!', 'ok'); resetForm(); loadList(); }
+            else setStatus('Erro: ' + (res.j.error || 'desconhecido'), 'err');
+          })
+          .catch(function (e) { setStatus('Erro de rede: ' + e, 'err'); });
+      });
+
+      document.getElementById('cancel').addEventListener('click', resetForm);
+
+      document.getElementById('useGps').addEventListener('click', function () {
+        if (!navigator.geolocation) { setStatus('GPS não disponível neste navegador.', 'err'); return; }
+        setStatus('Obtendo sua localização…');
+        navigator.geolocation.getCurrentPosition(
+          function (pos) { setPoint(pos.coords.latitude, pos.coords.longitude); setStatus('Localização preenchida. Clique em Salvar.', 'ok'); },
+          function (err) { setStatus('GPS falhou: ' + err.message, 'err'); }
+        );
+      });
+
+      function geocodeOnce(q) {
+        return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(q), { headers: { Accept: 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (data) { return (Array.isArray(data) && data.length) ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) } : null; })
+          .catch(function () { return null; });
+      }
+      async function geocodeAddress() {
+        var raw = (document.getElementById('address').value || '').trim();
+        if (!raw) { setStatus('Digite o endereço primeiro.', 'err'); return; }
+        var candidates = [raw];
+        if (!/(sorocaba|votorantim|s[aâ]o paulo|\bsp\b)/i.test(raw)) candidates.push(raw + ', Sorocaba');
+        candidates.push(raw + ', Sorocaba, Brasil');
+        candidates.push(raw + ', São Paulo, Brasil');
+        setStatus('Buscando coordenadas do endereço…');
+        for (var i = 0; i < candidates.length; i++) {
+          var r = await geocodeOnce(candidates[i]);
+          if (r) { setPoint(r.lat, r.lon); setStatus('Endereço localizado. Clique em Salvar.', 'ok'); return; }
+        }
+        setStatus('Endereço não encontrado. Clique no mapa ou digite lat/long manualmente.', 'err');
+      }
+      document.getElementById('geoAddr').addEventListener('click', geocodeAddress);
+
+      function doSearch() {
+        var q = (document.getElementById('search').value || '').trim();
+        if (!q) { setStatus('Escreva o endereço para buscar.', 'err'); return; }
+        setStatus('Buscando endereço…');
+        fetch('/api/geocode?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (res.ok && res.j.lat) {
+              map.setView([res.j.lat, res.j.lon], 17);
+              setPoint(res.j.lat, res.j.lon);
+              setStatus('Endereço encontrado: ' + (res.j.display || ''), 'ok');
+            } else {
+              setStatus('Endereço não encontrado. Tente escrever rua, número e cidade.', 'err');
+            }
+          })
+          .catch(function (e) { setStatus('Erro ao buscar: ' + e, 'err'); });
+      }
+      document.getElementById('searchBtn').addEventListener('click', doSearch);
+
+      loadList();
+    </script>
+  </body>
+</html>

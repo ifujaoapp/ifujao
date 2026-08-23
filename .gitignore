@@ -49,3 +49,5 @@ build-local*.log
 build-unico*.log
 doctor.log
 prebuild.log
+
+supabase/.temp/

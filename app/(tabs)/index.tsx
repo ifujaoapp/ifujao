@@ -1479,6 +1479,7 @@ export default function HomeScreen() {
             </View>
           )}
         </View>
+
         {initialCenterRef.current && (
           <MapLeaflet
             key={`${theme}-${selectedCity.id}`}
@@ -2912,7 +2913,7 @@ const MapLeaflet = ({
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;} .sponsor-pin-wrap{background:transparent;border:none;} .sponsor-star{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 1.6s ease-out infinite;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}}</style>
     </head>
     <body>
       <div id="map"></div>
@@ -2962,15 +2963,10 @@ const MapLeaflet = ({
         window.__reportedIcon = reportedIcon;
 
         var sponsorIcon = L.divIcon({
-          className: 'paw-pin',
-          html: '<div style="position:relative;width:30px;height:40px;">' +
-            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">' +
-            '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#FF9500" stroke-width="2"/>' +
-            '</svg>' +
-            '<div class="paw-emoji" style="color:#FF9500;">★</div>' +
-            '</div>',
-          iconSize: [30, 40],
-          iconAnchor: [15, 40],
+          className: 'sponsor-pin-wrap',
+          html: '<div class="sponsor-star">★</div>',
+          iconSize: [48, 48],
+          iconAnchor: [24, 24],
           popupAnchor: [0, -36],
         });
 
@@ -3175,6 +3171,7 @@ const MapLeaflet = ({
               longitude: Number(data.longitude),
               address: data.address ?? null,
               link: data.link ?? null,
+              visibleFrom: data.visibleFrom ?? null,
             });
           } else if (data.petId) {
             onMarkerPress(data.petId);

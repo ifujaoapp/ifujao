@@ -1525,6 +1525,10 @@ export default function HomeScreen() {
             ? (() => {
                 const s = sponsorInfo;
                 const phone = s.phone;
+                const waDigits = (phone || "").replace(/\D/g, "");
+                const waUrl = waDigits
+                  ? "https://wa.me/" + (waDigits.startsWith("55") ? waDigits : "55" + waDigits)
+                  : null;
                 const instagram = s.instagram;
                 const facebook = s.facebook;
                 const link = s.link;
@@ -1547,12 +1551,12 @@ export default function HomeScreen() {
                       {s.address ? (
                         <Text style={styles.siLine}>{s.address}</Text>
                       ) : null}
-                      {phone ? (
+                      {waUrl ? (
                         <TouchableOpacity
                           style={styles.siBtn}
-                          onPress={() => Linking.openURL("tel:" + phone)}
+                          onPress={() => Linking.openURL(waUrl)}
                         >
-                          <Text style={styles.siBtnText}>📞 Ligar: {phone}</Text>
+                          <Text style={styles.siBtnText}>💬 WhatsApp: {phone}</Text>
                         </TouchableOpacity>
                       ) : null}
                       {igUrl ? (

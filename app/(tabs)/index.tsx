@@ -557,20 +557,10 @@ export default function HomeScreen() {
     };
   }, []);
 
-  // Toque no pin de patrocinador: abre o link cadastrado; se não houver,
-  // abre o Maps na coordenada.
+  // Toque no pin de patrocinador: abre a janela de informações (modal).
+  const [sponsorInfo, setSponsorInfo] = useState<SponsorPin | null>(null);
   const handleSponsorPress = (s: SponsorPin) => {
-    const target =
-      s.link && s.link.trim()
-        ? s.link.trim()
-        : `https://maps.google.com/?q=${s.latitude},${s.longitude}`;
-    Linking.openURL(target).catch(() => {
-      showAlert(
-        "error",
-        "Erro",
-        "Não foi possível abrir o link do patrocinador.",
-      );
-    });
+    setSponsorInfo(s);
   };
 
   // Deep link (link de contato do WhatsApp): abre o modal do card do pet na
@@ -1524,6 +1514,97 @@ export default function HomeScreen() {
             city={selectedCity}
           />
         )}
+
+        <Modal
+          visible={!!sponsorInfo}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setSponsorInfo(null)}
+        >
+          {sponsorInfo
+            ? (() => {
+                const s = sponsorInfo;
+                const phone = s.phone;
+                const instagram = s.instagram;
+                const facebook = s.facebook;
+                const link = s.link;
+                const toUrl = (v: string) =>
+                  /^https?:\/\//i.test(v) ? v : "https://" + v;
+                const igUrl = instagram
+                  ? instagram.startsWith("@")
+                    ? "https://instagram.com/" + instagram.slice(1)
+                    : toUrl(instagram)
+                  : null;
+                const fbUrl = facebook
+                  ? facebook.startsWith("@")
+                    ? "https://facebook.com/" + facebook.slice(1)
+                    : toUrl(facebook)
+                  : null;
+                return (
+                  <View style={styles.siOverlay}>
+                    <View style={styles.siCard}>
+                      <Text style={styles.siTitle}>{s.name || "Patrocinador"}</Text>
+                      {s.address ? (
+                        <Text style={styles.siLine}>{s.address}</Text>
+                      ) : null}
+                      {phone ? (
+                        <TouchableOpacity
+                          style={styles.siBtn}
+                          onPress={() => Linking.openURL("tel:" + phone)}
+                        >
+                          <Text style={styles.siBtnText}>📞 Ligar: {phone}</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {igUrl ? (
+                        <TouchableOpacity
+                          style={styles.siBtn}
+                          onPress={() => Linking.openURL(igUrl)}
+                        >
+                          <Text style={styles.siBtnText}>📷 Instagram</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {fbUrl ? (
+                        <TouchableOpacity
+                          style={styles.siBtn}
+                          onPress={() => Linking.openURL(fbUrl)}
+                        >
+                          <Text style={styles.siBtnText}>👍 Facebook</Text>
+                        </TouchableOpacity>
+                      ) : null}
+                      {link ? (
+                        <TouchableOpacity
+                          style={styles.siBtnPrimary}
+                          onPress={() => Linking.openURL(toUrl(link))}
+                        >
+                          <Text style={styles.siBtnPrimaryText}>🔗 Abrir link</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.siBtnPrimary}
+                          onPress={() =>
+                            Linking.openURL(
+                              "https://maps.google.com/?q=" +
+                                s.latitude +
+                                "," +
+                                s.longitude,
+                            )
+                          }
+                        >
+                          <Text style={styles.siBtnPrimaryText}>📍 Ver no mapa</Text>
+                        </TouchableOpacity>
+                      )}
+                      <TouchableOpacity
+                        style={styles.siClose}
+                        onPress={() => setSponsorInfo(null)}
+                      >
+                        <Text style={styles.siCloseText}>Fechar</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })()
+            : null}
+        </Modal>
 
         {locationEnabled === false && (
           <View style={styles.locationWarning}>
@@ -2913,10 +2994,11 @@ const MapLeaflet = ({
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;} .sponsor-pin-wrap{background:transparent;border:none;} .sponsor-star{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 1.6s ease-out infinite;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .paw-pulse{position:absolute;left:50%;top:16px;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(10,132,255,0.30);box-shadow:0 0 0 2px rgba(10,132,255,0.25);animation:pawPulse 3s ease-out infinite;pointer-events:none;z-index:0;} .paw-pulse.paw-pulse-reported{background:rgba(255,59,48,0.30);box-shadow:0 0 0 2px rgba(255,59,48,0.25);} @keyframes pawPulse{0%{transform:scale(0.5);opacity:0.9;}70%{transform:scale(2);opacity:0;}100%{transform:scale(0.5);opacity:0;}} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{width:38px;height:38px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 2.8s ease-out infinite;} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
     </head>
     <body>
       <div id="map"></div>
+      <div id="legend" class="map-legend"><span class="legend-dot">🏪</span> Patrocinador</div>
       <script>
         var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -2935,7 +3017,8 @@ const MapLeaflet = ({
         var pawIcon = L.divIcon({
           className: 'paw-pin',
           html: '<div style="position:relative;width:30px;height:40px;">' +
-            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">' +
+            '<div class="paw-pulse"></div>' +
+            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
             '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#0A84FF" stroke-width="2"/>' +
             '</svg>' +
             '<div class="paw-emoji">🐾</div>' +
@@ -2948,7 +3031,8 @@ const MapLeaflet = ({
         var reportedIcon = L.divIcon({
           className: 'paw-pin',
           html: '<div style="position:relative;width:30px;height:40px;">' +
-            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg">' +
+            '<div class="paw-pulse paw-pulse-reported"></div>' +
+            '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
             '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#FF3B30" stroke-width="2"/>' +
             '</svg>' +
             '<div class="paw-emoji" style="color:#FF3B30;">⚑</div>' +
@@ -2962,14 +3046,6 @@ const MapLeaflet = ({
         window.__pawIcon = pawIcon;
         window.__reportedIcon = reportedIcon;
 
-        var sponsorIcon = L.divIcon({
-          className: 'sponsor-pin-wrap',
-          html: '<div class="sponsor-star">★</div>',
-          iconSize: [48, 48],
-          iconAnchor: [24, 24],
-          popupAnchor: [0, -36],
-        });
-
         window.__petMarkers = [];
         window.__sponsorMarkers = [];
         window.__renderSponsors = function(list){
@@ -2978,8 +3054,16 @@ const MapLeaflet = ({
           window.__sponsorMarkers = [];
           (list || []).forEach(function(s){
             if (typeof s.latitude !== 'number' || typeof s.longitude !== 'number') return;
-            var m = L.marker([s.latitude, s.longitude], { icon: sponsorIcon }).addTo(window.__map);
-            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, link: s.link, address: s.address, latitude: s.latitude, longitude: s.longitude })); });
+            var name = (s.name || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+            var icon = L.divIcon({
+              className: 'sponsor-pin-wrap',
+              html: '<div class="sponsor-star">🛍️</div><div class="sponsor-label"><span>' + name + '</span></div>',
+              iconSize: [150, 96],
+              iconAnchor: [75, 19],
+              popupAnchor: [0, -30],
+            });
+            var m = L.marker([s.latitude, s.longitude], { icon: icon }).addTo(window.__map);
+            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, latitude: s.latitude, longitude: s.longitude })); });
             window.__sponsorMarkers.push(m);
           });
         };
@@ -3166,11 +3250,14 @@ const MapLeaflet = ({
           if (data.sponsorId) {
             onSponsorPress({
               id: data.sponsorId,
-              name: "",
+              name: data.name ?? "",
               latitude: Number(data.latitude),
               longitude: Number(data.longitude),
               address: data.address ?? null,
               link: data.link ?? null,
+              phone: data.phone ?? null,
+              instagram: data.instagram ?? null,
+              facebook: data.facebook ?? null,
               visibleFrom: data.visibleFrom ?? null,
             });
           } else if (data.petId) {
@@ -4614,5 +4701,75 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 15,
       color: c.text,
       fontWeight: "600",
+    },
+    siOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+    },
+    siCard: {
+      width: "100%",
+      maxWidth: 360,
+      backgroundColor: c.card,
+      borderRadius: 16,
+      padding: 20,
+      shadowColor: "#000",
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    siTitle: {
+      fontSize: 20,
+      fontWeight: "bold",
+      color: c.text,
+      marginBottom: 6,
+      textAlign: "center",
+    },
+    siLine: {
+      fontSize: 14,
+      color: c.text,
+      opacity: 0.75,
+      textAlign: "center",
+      marginBottom: 12,
+    },
+    siBtn: {
+      backgroundColor: c.background,
+      borderRadius: 12,
+      paddingVertical: 13,
+      paddingHorizontal: 16,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: c.cardStroke,
+    },
+    siBtnText: {
+      fontSize: 15,
+      color: c.text,
+      fontWeight: "600",
+      textAlign: "center",
+    },
+    siBtnPrimary: {
+      backgroundColor: "#FF9500",
+      borderRadius: 12,
+      paddingVertical: 13,
+      paddingHorizontal: 16,
+      marginBottom: 10,
+    },
+    siBtnPrimaryText: {
+      fontSize: 15,
+      color: "#fff",
+      fontWeight: "700",
+      textAlign: "center",
+    },
+    siClose: {
+      marginTop: 4,
+      paddingVertical: 10,
+    },
+    siCloseText: {
+      fontSize: 15,
+      color: "#FF3B30",
+      fontWeight: "600",
+      textAlign: "center",
     },
   });

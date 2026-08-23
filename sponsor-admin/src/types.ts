@@ -5,6 +5,9 @@ export type Sponsor = {
   longitude: number;
   address: string | null;
   link: string | null;
+  phone: string | null;
+  instagram: string | null;
+  facebook: string | null;
   active: boolean;
   visible_from: string | null;
   created_at: string;
@@ -17,6 +20,9 @@ export type SponsorInput = {
   longitude: number;
   address: string | null;
   link: string | null;
+  phone: string | null;
+  instagram: string | null;
+  facebook: string | null;
   active: boolean;
   visibleFrom: string;
 };

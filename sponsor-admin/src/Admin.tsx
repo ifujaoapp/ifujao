@@ -12,6 +12,9 @@ function emptyForm(): SponsorInput {
     longitude: DEFAULT_CENTER.lng,
     address: "",
     link: "",
+    phone: "",
+    instagram: "",
+    facebook: "",
     active: true,
     visibleFrom: "",
   };
@@ -37,7 +40,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     const { data, error } = await supabase
       .from("sponsors")
       .select(
-        "id, name, latitude, longitude, address, link, active, visible_from, created_at, updated_at",
+        "id, name, latitude, longitude, address, link, phone, instagram, facebook, active, visible_from, created_at, updated_at",
       )
       .order("created_at", { ascending: false });
     setLoading(false);
@@ -66,6 +69,9 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       longitude: s.longitude,
       address: s.address ?? "",
       link: s.link ?? "",
+      phone: s.phone ?? "",
+      instagram: s.instagram ?? "",
+      facebook: s.facebook ?? "",
       active: s.active,
       visibleFrom: s.visible_from ? s.visible_from.slice(0, 10) : "",
     });
@@ -172,6 +178,9 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       longitude: form.longitude,
       address: form.address?.trim() || null,
       link: form.link?.trim() || null,
+      phone: form.phone?.trim() || null,
+      instagram: form.instagram?.trim() || null,
+      facebook: form.facebook?.trim() || null,
       active: form.active,
       visible_from: form.visibleFrom
         ? new Date(form.visibleFrom + "T23:59:59").toISOString()
@@ -273,6 +282,24 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             placeholder="Link (opcional, ex.: site/Instagram)"
             value={form.link ?? ""}
             onChange={(e) => setForm({ ...form, link: e.target.value })}
+          />
+          <input
+            style={input}
+            placeholder="Telefone (opcional)"
+            value={form.phone ?? ""}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
+          <input
+            style={input}
+            placeholder="Instagram (opcional, ex.: @loja)"
+            value={form.instagram ?? ""}
+            onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+          />
+          <input
+            style={input}
+            placeholder="Facebook (opcional, URL da página)"
+            value={form.facebook ?? ""}
+            onChange={(e) => setForm({ ...form, facebook: e.target.value })}
           />
           <label style={fieldLabel}>Data de exibição (opcional)</label>
           <input

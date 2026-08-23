@@ -7,6 +7,9 @@ export type SponsorPin = {
   longitude: number;
   address: string | null;
   link: string | null;
+  phone: string | null;
+  instagram: string | null;
+  facebook: string | null;
   visibleFrom: string | null;
 };
 
@@ -28,7 +31,7 @@ export const fetchSponsors = async (): Promise<SponsorPin[]> => {
   startOfToday.setHours(0, 0, 0, 0);
   const { data, error } = await sb
     .from("sponsors")
-    .select("id, name, latitude, longitude, address, link, visible_from")
+    .select("id, name, latitude, longitude, address, link, phone, instagram, facebook, visible_from")
     .eq("active", true);
   if (error) {
     console.warn("[sponsors] fetch falhou:", error.message);
@@ -48,6 +51,9 @@ export const fetchSponsors = async (): Promise<SponsorPin[]> => {
     longitude: Number(s.longitude),
     address: (s.address as string | null) ?? null,
     link: (s.link as string | null) ?? null,
+    phone: (s.phone as string | null) ?? null,
+    instagram: (s.instagram as string | null) ?? null,
+    facebook: (s.facebook as string | null) ?? null,
     visibleFrom: (s.visible_from as string | null) ?? null,
   }));
 };

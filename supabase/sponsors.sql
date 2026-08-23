@@ -17,6 +17,9 @@ create table if not exists public.sponsors (
   longitude double precision not null,
   address text,
   link text,
+  phone text,
+  instagram text,
+  facebook text,
   active boolean not null default true,
   visible_from timestamptz,
   created_at timestamptz not null default now(),
@@ -26,6 +29,9 @@ create table if not exists public.sponsors (
 -- Se a tabela já existir sem a coluna (deploy anterior), adicione-a de forma
 -- idempotente. Em projeto novo o create acima já traz a coluna.
 alter table public.sponsors add column if not exists visible_from timestamptz;
+alter table public.sponsors add column if not exists phone text;
+alter table public.sponsors add column if not exists instagram text;
+alter table public.sponsors add column if not exists facebook text;
 
 alter table public.sponsors enable row level security;
 

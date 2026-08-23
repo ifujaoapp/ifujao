@@ -267,6 +267,8 @@ export default function HomeScreen() {
 
   const [pets, setPets] = useState<PetPost[]>([]);
   const [sponsors, setSponsors] = useState<SponsorPin[]>([]);
+  // "Aa": liga/desliga o rótulo de texto do patrocinador no mapa (evita poluir).
+  const [showSponsorText, setShowSponsorText] = useState(false);
   const [myPhone, setMyPhone] = useState("");
   const [myDeviceId, setMyDeviceId] = useState("");
   const petsRef = useRef<PetPost[]>([]);
@@ -1481,6 +1483,7 @@ export default function HomeScreen() {
             sponsors={sponsors}
             onSponsorPress={handleSponsorPress}
             fitToResults={!!aiResults}
+            showSponsorText={showSponsorText}
             onMarkerPress={async (petId) => {
               const pet = pets.find((p) => p.id === petId);
               if (pet) setSelectedPet(pet);
@@ -1717,6 +1720,20 @@ export default function HomeScreen() {
               size={24}
               color="#FFFFFF"
             />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => setShowSponsorText((v) => !v)}
+          >
+            <Text
+              style={{
+                color: showSponsorText ? "#FFD60A" : "#FFFFFF",
+                fontSize: 18,
+                fontWeight: "bold",
+              }}
+            >
+              Aa
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.sideToolbarBtn}
@@ -3022,6 +3039,7 @@ const MapLeaflet = ({
   theme,
   city,
   fitToResults,
+  showSponsorText,
 }: {
   initialCenter: { latitude: number; longitude: number } | null;
   region: Region;
@@ -3034,6 +3052,7 @@ const MapLeaflet = ({
   theme: "light" | "dark";
   city: import("@/constants/cities").City;
   fitToResults?: boolean;
+  showSponsorText: boolean;
 }) => {
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
@@ -3119,10 +3138,11 @@ const MapLeaflet = ({
           (list || []).forEach(function(s){
             if (typeof s.latitude !== 'number' || typeof s.longitude !== 'number') return;
             var name = (s.name || '').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-            var icon = L.divIcon({
+             var showLabel = window.__showSponsorLabels !== false;
+             var icon = L.divIcon({
               className: 'sponsor-pin-wrap',
-              html: '<div class="sponsor-star">🛍️</div><div class="sponsor-label"><span>' + name + '</span></div>',
-              iconSize: [150, 96],
+              html: '<div class="sponsor-star">🛍️</div>' + (showLabel ? '<div class="sponsor-label"><span>' + name + '</span></div>' : ''),
+              iconSize: showLabel ? [150, 96] : [38, 38],
               iconAnchor: [75, 19],
               popupAnchor: [0, -30],
             });
@@ -3201,6 +3221,7 @@ const MapLeaflet = ({
 
   const renderSponsorsJs = (list: SponsorPin[]) =>
     `(function(){
+      window.__showSponsorLabels = ${showSponsorText ? "true" : "false"};
       if (!window.__renderSponsors) {
         setTimeout(function(){ if (window.__renderSponsors) window.__renderSponsors(${JSON.stringify(list)}); }, 200);
         return;
@@ -3211,7 +3232,7 @@ const MapLeaflet = ({
   useEffect(() => {
     if (!mapReady || !webRef.current) return;
     webRef.current.injectJavaScript(renderSponsorsJs(sponsors));
-  }, [mapReady, sponsors]);
+  }, [mapReady, sponsors, showSponsorText]);
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
   // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a

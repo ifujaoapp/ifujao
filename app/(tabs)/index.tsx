@@ -3325,9 +3325,14 @@ const MapLeaflet = ({
   }, [mapReady, userLocation]);
 
   // Quando a busca por IA está ativa (fitToResults), enquadra o mapa em todos
+  // (fix) so re-enquadra quando o CONJUNTO de resultados muda (ids), nao a
+  // cada poll de GPS de 5s (que recria o array visiblePets e reativava o
+  // fitBounds, redefinindo o zoom que o usuario deu). Veja aiFitKey abaixo.
+  const aiFitKey = (pets || []).map((p) => String(p.id)).sort().join("|");
+
   // os pets resultantes. Sem isso, o pin do pet aparece fora da tela (ex.: gato
   // preto em Aracoiaba da Serra fica a dezenas de km do centro padrão/Sorocaba)
-  // e a busca "não traz nada" no mapa. Re-enquadra a cada mudança de resultados.
+  // e a busca "não traz nada" no mapa. Só re-enquadra quando o conjunto de resultados muda (aiFitKey), nao a cada poll de GPS.
   useEffect(() => {
     if (!mapReady || !webRef.current || !fitToResults) return;
     if (!pets || pets.length === 0) return;
@@ -3346,7 +3351,7 @@ const MapLeaflet = ({
       window.__map.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
     })();`;
     webRef.current.injectJavaScript(js);
-  }, [mapReady, pets, fitToResults]);
+  }, [mapReady, aiFitKey, fitToResults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const source = useMemo(() => ({ html }), [html]);
 

@@ -1690,3 +1690,32 @@ devolver o pet mais próximo, pois caem no caminho visual e passam do piso 0,32.
 Para eliminar, subir `MIN_BEST_SIMILARITY` para ~0,34 — o trade-off é que
 buscas genéricas de gato podem mostrar 1 a menos nos empates (ex.: "gato cinza"
 segundo resultado 0,329 seria cortado). Não alterado a pedido.
+
+## Atualizações (2026-08-23, fim) — zoom do mapa "volta sozinho" na busca por IA
+
+Sintoma reportado: ao fazer busca por IA e ela achar pets, dar **zoom** no mapa
+fazia o enquadramento **voltar sozinho** (resetava o zoom) depois de alguns
+segundos.
+
+### Causa raiz
+No `MapLeaflet` (`app/(tabs)/index.tsx`), o efeito que chama `fitBounds` para
+enquadrar os resultados da IA tinha `pets` nas dependências do `useEffect`. O
+app recalcula `visiblePets` (novo array, nova referência) a cada **poll de GPS de
+5s**, então o efeito **re-disparava a cada 5s** e chamava `fitBounds` de novo,
+redefinindo o zoom que o usuário tinha acabado de dar. Em modo de busca o
+auto-pan do GPS é desligado, mas o `fitBounds` restante causava o "volta".
+
+### Correção (`app/(tabs)/index.tsx`)
+- Adicionada a assinatura `aiFitKey` = ids dos pets resultantes ordenados e
+  concatenados.
+- O `useEffect` do `fitBounds` agora depende de `[mapReady, aiFitKey,
+  fitToResults]` (com `eslint-disable-line` para o `pets` usado no corpo), em
+  vez de `[mapReady, pets, fitToResults]`.
+- Assim o enquadramento só roda quando o **conjunto de resultados muda** (nova
+  busca / ids diferentes) — não a cada poll de GPS. O usuário faz zoom livre e o
+  mapa não reseta; nova busca continua enquadrando.
+
+### Validação
+- `tsc --noEmit` limpo.
+- Exige **rebuild nativo** (`npx expo run:android`) — é código do app, não só
+  função do Supabase.

@@ -1592,4 +1592,21 @@ Série de bugs descobertos e corrigidos após quebra reportada na busca por IA.
 - `c0e1cde` fix(sync): toLocalPet usa row.id (corrige NOT NULL pets.id local)
 - `b719e7f` fix(auth): usa app_device_id (device_id reservado da Gotrue)
 - `48f9124` fix(map): iconAnchor do patrocinador acompanha o tamanho
-- `a873983` fix(map): box-sizing border-box na estrela (elimina 3px)
+  - `a873983` fix(map): box-sizing border-box na estrela (elimina 3px)
+
+## Como limpar (ambiente de teste)
+
+- **Reset manual (recomendado):** Config → Apps → StudyFlow → Limpar dados / Clear storage (ou reinstalar o app). O pull full parte do zero e traz só o que está no servidor.
+- **Reconciliação automática (IMPLEMENTADA em `lib/sync.ts`):** no `runSync`, após um FULL pull bem-sucedido (`doFull && pullOk`), pets locais que não existem no servidor **e não têm mudança pendente** (`!dirty` e fora de `failedIds`) são removidos do `merged` → `savePets` (DELETE + INSERT) apaga o órfão do SQLite. Assim a tela espelha o servidor sem reset manual. Preserva pets `dirty`/`failedIds` (ainda não subiram). Só roda no full pull — o incremental (delta) não cataloga tudo e não reconcilia.
+
+## Atualizações (2026-08-23, fim) — remoção da legenda "🛍️ Patrocinador"
+
+- A legenda do canto inferior direito (`<div id="legend">` no HTML do `MapLeaflet`, `app/(tabs)/index.tsx`) era **estática e incondicional** — aparecia para todo mundo, inclusive o finder. Não era botão, só rótulo do pin.
+- **Removida de vez** (decisão do usuário). O pin 🛍️ e o modal de info (toque) continuam; o rótulo explicativo sumiu. O CSS `.map-legend` ficou órfão no `<style>` (inofensivo).
+- Validação: `tsc --noEmit` limpo. Exige **rebuild nativo** (`npx expo run:android`) para validar em runtime.
+
+## Atualizações (2026-08-23) — pulso no botão de patinha (FAB)
+
+- Botão de patinha (FAB "reportar pet", `floatingButtonContainer`): adicionado anel pulsante igual aos pins do mapa — `Animated.loop` (1800ms) expande a escala `0.6→1.8` e some a opacidade `0.9→0`. Estilo `pawPulseRing` (`app/(tabs)/index.tsx`).
+- Só renderiza quando `canReport` (não aparece no estado desabilitado). `useNativeDriver: true`.
+- Validação: `tsc --noEmit` limpo. Exige **rebuild nativo** para validar.

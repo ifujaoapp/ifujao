@@ -285,6 +285,13 @@ export const runSync = async (
     console.warn('[sync] erro no pull:', e);
   }
 
+  // Reconciliação automática (full pull): remove da tela pets locais que não
+  // existem mais no servidor. Só no FULL pull (que cataloga TODOS os pets não
+  // deletados) e quando o pull deu certo (pullOk). NÃO remove pets com mudança
+  // local pendente (dirty) nem os que falharam no push (failedIds) — esses
+  // ainda não chegaram ao servidor e precisam ser preservados para o push.
+  const reconcileEnabled = doFull && pullOk;
+
   // 4) Merge
   // No modo incremental (delta), `remoteMap` só traz as LINHAS QUE MUDARAM
   // desde `lastSync` — NÃO o catálogo completo. Por isso um pet local já
@@ -302,6 +309,14 @@ export const runSync = async (
     }
     if (remoteDeletedIds.has(pet.id)) {
       seen.add(pet.id); // removido remotamente -> some do local
+      continue;
+    }
+    // Pet local "órfão": não existe no servidor e não tem mudança pendente ->
+    // removido para espelhar o estado do servidor (evita ghosts na tela sem
+    // precisar de reset manual de dados).
+    if (reconcileEnabled && !remoteMap[pet.id] && !pet.dirty) {
+      console.log('[sync] removendo pet local órfão (não existe no servidor):', pet.id);
+      seen.add(pet.id);
       continue;
     }
     const remote = remoteMap[pet.id];

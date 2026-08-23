@@ -414,6 +414,21 @@ export default function HomeScreen() {
     return () => bubbleOpacity.stopAnimation();
   }, [bubbleOpacity]);
 
+  // Pulso do botão de patinha (igual aos pins do mapa): um anel que expande e
+  // some em loop, chamando a atenção para o FAB de "reportar pet".
+  const pawPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(pawPulse, {
+        toValue: 1,
+        duration: 1800,
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pawPulse]);
+
   const getCityForLocation = (
     loc: { latitude: number; longitude: number } | null,
   ): import("@/constants/cities").City => {
@@ -1774,17 +1789,41 @@ export default function HomeScreen() {
             </Text>
             <View style={styles.speechBubbleArrow} />
           </Animated.View>
-          <TouchableOpacity
-            style={[
-              styles.floatingButton,
-              !canReport && styles.floatingButtonDisabled,
-            ]}
-            disabled={!canReport}
-            activeOpacity={0.8}
-            onPress={() => openReport()}
-          >
-            <MaterialCommunityIcons name="paw" size={42} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={styles.pawButtonWrap}>
+            {canReport && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.pawPulseRing,
+                  {
+                    opacity: pawPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.9, 0],
+                    }),
+                    transform: [
+                      {
+                        scale: pawPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.6, 1.8],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
+            <TouchableOpacity
+              style={[
+                styles.floatingButton,
+                !canReport && styles.floatingButtonDisabled,
+              ]}
+              disabled={!canReport}
+              activeOpacity={0.8}
+              onPress={() => openReport()}
+            >
+              <MaterialCommunityIcons name="paw" size={42} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
 
         <SafeAreaView
@@ -3081,7 +3120,6 @@ const MapLeaflet = ({
     </head>
     <body>
       <div id="map"></div>
-      <div id="legend" class="map-legend"><span class="legend-dot">🛍️</span> Patrocinador</div>
       <script>
         var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -3540,6 +3578,23 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     floatingButtonDisabled: {
       backgroundColor: "rgba(0,0,0,0.3)",
+    },
+    pawButtonWrap: {
+      width: 84,
+      height: 84,
+      position: "relative",
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    pawPulseRing: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: 84,
+      height: 84,
+      borderRadius: 42,
+      backgroundColor: c.primaryButton,
+      zIndex: -1,
     },
     speechBubble: {
       backgroundColor: "#FFFFFF",

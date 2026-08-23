@@ -35,6 +35,24 @@ alter table public.sponsors add column if not exists instagram text;
 alter table public.sponsors add column if not exists facebook text;
 alter table public.sponsors add column if not exists logo text;
 
+-- Bucket de logos dos patrocinadores (imagem real, sob nosso controle).
+-- O app exibe a URL pública estável do Storage (não uma URL externa que
+-- pode sumir). Bucket PÚBLICO para leitura via URL; escrita só admin.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('sponsor-logos', 'sponsor-logos', true, 2097152, '{image/png,image/jpeg,image/webp,image/gif}')
+on conflict (id) do nothing;
+
+drop policy if exists "sponsor logos public read" on storage.objects;
+create policy "sponsor logos public read"
+  on storage.objects for select to anon, authenticated
+  using (bucket_id = 'sponsor-logos');
+
+drop policy if exists "sponsor logos admin write" on storage.objects;
+create policy "sponsor logos admin write"
+  on storage.objects for all to authenticated
+  using (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true)
+  with check (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true);
+
 alter table public.sponsors enable row level security;
 
 drop policy if exists "sponsors public read" on public.sponsors;

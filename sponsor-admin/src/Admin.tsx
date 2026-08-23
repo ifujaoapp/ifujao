@@ -28,6 +28,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const [form, setForm] = useState<SponsorInput>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const isTouchDevice =
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
@@ -59,6 +61,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const startNew = () => {
     setEditing(null);
     setForm(emptyForm());
+    setLogoFile(null);
+    setLogoPreview(null);
     setError("");
   };
 
@@ -77,6 +81,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       active: s.active,
       visibleFrom: s.visible_from ? s.visible_from.slice(0, 10) : "",
     });
+    setLogoFile(null);
+    setLogoPreview(null);
     setError("");
   };
 
@@ -171,6 +177,21 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     }
     setSaving(true);
     setError("");
+    let logoUrl = form.logo?.trim() || null;
+    if (logoFile) {
+      const ext = (logoFile.name.split(".").pop() || "png").toLowerCase();
+      const path = (editing?.id || crypto.randomUUID()) + "." + ext;
+      const { error: upErr } = await supabase.storage
+        .from("sponsor-logos")
+        .upload(path, logoFile, { upsert: true, contentType: logoFile.type });
+      if (upErr) {
+        setError(upErr.message);
+        setSaving(false);
+        return;
+      }
+      logoUrl = supabase.storage.from("sponsor-logos").getPublicUrl(path).data
+        .publicUrl;
+    }
     // Não usar `...form`: o form tem o campo `visibleFrom` (camelCase da UI)
     // que NÃO existe no banco e quebra a query (o PostgREST reclama da
     // coluna fantasma). Listar só as colunas reais.
@@ -183,7 +204,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       phone: form.phone?.trim() || null,
       instagram: form.instagram?.trim() || null,
       facebook: form.facebook?.trim() || null,
-      logo: form.logo?.trim() || null,
+      logo: logoUrl,
       active: form.active,
       visible_from: form.visibleFrom
         ? new Date(form.visibleFrom + "T23:59:59").toISOString()
@@ -202,6 +223,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     }
     setEditing(null);
     setForm(emptyForm());
+    setLogoFile(null);
+    setLogoPreview(null);
     load();
   };
 
@@ -304,12 +327,23 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             value={form.facebook ?? ""}
             onChange={(e) => setForm({ ...form, facebook: e.target.value })}
           />
+          <label style={fieldLabel}>Logo (opcional, arquivo de imagem)</label>
           <input
             style={input}
-            placeholder="Logo (opcional, URL da imagem)"
-            value={form.logo ?? ""}
-            onChange={(e) => setForm({ ...form, logo: e.target.value })}
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const f =
+                e.target.files && e.target.files[0] ? e.target.files[0] : null;
+              setLogoFile(f);
+              setLogoPreview(f ? URL.createObjectURL(f) : null);
+            }}
           />
+          {logoPreview ? (
+            <img src={logoPreview} alt="Prévia do logo" style={logoPreviewStyle} />
+          ) : form.logo ? (
+            <img src={form.logo} alt="Logo atual" style={logoPreviewStyle} />
+          ) : null}
           <label style={fieldLabel}>Data de exibição (opcional)</label>
           <input
             style={input}
@@ -413,6 +447,14 @@ const fieldLabel: React.CSSProperties = {
   fontSize: 13,
   fontWeight: 600,
   color: "#1c1c1e",
+};
+const logoPreviewStyle: React.CSSProperties = {
+  width: 96,
+  height: 96,
+  objectFit: "cover",
+  borderRadius: 12,
+  marginTop: 8,
+  border: "1px solid #e5e5ea",
 };
 const locBtn: React.CSSProperties = {
   width: "100%",

@@ -3143,7 +3143,10 @@ const MapLeaflet = ({
               className: 'sponsor-pin-wrap',
               html: '<div class="sponsor-star">🛍️</div>' + (showLabel ? '<div class="sponsor-label"><span>' + name + '</span></div>' : ''),
               iconSize: showLabel ? [150, 96] : [38, 38],
-              iconAnchor: [75, 19],
+              // Anchor segue o tamanho do ícone: com o rótulo (150x96) o ponto
+              // fica no centro da estrela (75,19); sem rótulo (38x38) o centro é
+              // (19,19). Anchor fixo causava o pin aparecer fora da posição GPS.
+              iconAnchor: showLabel ? [75, 19] : [19, 19],
               popupAnchor: [0, -30],
             });
             var m = L.marker([s.latitude, s.longitude], { icon: icon }).addTo(window.__map);

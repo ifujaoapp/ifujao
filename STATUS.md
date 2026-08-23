@@ -1383,3 +1383,89 @@ do telefone (que é o correto — o GPS do computador no admin web vinha errado)
     desmarque "Confirm email" ou crie pelo painel com Auto Confirm.
 - **`esbuild` bloqueado no install.** Se o `vite` falhar por postinstall do
   esbuild, rodar `npm install-scripts approve esbuild` no `sponsor-admin`.
+
+## Atualizações (2026-08-23) — GitHub, deploy e UX dos patrocinadores
+
+> Validado com `tsc --noEmit` (limpo) no app e no `sponsor-admin`; build do
+> web OK. Exige **rebuild nativo** (`npx expo run:android`) para testar a UI.
+
+### 1. Repositório GitHub + deploy do sponsor-admin (GitHub Pages)
+- Criado repo `ifujaoapp/ifujao` (**público**) no GitHub. Autenticação via `gh`
+  com token que tem `repo` + `workflow` + `read:org` — o `read:org` é exigido
+  pelo próprio `gh` na validação do login (sem ele: `missing required scope
+  'read:org'`). Token passado via pipe:
+  `echo "TOKEN" | gh auth login --with-token`.
+- Secrets do repo: `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` (setados via
+  `gh secret set`, lidos do `.env` local — **sem expor valores**).
+- GitHub Pages habilitado com `build_type=workflow`. O workflow
+  `deploy-sponsor-admin.yml` publica o `sponsor-admin` em
+  `https://ifujaoapp.github.io/ifujao/`. Push para `main` dispara o deploy.
+- **Por que repo público:** GitHub Pages **não** está disponível para repo
+  privado no plano atual. Os secrets são só URL + anon key (públicos por
+  design); `service_role` e chave Gemini ficam nas Edge Functions do Supabase
+  (fora do repo).
+- Comandos úteis: `gh auth setup-git` (liga o Git ao token do `gh`),
+  `gh repo edit ifujaoapp/ifujao --visibility public --accept-visibility-change-consequences`.
+
+### 2. Usuário admin do patrocinador
+- Criado em Authentication → Users: `fujaoapp@gmail.com` (confirmado). Login por
+  e-mail/senha (NÃO anônimo) → a RLS `sponsors admin write`
+  (`is_anonymous` distinto de true) libera a escrita.
+
+### 3. Pin de patrocinador (mapa do app)
+- Ícone: `★` → **🏪** → **🛍️** (sacola). O 🏪 desenha um letreiro "24h" em
+  vários aparelhos, ficando estranho; 🛍️ é limpo e comunica "loja/parceiro".
+- **Nome não corta mais**: rótulo do pin agora **quebra linha**
+  (`white-space:normal; word-break:break-word`) em vez de `ellipsis`.
+- **Legenda** no canto inferior direito do mapa: `🛍️ Patrocinador`.
+- Ícone reduzido (círculo 48→**38px**); pulso laranja mantido (2.8s).
+
+### 4. Pulso dos pins de patinha
+- Efeito de pulso (anel expandindo) aplicado aos pets: **azul** (`#0A84FF`) no
+  normal, **vermelho** (`#FF3B30`) no denunciado. Anel atrás do SVG
+  (`z-index`) e `pointer-events:none`.
+- Frequência reduzida: patas `1.8s→3s`, patrocinador `1.6s→2.8s`.
+
+### 5. Janelinha de informações do patrocinador (modal no app)
+- Ao tocar o pin, abre um **Modal** (não vai mais direto ao link) com: nome,
+  endereço, **WhatsApp** (ícone verde oficial, abre `wa.me/<numero>` com DDI
+  `55`), **Instagram** (ícone rosa) e **Facebook** (ícone azul) quando
+  preenchidos, e **Abrir link** (ou "Ver no mapa" se não houver link).
+- Botão de telefone mostra **só o ícone + o número** (rótulo "WhatsApp:"
+  removido para não quebrar linha).
+- Fluxo: `__renderSponsors` (WebView) passa `name/address/phone/instagram/
+  facebook` no `postMessage`; `onMessage` repassa a `onSponsorPress`, que seta
+  `sponsorInfo` e abre o modal.
+
+### 6. Campos telefone/redes sociais (DB + admin)
+- `supabase/sponsors.sql`: colunas `phone`, `instagram`, `facebook` (text),
+  idempotentes (`add column if not exists`). **Reaplicar no Supabase** para
+  criá-las — sem elas o app loga `column sponsors.phone does not exist` e
+  nenhum pin aparece.
+- `lib/sponsors.ts`: `SponsorPin` + `fetchSponsors` incluem os 3 campos.
+- `sponsor-admin/src/types.ts` + `Admin.tsx`: formulário de cadastro ganha
+  Telefone / Instagram / Facebook e os envia no insert/update.
+
+### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `app/(tabs)/index.tsx` | pin 🛍️ menor + nome quebra linha + legenda; pulso azul/vermelho nos pets; modal de info (WhatsApp/IG/FB/link) com ícones de marca; WebView passa phone/instagram/facebook. |
+| `lib/sponsors.ts` | `SponsorPin` + fetch com `phone/instagram/facebook`. |
+| `supabase/sponsors.sql` | colunas `phone/instagram/facebook` (idempotente). |
+| `sponsor-admin/src/types.ts` | `Sponsor`/`SponsorInput` com `phone/instagram/facebook`. |
+| `sponsor-admin/src/Admin.tsx` | campos e payload de Telefone/Instagram/Facebook. |
+
+### Commits (2026-08-23)
+- `bc52c5c` feat(sponsors): pin com icone de loja, nome quebra linha e modal de info; campos phone/instagram/facebook
+- `6f5d47b` fix(sponsors): botao de telefone abre WhatsApp (wa.me)
+- `d8af0d8` feat(sponsors): icones de marca WhatsApp/Instagram/Facebook no modal
+- `a7b8456` fix(sponsors): remove rotulo 'WhatsApp' do botao; mostra so o icone e o numero
+- (+ commit da legenda 🛍️ e deste STATUS.md — pendente)
+
+### Pendências
+- **Rebuild nativo** (`npx expo run:android`) para validar pin/modal no
+  emulador/dispositivo.
+- O admin de patrocinador **dentro do app** citado em sessões anteriores
+  (`SponsorAdminModal` / `lib/sponsorAdmin`) **não existe no código atual** —
+  só o admin web (`sponsor-admin`) cadastra patrocinadores. (Registro a
+  confirmar/corrigir se necessário.)

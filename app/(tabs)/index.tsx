@@ -3044,7 +3044,7 @@ const MapLeaflet = ({
     </head>
     <body>
       <div id="map"></div>
-      <div id="legend" class="map-legend"><span class="legend-dot">🏪</span> Patrocinador</div>
+      <div id="legend" class="map-legend"><span class="legend-dot">🛍️</span> Patrocinador</div>
       <script>
         var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

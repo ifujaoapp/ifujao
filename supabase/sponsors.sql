@@ -43,10 +43,21 @@ values ('sponsor-logos', 'sponsor-logos', true, 2097152, '{image/png,image/jpeg,
 on conflict (id) do nothing;
 
 drop policy if exists "sponsor logos admin write" on storage.objects;
-create policy "sponsor logos admin write"
-  on storage.objects for insert, update, delete to authenticated
+drop policy if exists "sponsor logos admin insert" on storage.objects;
+create policy "sponsor logos admin insert"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true);
+
+drop policy if exists "sponsor logos admin update" on storage.objects;
+create policy "sponsor logos admin update"
+  on storage.objects for update to authenticated
   using (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true)
   with check (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true);
+
+drop policy if exists "sponsor logos admin delete" on storage.objects;
+create policy "sponsor logos admin delete"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true);
 
 alter table public.sponsors enable row level security;
 

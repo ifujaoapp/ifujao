@@ -447,7 +447,12 @@ Validado com `tsc --noEmit` (limpo) e rebuild no emulador após conserto do AVD.
    (ex.: `handleSave` e `handleShare` no `ImageViewerModal` usavam URL remota
    onde o RN/expo exige arquivo local — consertei o share e deixei o save
    quebrado). Antes de entregar, varrer as funções relacionadas e consertar
-   todas as do mesmo padrão de uma vez.
+    todas as do mesmo padrão de uma vez.
+6. **Keystore de release do Android JÁ EXISTE.** Ao orientar build de APK local
+   (`gradlew assembleRelease`), **NÃO perguntar** se o usuário tem keystore —
+   ele já gerou. Mandar o comando direto (`expo prebuild --platform android` +
+   `gradlew assembleRelease`). Só sugerir `assembleDebug` para teste rápido sem
+   assinar.
 
 ### Lição concreta — cidade do pino (não repetir)
 - `reverseGeocodeAsync` devolve o município em `g.city` (locality). **NUNCA**

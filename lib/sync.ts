@@ -50,6 +50,10 @@ const toLocalPet = (row: any): PetRecord => {
   // payload), então ler do payload deixaria a bandeira invisível no mapa.
   return {
     ...pet,
+    // `id` vem da chave primária da tabela (row.id), NÃO do payload — o payload
+    // nem sempre traz o id, e sem ele o savePets (op-sqlite, coluna NOT NULL)
+    // quebra com "NOT NULL constraint failed: pets.id".
+    id: (row.id as string | undefined) ?? pet.id,
     ownerDeviceId: (row.owner_device_id as string | undefined) ?? pet.ownerDeviceId,
     reporterDeviceId: (row.reporter_device_id as string | undefined) ?? pet.reporterDeviceId,
     reported: (row.reported as boolean) ?? pet.reported ?? false,

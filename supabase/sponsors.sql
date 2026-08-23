@@ -44,7 +44,7 @@ on conflict (id) do nothing;
 
 drop policy if exists "sponsor logos admin write" on storage.objects;
 create policy "sponsor logos admin write"
-  on storage.objects for all to authenticated
+  on storage.objects for insert, update, delete to authenticated
   using (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true)
   with check (bucket_id = 'sponsor-logos' and (auth.jwt() ->> 'is_anonymous')::boolean is distinct from true);
 

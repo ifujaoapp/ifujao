@@ -452,7 +452,25 @@ Validado com `tsc --noEmit` (limpo) e rebuild no emulador após conserto do AVD.
    (`gradlew assembleRelease`), **NÃO perguntar** se o usuário tem keystore —
    ele já gerou. Mandar o comando direto (`expo prebuild --platform android` +
    `gradlew assembleRelease`). Só sugerir `assembleDebug` para teste rápido sem
-   assinar.
+    assinar.
+ 7. **Build de release local empacota código VELHO se não limpar o bundle.**
+    O `gradle` marca `createBundleReleaseJsAndAssets` como `UP-TO-DATE` e
+    **reaproveita o bundle JS antigo** quando só mudou código JS/TS (não
+    percebe a alteração de fonte). Sintoma: APK instala mas não reflete as
+    últimas mudanças. **Sempre** antes de `assembleRelease`, limpe:
+    `.\gradlew.bat --stop` + `Remove-Item -Recurse -Force android/app/build` +
+    `Remove-Item -Recurse -Force node_modules/.cache, .expo` e só então
+    `.\gradlew.bat assembleRelease --no-daemon`. Confirmar no log a linha
+    `Writing bundle output to: .../index.android.bundle` (bundle regerado).
+    - **NÃO usar `gradlew clean`** no Windows: trava nos caches nativos `.cxx`
+      (arquivos travados por processo) e falha. Prefira apagar `android/app/build`
+      manualmente.
+    - O aviso de CMake "object file path > 250" (`react-native-gesture-handler`
+      codegen) é **só warning** e não quebra o build — vem do limite interno
+      `CMAKE_OBJECT_PATH_MAX=250` do CMake (não do MAX_PATH do Windows), então
+      habilitar `LongPathsEnabled` no registro **não** o elimina. Para silenciar
+      de vez, mover o projeto para caminho curto (ex.: `C:\dev\StudyFlow`); o
+      `Move-Item` falha se o Explorer/VS Code estiver com a pasta aberta.
 
 ### Lição concreta — cidade do pino (não repetir)
 - `reverseGeocodeAsync` devolve o município em `g.city` (locality). **NUNCA**

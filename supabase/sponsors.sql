@@ -42,11 +42,6 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('sponsor-logos', 'sponsor-logos', true, 2097152, '{image/png,image/jpeg,image/webp,image/gif}')
 on conflict (id) do nothing;
 
-drop policy if exists "sponsor logos public read" on storage.objects;
-create policy "sponsor logos public read"
-  on storage.objects for select to anon, authenticated
-  using (bucket_id = 'sponsor-logos');
-
 drop policy if exists "sponsor logos admin write" on storage.objects;
 create policy "sponsor logos admin write"
   on storage.objects for all to authenticated

@@ -1532,6 +1532,7 @@ export default function HomeScreen() {
                 const instagram = s.instagram;
                 const facebook = s.facebook;
                 const link = s.link;
+                const logo = s.logo;
                 const toUrl = (v: string) =>
                   /^https?:\/\//i.test(v) ? v : "https://" + v;
                 const igUrl = instagram
@@ -1557,6 +1558,13 @@ export default function HomeScreen() {
                 return (
                   <View style={styles.siOverlay}>
                     <View style={styles.siCard}>
+                      {logo ? (
+                        <Image
+                          source={{ uri: logo }}
+                          style={styles.siLogo}
+                          resizeMode="contain"
+                        />
+                      ) : null}
                       <Text style={styles.siTitle}>{s.name || "Patrocinador"}</Text>
                       {s.address ? (
                         <Text style={styles.siLine}>{s.address}</Text>
@@ -3119,7 +3127,7 @@ const MapLeaflet = ({
               popupAnchor: [0, -30],
             });
             var m = L.marker([s.latitude, s.longitude], { icon: icon }).addTo(window.__map);
-            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, latitude: s.latitude, longitude: s.longitude })); });
+            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, logo: s.logo, latitude: s.latitude, longitude: s.longitude })); });
             window.__sponsorMarkers.push(m);
           });
         };
@@ -3314,6 +3322,7 @@ const MapLeaflet = ({
               phone: data.phone ?? null,
               instagram: data.instagram ?? null,
               facebook: data.facebook ?? null,
+              logo: data.logo ?? null,
               visibleFrom: data.visibleFrom ?? null,
             });
           } else if (data.petId) {
@@ -4775,6 +4784,14 @@ const makeStyles = (c: typeof Colors.light) =>
       shadowOpacity: 0.25,
       shadowRadius: 10,
       elevation: 6,
+    },
+    siLogo: {
+      width: 96,
+      height: 96,
+      borderRadius: 12,
+      alignSelf: "center",
+      marginBottom: 12,
+      backgroundColor: c.background,
     },
     siTitle: {
       fontSize: 20,

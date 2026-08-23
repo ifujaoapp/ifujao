@@ -20,6 +20,7 @@ create table if not exists public.sponsors (
   phone text,
   instagram text,
   facebook text,
+  logo text,
   active boolean not null default true,
   visible_from timestamptz,
   created_at timestamptz not null default now(),
@@ -32,6 +33,7 @@ alter table public.sponsors add column if not exists visible_from timestamptz;
 alter table public.sponsors add column if not exists phone text;
 alter table public.sponsors add column if not exists instagram text;
 alter table public.sponsors add column if not exists facebook text;
+alter table public.sponsors add column if not exists logo text;
 
 alter table public.sponsors enable row level security;
 

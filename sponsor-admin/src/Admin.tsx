@@ -15,6 +15,7 @@ function emptyForm(): SponsorInput {
     phone: "",
     instagram: "",
     facebook: "",
+    logo: "",
     active: true,
     visibleFrom: "",
   };
@@ -40,7 +41,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     const { data, error } = await supabase
       .from("sponsors")
       .select(
-        "id, name, latitude, longitude, address, link, phone, instagram, facebook, active, visible_from, created_at, updated_at",
+        "id, name, latitude, longitude, address, link, phone, instagram, facebook, logo, active, visible_from, created_at, updated_at",
       )
       .order("created_at", { ascending: false });
     setLoading(false);
@@ -72,6 +73,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       phone: s.phone ?? "",
       instagram: s.instagram ?? "",
       facebook: s.facebook ?? "",
+      logo: s.logo ?? "",
       active: s.active,
       visibleFrom: s.visible_from ? s.visible_from.slice(0, 10) : "",
     });
@@ -181,6 +183,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       phone: form.phone?.trim() || null,
       instagram: form.instagram?.trim() || null,
       facebook: form.facebook?.trim() || null,
+      logo: form.logo?.trim() || null,
       active: form.active,
       visible_from: form.visibleFrom
         ? new Date(form.visibleFrom + "T23:59:59").toISOString()
@@ -300,6 +303,12 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             placeholder="Facebook (opcional, URL da página)"
             value={form.facebook ?? ""}
             onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+          />
+          <input
+            style={input}
+            placeholder="Logo (opcional, URL da imagem)"
+            value={form.logo ?? ""}
+            onChange={(e) => setForm({ ...form, logo: e.target.value })}
           />
           <label style={fieldLabel}>Data de exibição (opcional)</label>
           <input

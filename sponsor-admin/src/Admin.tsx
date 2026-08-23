@@ -5,6 +5,51 @@ import SponsorMap from "./SponsorMap";
 
 const DEFAULT_CENTER = { lat: -23.5015, lng: -47.4582 }; // Sorocaba
 
+// Comprime/redimensiona o logo no navegador (Canvas) antes do upload, para
+// economizar Storage: limita o maior lado a `maxSide` px e exporta WebP
+// (menor e com transparência) com fallback para JPEG.
+const compressImage = (
+  file: File,
+  maxSide = 256,
+  quality = 0.8,
+): Promise<File> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Falha ao ler a imagem."));
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject(new Error("Canvas indisponível."));
+        ctx.drawImage(img, 0, 0, w, h);
+        const finish = (type: string) =>
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error("Falha ao comprimir."));
+              const ext = type === "image/webp" ? "webp" : "jpg";
+              const base = file.name.replace(/\.[^.]+$/, "") || "logo";
+              resolve(new File([blob], base + "." + ext, { type }));
+            },
+            type,
+            quality,
+          );
+        canvas.toBlob((b) => {
+          if (b && b.size > 0) finish("image/webp");
+          else finish("image/jpeg");
+        }, "image/webp", quality);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+
 function emptyForm(): SponsorInput {
   return {
     name: "",
@@ -332,11 +377,21 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             style={input}
             type="file"
             accept="image/*"
-            onChange={(e) => {
+            onChange={async (e) => {
               const f =
                 e.target.files && e.target.files[0] ? e.target.files[0] : null;
-              setLogoFile(f);
-              setLogoPreview(f ? URL.createObjectURL(f) : null);
+              if (!f) {
+                setLogoFile(null);
+                setLogoPreview(null);
+                return;
+              }
+              try {
+                const comp = await compressImage(f);
+                setLogoFile(comp);
+                setLogoPreview(URL.createObjectURL(comp));
+              } catch (err) {
+                setError((err as Error).message);
+              }
             }}
           />
           {logoPreview ? (

@@ -1544,6 +1544,16 @@ export default function HomeScreen() {
                     ? "https://facebook.com/" + facebook.slice(1)
                     : toUrl(facebook)
                   : null;
+                const igLabel = instagram
+                  ? instagram
+                      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+                      .replace(/^\//, "")
+                  : "";
+                const fbLabel = facebook
+                  ? facebook
+                      .replace(/^https?:\/\/(www\.)?facebook\.com\//i, "")
+                      .replace(/^\//, "")
+                  : "";
                 return (
                   <View style={styles.siOverlay}>
                     <View style={styles.siCard}>
@@ -1591,7 +1601,7 @@ export default function HomeScreen() {
                               size={18}
                               color="#E4405F"
                             />
-                            <Text style={styles.siBtnText}>Instagram</Text>
+                            <Text style={styles.siBtnText}>{igLabel}</Text>
                           </View>
                         </TouchableOpacity>
                       ) : null}
@@ -1613,7 +1623,7 @@ export default function HomeScreen() {
                               size={18}
                               color="#1877F2"
                             />
-                            <Text style={styles.siBtnText}>Facebook</Text>
+                            <Text style={styles.siBtnText}>{fbLabel}</Text>
                           </View>
                         </TouchableOpacity>
                       ) : null}

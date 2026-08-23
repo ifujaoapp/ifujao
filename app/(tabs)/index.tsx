@@ -1569,7 +1569,7 @@ export default function HomeScreen() {
                               size={18}
                               color="#25D366"
                             />
-                            <Text style={styles.siBtnText}>WhatsApp: {phone}</Text>
+                            <Text style={styles.siBtnText}>{phone}</Text>
                           </View>
                         </TouchableOpacity>
                       ) : null}

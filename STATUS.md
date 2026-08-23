@@ -1540,3 +1540,56 @@ do telefone (que é o correto — o GPS do computador no admin web vinha errado)
 - **Reaplicar `supabase/sponsors.sql`** (cria bucket + coluna `logo` + policies)
   e **rebuild nativo** para validar o fluxo de logo no emulador/dispositivo.
 - Dismiss do advisory de Storage confirmado (bucket público por design).
+
+### Correções de sessão 2026-08-23 (embed-pets / RLS / busca IA / mapa)
+Série de bugs descobertos e corrigidos após quebra reportada na busca por IA.
+
+1. **RLS de `pets`/`pet_contacts` quebrava o upsert (anon).** Causa raiz:
+   o campo `device_id` da `user_metadata` é **reservado pelo Gotrue** para
+   usuários anônimos — ele o sobrescreve com um UUID próprio (de forma
+   intermitente), então `current_device_id()` ora pegava nosso valor, ora o
+   UUID, falhando a policy `owner_device_id = current_device_id()`.
+   - App: `ensureSession` agora grava **`app_device_id`** (chave nossa) no
+     sign-in anônimo, usa `getUser()` (servidor) em vez de `getSession()`
+     (cache que mentia) e refaz o sign-in quando o valor não bate.
+   - Banco (SQL Editor do Supabase — **não versionado aqui**):
+     ```sql
+     create or replace function public.current_device_id()
+     returns text language sql stable security definer set search_path = public
+     as $$ select raw_user_meta_data->>'app_device_id' from auth.users where id = auth.uid() $$;
+     grant execute on function public.current_device_id() to anon, authenticated;
+     ```
+   - ⚠️ Se o banco for recriado, este SQL precisa ser reaplicado.
+
+2. **Persistência local (op-sqlite) falhava:** `NOT NULL constraint failed:
+   pets.id`. `toLocalPet` montava o `PetRecord` só do `payload` e não copiava
+   `row.id` (chave primária). Agora usa `row.id` como autoridade.
+
+3. **Busca por IA (`search-pets`) funciona com 3072 dims** (pgvector do
+   Supabase aceita). O erro reportado de "3072 não aceito" era, na verdade, o
+   RLS do item 1 (pets sem embedding porque o upsert falhava).
+
+4. **Botão "Aa"** na barra lateral desliga/liga o rótulo de texto do
+   patrocinador (oculto por padrão, para não poluir o mapa).
+
+5. **Pin do patrocinador deslocado.** `iconAnchor` estava fixo em `[75,19]`
+   enquanto o `iconSize` mudava com o "Aa" (sem rótulo = `38x38`, com rótulo =
+   `150x96`). Agora o anchor acompanha: `[19,19]` (sem rótulo) / `[75,19]`
+   (com rótulo). Também fixado `box-sizing: border-box` na `.sponsor-star`
+   (a borda de 3px fazia o centro ficar ~3px errado).
+
+#### Arquivos alterados
+| Arquivo | O que mudou |
+|---|---|
+| `lib/supabase.ts` | `ensureSession` usa `app_device_id` + `getUser()`. |
+| `lib/sync.ts` | `toLocalPet` copia `row.id`. |
+| `app/(tabs)/index.tsx` | botão "Aa"; `iconAnchor` condicional; `box-sizing` na estrela. |
+| `supabase/schema.sql` | `current_device_id()` lê `app_device_id` (espelha o SQL acima). |
+
+#### Commits (2026-08-23, push em `origin/main`)
+- `92dba83` feat(map): botao Aa desliga o texto do patrocinador (oculto por padrao)
+- `e95855e` fix(auth): refaz sign-in anonimo quando device_id nao bate (RLS)
+- `c0e1cde` fix(sync): toLocalPet usa row.id (corrige NOT NULL pets.id local)
+- `b719e7f` fix(auth): usa app_device_id (device_id reservado da Gotrue)
+- `48f9124` fix(map): iconAnchor do patrocinador acompanha o tamanho
+- `a873983` fix(map): box-sizing border-box na estrela (elimina 3px)

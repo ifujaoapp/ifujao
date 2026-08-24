@@ -124,7 +124,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       facebook: s.facebook ?? "",
       logo: s.logo ?? "",
       active: s.active,
-      visibleFrom: s.visible_from ? s.visible_from.slice(0, 10) : "",
+      visibleFrom: s.visible_from ?? "",
     });
     setLogoFile(null);
     setLogoPreview(null);
@@ -251,9 +251,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       facebook: form.facebook?.trim() || null,
       logo: logoUrl,
       active: form.active,
-      visible_from: form.visibleFrom
-        ? new Date(form.visibleFrom + "T23:59:59").toISOString()
-        : null,
+      visible_from: form.visibleFrom ? form.visibleFrom : null,
     };
     let result;
     if (editing) {
@@ -439,7 +437,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
                   {!s.active ? <span style={badge}>inativo</span> : null}
                   <div style={{ fontSize: 12, color: "#666" }}>
                     {s.address || `${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`}
-                    {s.visible_from ? ` · exibe até ${s.visible_from.slice(0, 10)}` : ""}
+                    {s.visible_from ? ` · exibe até ${s.visible_from}` : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>

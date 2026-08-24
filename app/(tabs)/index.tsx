@@ -116,6 +116,7 @@ export default function HomeScreen() {
     shareCardRef,
     commitPets,
     triggerSync,
+    refreshSponsors,
     handleSponsorPress,
     sharePetCard,
     onMarkerPress,
@@ -430,6 +431,7 @@ export default function HomeScreen() {
           showOnlyMine={showOnlyMine}
         setShowOnlyMine={setShowOnlyMine}
         triggerSync={triggerSync}
+        refreshSponsors={refreshSponsors}
         aiSearchVisible={aiSearchVisible}
           setAiSearchVisible={setAiSearchVisible}
           setAiResults={setAiResults}

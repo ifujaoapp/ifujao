@@ -326,6 +326,7 @@ export const MapLeaflet = ({
               facebook: data.facebook ?? null,
               logo: data.logo ?? null,
               visibleFrom: data.visibleFrom ?? null,
+              updatedAt: data.updatedAt ?? null,
             });
           } else if (data.petId) {
             onMarkerPress(data.petId);

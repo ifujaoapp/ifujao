@@ -8,7 +8,7 @@ import { addPendingDelete, fetchPetRemote, isSupabaseConfigured, runSync } from 
 import { deletePetPhotos } from "@/lib/photos";
 import { onDeepLinkPet, consumePendingPetId } from "@/lib/deeplink";
 import { clearPhotos, loadPets, savePets, type PetRecord } from "@/lib/storage";
-import { fetchSponsors, type SponsorPin } from "@/lib/sponsors";
+import { fetchSponsors, fetchSponsorsDelta, isSponsorVisible, type SponsorPin } from "@/lib/sponsors";
 
 type PetPost = PetRecord;
 
@@ -21,6 +21,7 @@ export function usePets() {
   const initialSyncDone = useRef(false);
   const [localLoaded, setLocalLoaded] = useState(false);
   const triggerSyncRef = useRef<() => void>(() => {});
+  const lastSponsorSyncRef = useRef<string | null>(null);
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
   const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [showDescriptionModal, setShowDescriptionModal] = useState(false);
@@ -91,6 +92,33 @@ export function usePets() {
   useEffect(() => {
     triggerSyncRef.current = triggerSync;
   }, [triggerSync]);
+
+  // Refresh de patrocinadores com delta: no primeiro pull (ou quando o
+  // cursor está vazio) traz a lista completa; depois só o que mudou desde
+  // `lastSponsorSyncRef` (updated_at) + a lista de ids ativos para remover
+  // pins apagados/desativados no backend.
+  const refreshSponsors = useCallback(async () => {
+    const now = new Date().toISOString();
+    try {
+      if (!lastSponsorSyncRef.current) {
+        const list = await fetchSponsors();
+        setSponsors(list);
+      } else {
+        const { changed, activeIds } = await fetchSponsorsDelta(
+          lastSponsorSyncRef.current,
+        );
+        if (activeIds === null) return; // sem backend/erro: mantém cache atual
+        setSponsors((prev) => {
+          const byId = new Map(prev.map((s) => [s.id, s]));
+          for (const c of changed) byId.set(c.id, c);
+          return [...byId.values()].filter(
+            (s) => activeIds.includes(s.id) && isSponsorVisible(s),
+          );
+        });
+      }
+      lastSponsorSyncRef.current = now;
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (myDeviceId && localLoaded && !initialSyncDone.current) {
@@ -263,16 +291,8 @@ export function usePets() {
   }, [pets]);
 
   useEffect(() => {
-    let active = true;
-    fetchSponsors()
-      .then((list) => {
-        if (active) setSponsors(list);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
+    refreshSponsors();
+  }, [refreshSponsors]);
 
   return {
     pets,
@@ -295,6 +315,7 @@ export function usePets() {
     shareCardRef,
     commitPets,
     triggerSync,
+    refreshSponsors,
     openPetFromDeepLink,
     handleSponsorPress,
     sharePetCard,

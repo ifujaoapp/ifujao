@@ -41,6 +41,7 @@ export interface MapAreaProps {
   showOnlyMine: boolean;
   setShowOnlyMine: Dispatch<SetStateAction<boolean>>;
   triggerSync: () => void;
+  refreshSponsors: () => void;
   aiSearchVisible: boolean;
   setAiSearchVisible: Dispatch<SetStateAction<boolean>>;
   setAiResults: Dispatch<SetStateAction<SearchResult[] | null>>;
@@ -80,6 +81,7 @@ export function MapArea(props: MapAreaProps) {
     showOnlyMine,
     setShowOnlyMine,
     triggerSync,
+    refreshSponsors,
     aiSearchVisible,
     setAiSearchVisible,
     setAiResults,
@@ -153,7 +155,8 @@ export function MapArea(props: MapAreaProps) {
             style={styles.sideToolbarBtn}
             onPress={() => {
               setShowOnlyMine((v) => !v);
-        triggerSync();
+              triggerSync();
+              refreshSponsors();
             }}
           >
             <Ionicons

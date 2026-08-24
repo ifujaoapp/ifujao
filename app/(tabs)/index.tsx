@@ -679,14 +679,6 @@ const makeStyles = (c: typeof Colors.light) =>
       alignItems: "center",
       marginRight: 14,
     },
-    roundCloseText: {
-      color: "#FFFFFF",
-      fontSize: 13,
-      fontWeight: "bold",
-      lineHeight: 13,
-      includeFontPadding: false,
-      textAlign: "center",
-    },
     bigCameraButtonText: {
       color: c.primaryButton,
       fontWeight: "bold",

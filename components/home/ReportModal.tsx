@@ -128,14 +128,14 @@ export function ReportModal({
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Reportar Pet Perdido</Text>
-            <TouchableOpacity
-              style={styles.roundClose}
-              onPress={onClose}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.roundCloseText}>✕</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.roundClose}
+                onPress={onClose}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
           </View>
           <ScrollView
             style={{ flex: 1 }}

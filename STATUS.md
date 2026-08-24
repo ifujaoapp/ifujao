@@ -97,6 +97,37 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   iOS: `getIosIdForVendorAsync()`; fallback: UUID persistido empenhado em
   `SecureStore` no native / `localStorage` no web). `hooks/usePets.ts` usa o
   helper no bootstrap. Sync agora roda em Android, iOS e web.
+- **Modal de descrição reformulado** (`components/home/PetDetailModal.tsx` +
+  estilos em `app/(tabs)/index.tsx`): cabeçalho com ícone `document-text-outline`
+  (azul `primaryButton`) + título "Descrição" + subtítulo espécie/raça; **capa
+  com a foto do pet** (`images[0]`, arredondada); **texto justificado**
+  (`textAlign:"justify"`); **rodapé contextual** com ícone `location` (`#FF3B30`)
+  + cidade e `calendar-outline` + `formatLostDate`, com separadores `cardStroke`.
+  Segue o padrão iOS do app (cards `borderRadius:16`, `Colors`, `Ionicons`).
+- **Fix robusto do `myDeviceId` (lazy):** `triggerSync` (`usePets.ts`) e
+  `handleAddPet` (`useReportForm.ts`) agora resolvem `getOrCreateDeviceId()`
+  **na hora** se o id estiver vazio — elimina o aviso "SYNC IGNORADO: myDeviceId
+  ainda vazio" (que aparecia no cadastro de pet) e **garante `ownerDeviceId`
+  correto**. Bug real descoberto: pets cadastrados com `myDeviceId` vazio ficavam
+  **sem dono** (`ownerDeviceId:""`), quebrando `isOwner`/apagar próprio pet.
+- **`release.ps1`** (PowerShell) para gerar `app-release.apk` (o `release.bat`
+  usava `Remove-Item`, sintaxe de cmd, e falhava no PowerShell).
+- **Fix `CXX5304` no build Android:** removidos os pacotes do SDK **não
+  essenciais ao build** — `cmdline-tools/latest`, `emulator`, `system-images/*`
+  — que carregavam metadata v4 (`addon2/04`) não suportada pelo AGP 8.11.0. O
+  build agora roda limpo (`BUILD SUCCESSFUL`, sem o aviso). `platform-tools`,
+  `build-tools`, `ndk`, `cmake` permanecem.
+
+### Lição concreta — device id / sync / build (não repetir)
+- **NUNCA editar os `package.xml` do Android SDK** para baixar namespace
+  (`repository2/04`→`03`, etc.): o conteúdo é v4 de verdade e quebra o parse
+  (`elemento inesperado abis/translatedAbis`). O fix do `CXX5304` é remover os
+  pacotes v4 não usados no build, não mexer na metadata.
+- `myDeviceId` deve ser resolvido **antes** de criar/sincronizar pet; se vazio
+  no cadastro, o pet fica órfão. Sempre usar `getOrCreateDeviceId()` (nunca só
+  `Application.getAndroidId()`).
+- `release.bat` roda em cmd (não PowerShell): usar `rd /s /q`, não `Remove-Item`.
+  Para PowerShell, usar `release.ps1`.
 
 ### Pendências / em aberto
 1. **Rebuild nativo pendente** (`npx expo run:android`) para validar em runtime

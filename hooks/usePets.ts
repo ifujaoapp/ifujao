@@ -52,14 +52,21 @@ export function usePets() {
         );
         return;
       }
-      if (!myDeviceId) {
+      let deviceId = myDeviceId;
+      if (!deviceId) {
+        try {
+          deviceId = await getOrCreateDeviceId();
+          if (deviceId) setMyDeviceId(deviceId);
+        } catch {}
+      }
+      if (!deviceId) {
         console.warn("[index] SYNC IGNORADO: myDeviceId ainda vazio.");
         return;
       }
       try {
         const synced = await runSync(
           petsRef.current,
-          myDeviceId,
+          deviceId,
           async (p) => {
             petsRef.current = p;
             setPets(p);

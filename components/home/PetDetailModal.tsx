@@ -345,27 +345,69 @@ export function PetDetailModal(props: PetDetailModalProps) {
           onStartShouldSetResponder={() => true}
           onTouchStart={() => setShowDescriptionModal(false)}
         >
-          <View
-            style={styles.descCard}
-            onStartShouldSetResponder={() => true}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
+        <View
+          style={styles.descCard}
+          onStartShouldSetResponder={() => true}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
+          {selectedPet?.images && selectedPet.images.length > 0 ? (
+            <Image
+              source={{ uri: selectedPet.images[0] }}
+              style={styles.descCover}
+              resizeMode="cover"
+            />
+          ) : null}
+          <View style={styles.descHeader}>
+            <Ionicons
+              name="document-text-outline"
+              size={22}
+              color={themeColors.primaryButton}
+            />
             <Text style={styles.descTitle}>Descrição</Text>
-            <ScrollView
-              style={styles.descScroll}
-              nestedScrollEnabled
-              showsVerticalScrollIndicator={true}
-            >
-              <Text style={styles.descText}>{selectedPet?.description}</Text>
-            </ScrollView>
-            <TouchableOpacity
-              style={styles.descCloseBtn}
-              onPress={() => setShowDescriptionModal(false)}
-              activeOpacity={0.6}
-            >
-              <Text style={styles.descCloseText}>Fechar</Text>
-            </TouchableOpacity>
+            {selectedPet?.species ? (
+              <Text style={styles.descSubtitle}>
+                {selectedPet.species}
+                {selectedPet.breed ? ` (${selectedPet.breed})` : ""}
+              </Text>
+            ) : null}
           </View>
+          <ScrollView
+            style={styles.descScroll}
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={true}
+          >
+            <Text style={styles.descText}>{selectedPet?.description}</Text>
+          </ScrollView>
+          <View style={styles.descFooter}>
+            {selectedPet?.city || selectedPet?.location ? (
+              <View style={styles.descFooterItem}>
+                <Ionicons name="location" size={14} color="#FF3B30" />
+                <Text style={styles.descFooterText}>
+                  {selectedPet.city || selectedPet.location}
+                </Text>
+              </View>
+            ) : null}
+            {formatLostDate(selectedPet?.lostDate) ? (
+              <View style={styles.descFooterItem}>
+                <Ionicons
+                  name="calendar-outline"
+                  size={14}
+                  color={themeColors.primaryButton}
+                />
+                <Text style={styles.descFooterText}>
+                  {formatLostDate(selectedPet?.lostDate)}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <TouchableOpacity
+            style={styles.descCloseBtn}
+            onPress={() => setShowDescriptionModal(false)}
+            activeOpacity={0.6}
+          >
+            <Text style={styles.descCloseText}>Fechar</Text>
+          </TouchableOpacity>
+        </View>
         </View>
       </Modal>
     </>

@@ -10,6 +10,7 @@ import {
   type PetPost,
 } from "@/constants/breeds";
 import { reverseGeocodeCity } from "@/lib/geocode";
+import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { persistPhotos } from "@/lib/storage";
 import { type Region } from "react-native-maps";
 import type { City } from "@/constants/cities";
@@ -158,6 +159,12 @@ export function useReportForm(params: UseReportFormParams) {
     SecureStore.setItemAsync("ifujao_my_phone", ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
+    let deviceId = myDeviceId;
+    if (!deviceId) {
+      try {
+        deviceId = await getOrCreateDeviceId();
+      } catch {}
+    }
     const newPet: PetPost = {
       id: Date.now().toString(),
       species,
@@ -166,7 +173,7 @@ export function useReportForm(params: UseReportFormParams) {
       contact,
       breed,
       ownerPhone,
-      ownerDeviceId: myDeviceId,
+      ownerDeviceId: deviceId,
       images: storedImages,
       latitude,
       longitude,

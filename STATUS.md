@@ -54,8 +54,16 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
    `assembleRelease`, limpe o `android/app/build` e os caches. Confirmar no log
    a linha `Writing bundle output to: .../index.android.bundle`.
    - **NÃO usar `gradlew clean`** no Windows: trava nos caches nativos `.cxx`.
-   - O aviso de CMake "object file path > 250" é **só warning** e não quebra o
-     build (limite interno `CMAKE_OBJECT_PATH_MAX=250` do CMake, não MAX_PATH).
+    - O aviso de CMake "object file path > 250" é **só warning** e não quebra o
+      build (limite interno `CMAKE_OBJECT_PATH_MAX=250` do CMake, não MAX_PATH).
+ 8. **Identidade de dispositivo (device id) deve ser cross-platform.**
+    `Application.getAndroidId()` retorna `null` no iOS, no web e em alguns
+    emuladores Android — nunca usar só ele para `myDeviceId`. Usar helper que
+    cobre Android (`getAndroidId`), iOS (`getIosIdForVendorAsync`) e um fallback
+    de UUID persistido (`SecureStore` no native / `localStorage` no web).
+    - Arquivo: `lib/deviceId.ts` (`getOrCreateDeviceId`).
+
+### Lição concreta — cidade do pino (não repetir)
 
 ### Lição concreta — cidade do pino (não repetir)
 - `reverseGeocodeAsync` devolve o município em `g.city` (locality). **NUNCA**
@@ -82,6 +90,13 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   `row.id`; **reconciliação de órfãos** no `runSync` (full pull).
 - Espécie/Raça via `react-native-dropdown-picker` (`listMode="MODAL"`);
   "Cachorro", ordem alfabética PT-BR; Raça amarrada à espécie.
+- **Fix sync "myDeviceId ainda vazio":** `myDeviceId` era gerado só via
+  `Application.getAndroidId()`, que retorna `null` no iOS/web e em alguns
+  emuladores Android — o sync era ignorado nessas plataformas. Criado
+  `lib/deviceId.ts` com `getOrCreateDeviceId()` (Android: `getAndroidId()`;
+  iOS: `getIosIdForVendorAsync()`; fallback: UUID persistido empenhado em
+  `SecureStore` no native / `localStorage` no web). `hooks/usePets.ts` usa o
+  helper no bootstrap. Sync agora roda em Android, iOS e web.
 
 ### Pendências / em aberto
 1. **Rebuild nativo pendente** (`npx expo run:android`) para validar em runtime

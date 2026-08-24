@@ -1,0 +1,288 @@
+import { Animated, Platform, Text, TouchableOpacity, View } from "react-native";
+import { type Dispatch, type SetStateAction } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { BackHandler } from "react-native";
+import { showAlert } from "@/src/components/AppAlert";
+import { MapLeaflet } from "./MapLeaflet";
+import { SponsorInfoModal } from "./Modals";
+import type { HomeStyles } from "@/app/(tabs)/index";
+import { type City } from "@/constants/cities";
+import { type SponsorPin } from "@/lib/sponsors";
+import { type PetRecord } from "@/lib/storage";
+import { type Region } from "react-native-maps";
+import { SafeAreaView, type EdgeInsets } from "react-native-safe-area-context";
+import { type SearchResult } from "@/lib/search";
+
+export interface MapAreaProps {
+  insets: EdgeInsets;
+  styles: HomeStyles;
+  totalPetsNoMapa: number;
+  petsDenunciados: PetRecord[];
+  initialCenterRef: { current: { latitude: number; longitude: number } | null };
+  mapRegion: Region;
+  userLocation: { latitude: number; longitude: number } | null;
+  recenterNonce: number;
+  visiblePets: PetRecord[];
+  sponsors: SponsorPin[];
+  handleSponsorPress: (s: SponsorPin) => void;
+  aiResults: unknown;
+  showSponsorText: boolean;
+  setShowSponsorText: Dispatch<SetStateAction<boolean>>;
+  onMarkerPress: (petId: string) => void;
+  theme: "light" | "dark";
+  toggleTheme: () => void;
+  selectedCity: City;
+  sponsorInfo: SponsorPin | null;
+  setSponsorInfo: (s: SponsorPin | null) => void;
+  locationEnabled: boolean | null;
+  centerOnUserGps: () => void;
+  gpsCity: string;
+  showOnlyMine: boolean;
+  setShowOnlyMine: Dispatch<SetStateAction<boolean>>;
+  triggerSync: () => void;
+  aiSearchVisible: boolean;
+  setAiSearchVisible: Dispatch<SetStateAction<boolean>>;
+  setAiResults: Dispatch<SetStateAction<SearchResult[] | null>>;
+  setAiBarXY: (v: { x: number; y: number }) => void;
+  titleBarH: number | null;
+  canReport: boolean;
+  pawPulse: Animated.Value;
+  bubbleOpacity: Animated.Value;
+  openReport: () => void;
+}
+
+export function MapArea(props: MapAreaProps) {
+  const {
+    insets,
+    styles,
+    totalPetsNoMapa,
+    petsDenunciados,
+    initialCenterRef,
+    mapRegion,
+    userLocation,
+    recenterNonce,
+    visiblePets,
+    sponsors,
+    handleSponsorPress,
+    aiResults,
+    showSponsorText,
+    setShowSponsorText,
+    onMarkerPress,
+    theme,
+    toggleTheme,
+    selectedCity,
+    sponsorInfo,
+    setSponsorInfo,
+    locationEnabled,
+    centerOnUserGps,
+    gpsCity,
+    showOnlyMine,
+    setShowOnlyMine,
+    triggerSync,
+    aiSearchVisible,
+    setAiSearchVisible,
+    setAiResults,
+    setAiBarXY,
+    titleBarH,
+    canReport,
+    pawPulse,
+    bubbleOpacity,
+    openReport,
+  } = props;
+  return (
+      <View style={styles.mapArea}>
+        <View
+          style={[
+            styles.counterFloat,
+            { top: insets.top + 8, right: 12, left: undefined },
+          ]}
+        >
+          <Ionicons name="paw" size={13} color="#FFFFFF" />
+          <Text style={styles.counterFloatText}>{totalPetsNoMapa}</Text>
+          {petsDenunciados.length > 0 && (
+            <View style={styles.counterFloatBadge}>
+              <Text style={styles.counterFloatBadgeText}>
+                {petsDenunciados.length}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {initialCenterRef.current && (
+          <MapLeaflet
+            key={`${theme}-${selectedCity.id}`}
+            initialCenter={initialCenterRef.current}
+            region={mapRegion}
+            userLocation={userLocation}
+            recenterNonce={recenterNonce}
+            pets={visiblePets}
+            sponsors={sponsors}
+            onSponsorPress={handleSponsorPress}
+            fitToResults={!!aiResults}
+            showSponsorText={showSponsorText}
+            onMarkerPress={onMarkerPress}
+            theme={theme}
+            city={selectedCity}
+          />
+        )}
+
+        <SponsorInfoModal
+          sponsor={sponsorInfo}
+          onClose={() => setSponsorInfo(null)}
+          styles={styles}
+        />
+
+        {locationEnabled === false && (
+          <View style={styles.locationWarning}>
+            <Ionicons name="location-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.locationWarningText}>
+              Ative a localização para reportar um pet perdido.
+            </Text>
+          </View>
+        )}
+
+        <View style={[styles.sideToolbar, { zIndex: 20 }]}>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={centerOnUserGps}
+          >
+            <Ionicons name="locate" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => {
+              setShowOnlyMine((v) => !v);
+        triggerSync();
+            }}
+          >
+            <Ionicons
+              name={showOnlyMine ? "person" : "people"}
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.sideToolbarBtn} onPress={toggleTheme}>
+            <Ionicons
+              name={theme === "dark" ? "sunny" : "moon"}
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => {
+              const nv = !aiSearchVisible;
+              setAiSearchVisible(nv);
+              if (nv)
+                setAiBarXY({ x: 12, y: insets.top + (titleBarH || 64) + 8 });
+              if (!nv) setAiResults(null);
+            }}
+          >
+            <Ionicons
+              name={aiSearchVisible ? "close" : "search"}
+              size={24}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => setShowSponsorText((v) => !v)}
+          >
+            <Text
+              style={{
+                color: showSponsorText ? "#FFD60A" : "#FFFFFF",
+                fontSize: 18,
+                fontWeight: "bold",
+              }}
+            >
+              Aa
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={() => {
+              if (Platform.OS === "android") {
+                showAlert("exit", "Sair", "Deseja realmente sair do app?", [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Sair",
+                    style: "destructive",
+                    onPress: () => BackHandler.exitApp(),
+                  },
+                ]);
+              } else {
+                showAlert(
+                  "exit",
+                  "Sair",
+                  "Não é possível fechar o app no iOS. Encerre-o manualmente.",
+                );
+              }
+            }}
+          >
+            <Ionicons name="log-out" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <SafeAreaView
+          style={[
+            styles.floatingButtonContainer,
+            { bottom: insets.bottom + 4 },
+          ]}
+        >
+          <Animated.View
+            style={[styles.speechBubble, { opacity: bubbleOpacity }]}
+          >
+            <Text style={styles.speechBubbleText}>
+              Toque para{"\n"}reportar um pet perdido
+            </Text>
+            <View style={styles.speechBubbleArrow} />
+          </Animated.View>
+          <View style={styles.pawButtonWrap}>
+            {canReport && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.pawPulseRing,
+                  {
+                    opacity: pawPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.9, 0],
+                    }),
+                    transform: [
+                      {
+                        scale: pawPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.6, 1.8],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
+            <TouchableOpacity
+              style={[
+                styles.floatingButton,
+                !canReport && styles.floatingButtonDisabled,
+              ]}
+              disabled={!canReport}
+              activeOpacity={0.8}
+              onPress={() => openReport()}
+            >
+              <MaterialCommunityIcons name="paw" size={42} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+
+        <SafeAreaView
+          style={[styles.cityBox, { bottom: insets.bottom + 16, left: 16 }]}
+        >
+          <View style={styles.cityButton}>
+            <Ionicons name="location" size={14} color="#FFFFFF" />
+            <Text style={styles.cityButtonText}>{gpsCity}</Text>
+          </View>
+        </SafeAreaView>
+      </View>
+  );
+}

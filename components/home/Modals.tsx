@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { type SponsorPin } from "@/lib/sponsors";
 import { type PetPost } from "@/constants/breeds";
 import type { HomeStyles } from "@/app/(tabs)/index";
+import { CloseCircle } from "@/components/CloseCircle";
 
 type ThemeColors = { text: string; [k: string]: string };
 
@@ -445,9 +446,10 @@ export function ReportReasonModal({
     >
       <View style={styles.reportOverlay}>
         <View style={styles.reportCard}>
-          <TouchableOpacity style={styles.reportClose} onPress={onClose}>
-            <Ionicons name="close" size={22} color="#FFFFFF" />
-          </TouchableOpacity>
+          <CloseCircle
+            style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
+            onPress={onClose}
+          />
           <Ionicons
             name="flag"
             size={40}

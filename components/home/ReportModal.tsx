@@ -28,6 +28,7 @@ import { usePetCamera } from "@/hooks/usePetCamera";
 import { useMapLocation } from "@/hooks/useMapLocation";
 import type { HomeStyles } from "@/app/(tabs)/index";
 import { MapPicker } from "./MapPicker";
+import { CloseCircle } from "@/components/CloseCircle";
 
 export function ReportModal({
   form,
@@ -128,14 +129,7 @@ export function ReportModal({
         >
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Reportar Pet Perdido</Text>
-              <TouchableOpacity
-                style={styles.roundClose}
-                onPress={onClose}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="close" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
+            <CloseCircle onPress={onClose} />
           </View>
           <ScrollView
             style={{ flex: 1 }}
@@ -191,14 +185,7 @@ export function ReportModal({
                           color="#FFFFFF"
                         />
                       </TouchableOpacity>
-                      <View style={styles.cameraCloseWrap}>
-                        <TouchableOpacity
-                          style={styles.cameraClose}
-                          onPress={() => setIsCameraOpen(false)}
-                        >
-                          <Ionicons name="close" size={22} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
+                      <CloseCircle onPress={() => setIsCameraOpen(false)} />
                     </View>
                   </View>
                   <View style={styles.cameraControls}>
@@ -259,12 +246,10 @@ export function ReportModal({
                           source={{ uri }}
                           style={styles.photoThumbImage}
                         />
-                        <TouchableOpacity
-                          style={styles.photoRemove}
+                        <CloseCircle
+                          style={{ position: "absolute", top: 4, right: 4 }}
                           onPress={() => removerFoto(uri)}
-                        >
-                          <Ionicons name="close" size={16} color="#FFFFFF" />
-                        </TouchableOpacity>
+                        />
                         {idx === 0 && (
                           <View style={styles.photoPrimaryBadge}>
                             <Text style={styles.photoPrimaryText}>

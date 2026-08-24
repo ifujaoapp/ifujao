@@ -6,6 +6,7 @@ import { type EdgeInsets } from "react-native-safe-area-context";
 import { HelpFindBanner } from "./HelpFindBanner";
 import { ImageCarousel } from "./ImageCarousel";
 import type { HomeStyles } from "@/app/(tabs)/index";
+import { CloseCircle } from "@/components/CloseCircle";
 import { Colors } from "@/constants/theme";
 import { formatLostDate, isOwner } from "@/constants/breeds";
 import { type PetRecord } from "@/lib/storage";
@@ -74,12 +75,10 @@ export function PetDetailModal(props: PetDetailModalProps) {
                 onStartShouldSetResponder={() => true}
                 onTouchStart={(e) => e.stopPropagation()}
               >
-                <TouchableOpacity
-                  style={styles.demoClose}
+                <CloseCircle
+                  style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
-                >
-                  <Ionicons name="close" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
+                />
                 <HelpFindBanner styles={styles} />
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel

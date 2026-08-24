@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Dimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { CloseCircle } from '@/components/CloseCircle';
 import { showAlert } from '@/src/components/AppAlert';
 import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -122,9 +123,11 @@ export function ImageViewerModal({ visible, images, index, title, onClose, onInd
     <Modal visible={visible} transparent={false} onRequestClose={onClose}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaView style={[styles.container, { backgroundColor: isDark ? '#000000' : '#101010' }]}>
-          <TouchableOpacity style={[styles.closeBtn, { top: insets.top + 8 }]} onPress={onClose} activeOpacity={0.7} hitSlop={12}>
-            <Ionicons name="close" size={28} color="#FFFFFF" />
-          </TouchableOpacity>
+            <CloseCircle
+              style={{ position: "absolute", top: insets.top + 8, right: 16, zIndex: 10 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              onPress={onClose}
+            />
 
           {title ? (
             <View style={[styles.titleBar, { top: insets.top + 8 }]}>
@@ -336,17 +339,6 @@ const ZoomableImage = ({
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  closeBtn: {
-    position: 'absolute',
-    right: 16,
-    zIndex: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   titleBar: {
     position: 'absolute',
     left: 16,

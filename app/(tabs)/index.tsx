@@ -4,9 +4,9 @@ import { ImageViewerModal } from "@/src/components/ImageViewerModal";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import * as Application from "expo-application";
-import { isDevice } from "expo-device";
 import { BlurView } from "expo-blur";
 import { CameraType, CameraView, useCameraPermissions } from "expo-camera";
+import { isDevice } from "expo-device";
 import React, {
   useCallback,
   useEffect,
@@ -54,11 +54,11 @@ import { WebView } from "react-native-webview";
 import { CITIES, distanceMeters } from "@/constants/cities";
 import { Colors } from "@/constants/theme";
 import { useThemeMode } from "@/hooks/use-theme-mode";
-import { revealContact, resolveContact } from "@/lib/contacts";
-import { reverseGeocodeCity } from "@/lib/geocode";
+import { resolveContact, revealContact } from "@/lib/contacts";
 import { consumePendingPetId, onDeepLinkPet } from "@/lib/deeplink";
-import { searchPets, type SearchResult } from "@/lib/search";
+import { reverseGeocodeCity } from "@/lib/geocode";
 import { deletePetPhotos } from "@/lib/photos";
+import { searchPets, type SearchResult } from "@/lib/search";
 import { fetchSponsors, type SponsorPin } from "@/lib/sponsors";
 import {
   clearPhotos,
@@ -73,9 +73,9 @@ import {
   isSupabaseConfigured,
   runSync,
 } from "@/lib/sync";
+import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
-import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
@@ -99,91 +99,222 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 // escolher uma raça de gato para um cão). A espécie é editável (texto livre)
 // e sugerida a partir destas opções; a raça também aceita texto livre.
 const SPECIES_BREEDS: Record<string, string[]> = {
-  "Cachorro": [
-    "Shih Tzu", "Golden Retriever", "Labrador Retriever", "Poodle",
-    "Buldogue Francês", "Spitz Alemão (Lulu da Pomerânia)", "Pastor Alemão",
-    "Pinscher", "Yorkshire Terrier", "Beagle", "Rottweiler", "Doberman",
-    "Boxer", "Dachshund", "Border Collie", "Pastor Australiano", "Akita",
-    "Shiba Inu", "Husky Siberiano", "Maltês", "Pug", "Chihuahua",
-    "Cavalier King Charles Spaniel", "Cane Corso", "Pit Bull",
-    "American Bully", "Bull Terrier", "Chow Chow", "Basset Hound",
-    "Shar Pei", "Cocker Spaniel", "Lhasa Apso", "Bernese Mountain Dog",
-    "São Bernardo", "Dogue Alemão", "Boston Terrier", "Whippet",
+  Cachorro: [
+    "Shih Tzu",
+    "Golden Retriever",
+    "Labrador Retriever",
+    "Poodle",
+    "Buldogue Francês",
+    "Spitz Alemão (Lulu da Pomerânia)",
+    "Pastor Alemão",
+    "Pinscher",
+    "Yorkshire Terrier",
+    "Beagle",
+    "Rottweiler",
+    "Doberman",
+    "Boxer",
+    "Dachshund",
+    "Border Collie",
+    "Pastor Australiano",
+    "Akita",
+    "Shiba Inu",
+    "Husky Siberiano",
+    "Maltês",
+    "Pug",
+    "Chihuahua",
+    "Cavalier King Charles Spaniel",
+    "Cane Corso",
+    "Pit Bull",
+    "American Bully",
+    "Bull Terrier",
+    "Chow Chow",
+    "Basset Hound",
+    "Shar Pei",
+    "Cocker Spaniel",
+    "Lhasa Apso",
+    "Bernese Mountain Dog",
+    "São Bernardo",
+    "Dogue Alemão",
+    "Boston Terrier",
+    "Whippet",
     "Sem Raça Definida",
   ],
-  "Gato": [
-    "Persa", "Maine Coon", "Siamês", "Ragdoll", "Sphynx", "Bengal",
-    "British Shorthair", "Angorá", "Abissínio", "Birmanês", "Chartreux",
-    "Cornish Rex", "Devon Rex", "Exótico", "Norwegian Forest", "Oriental",
-    "Russian Blue", "Scottish Fold", "Selkirk Rex", "Somali", "Tonquinês",
-    "Turkish Van", "American Shorthair", "Sem Raça Definida",
+  Gato: [
+    "Persa",
+    "Maine Coon",
+    "Siamês",
+    "Ragdoll",
+    "Sphynx",
+    "Bengal",
+    "British Shorthair",
+    "Angorá",
+    "Abissínio",
+    "Birmanês",
+    "Chartreux",
+    "Cornish Rex",
+    "Devon Rex",
+    "Exótico",
+    "Norwegian Forest",
+    "Oriental",
+    "Russian Blue",
+    "Scottish Fold",
+    "Selkirk Rex",
+    "Somali",
+    "Tonquinês",
+    "Turkish Van",
+    "American Shorthair",
+    "Sem Raça Definida",
   ],
-  "Calopsita": [
-    "Ancestral", "Lutino", "Cara Branca", "Pérola", "Arlequim", "Canela",
-    "Albina", "Bochecha Amarela", "Prata", "Pastel", "Fulvo",
+  Calopsita: [
+    "Ancestral",
+    "Lutino",
+    "Cara Branca",
+    "Pérola",
+    "Arlequim",
+    "Canela",
+    "Albina",
+    "Bochecha Amarela",
+    "Prata",
+    "Pastel",
+    "Fulvo",
   ],
-  "Papagaio": [
-    "Papagaio-verdadeiro", "Papagaio-chauá", "Papagaio-cinzento",
-    "Papagaio-eclectus", "Papagaio-do-mangue", "Papagaio-diadema",
-    "Papagaio-moleiro", "Papagaio-de-charão", "Papagaio-galego",
+  Papagaio: [
+    "Papagaio-verdadeiro",
+    "Papagaio-chauá",
+    "Papagaio-cinzento",
+    "Papagaio-eclectus",
+    "Papagaio-do-mangue",
+    "Papagaio-diadema",
+    "Papagaio-moleiro",
+    "Papagaio-de-charão",
+    "Papagaio-galego",
     "Papagaio-de-cabeça-amarela",
   ],
-  "Arara": [
-    "Arara-canindé", "Arara-vermelha", "Arara-azul-grande", "Arara-militar",
-    "Arara-verde", "Ararinha-maracanã", "Arara-juba",
+  Arara: [
+    "Arara-canindé",
+    "Arara-vermelha",
+    "Arara-azul-grande",
+    "Arara-militar",
+    "Arara-verde",
+    "Ararinha-maracanã",
+    "Arara-juba",
   ],
-  "Cacatua": [
-    "Cacatua-de-crista-amarela", "Cacatua-galah", "Cacatua-branca",
-    "Cacatua-das-molucas", "Cacatua-de-crista-rosa", "Cacatua-negra",
+  Cacatua: [
+    "Cacatua-de-crista-amarela",
+    "Cacatua-galah",
+    "Cacatua-branca",
+    "Cacatua-das-molucas",
+    "Cacatua-de-crista-rosa",
+    "Cacatua-negra",
   ],
   "Periquito-australiano": [
-    "Periquito Comum", "Periquito Inglês", "Arlequim", "Lutino", "Albino",
-    "Asa Cinza", "Opalino", "Asas Claras",
+    "Periquito Comum",
+    "Periquito Inglês",
+    "Arlequim",
+    "Lutino",
+    "Albino",
+    "Asa Cinza",
+    "Opalino",
+    "Asas Claras",
   ],
-  "Agapornis": [
-    "Agapornis Roseicollis", "Agapornis Personatus", "Agapornis Fischeri",
-    "Agapornis Lilianae", "Agapornis Nigrigenis", "Agapornis Cana",
+  Agapornis: [
+    "Agapornis Roseicollis",
+    "Agapornis Personatus",
+    "Agapornis Fischeri",
+    "Agapornis Lilianae",
+    "Agapornis Nigrigenis",
+    "Agapornis Cana",
     "Agapornis Taranta",
   ],
-  "Ferret": [
-    "Sável", "Albino", "Canela", "Prateado", "Panda", "Chocolate",
-    "Champagne", "Blaze",
+  Ferret: [
+    "Sável",
+    "Albino",
+    "Canela",
+    "Prateado",
+    "Panda",
+    "Chocolate",
+    "Champagne",
+    "Blaze",
   ],
-  "Hámster": [
-    "Hámster Sírio", "Hámster Anão Russo Winter White",
-    "Hámster Anão Russo Campbell", "Hámster Roborovski", "Hámster Chinês",
+  Hámster: [
+    "Hámster Sírio",
+    "Hámster Anão Russo Winter White",
+    "Hámster Anão Russo Campbell",
+    "Hámster Roborovski",
+    "Hámster Chinês",
   ],
-  "Coelho": [
-    "Mini Lion Head", "Netherland Dwarf", "Mini Lop", "Holandês",
-    "Gigante de Flandres", "Angorá", "Nova Zelândia", "Rex", "Mini Rex",
-    "Califórnia", "Chinchila", "Lop Francês", "Borboleta", "Tan",
+  Coelho: [
+    "Mini Lion Head",
+    "Netherland Dwarf",
+    "Mini Lop",
+    "Holandês",
+    "Gigante de Flandres",
+    "Angorá",
+    "Nova Zelândia",
+    "Rex",
+    "Mini Rex",
+    "Califórnia",
+    "Chinchila",
+    "Lop Francês",
+    "Borboleta",
+    "Tan",
   ],
   "Porquinho-da-índia": [
-    "Inglês", "Abissínio", "Peruano", "Sheltie", "Skinny", "Coronet",
-    "Texel", "Alpaca", "Merino", "Crestado Americano", "Chinchila",
-    "Standard", "Bege", "Branca", "Preta Velvet", "Safira", "Violeta",
-    "Ébano", "Mosaico",
+    "Inglês",
+    "Abissínio",
+    "Peruano",
+    "Sheltie",
+    "Skinny",
+    "Coronet",
+    "Texel",
+    "Alpaca",
+    "Merino",
+    "Crestado Americano",
+    "Chinchila",
+    "Standard",
+    "Bege",
+    "Branca",
+    "Preta Velvet",
+    "Safira",
+    "Violeta",
+    "Ébano",
+    "Mosaico",
   ],
-  "Gerbil": [
-    "Agouti", "Black", "Argente", "Sapphire", "Lilac", "Schimmel",
-  ],
+  Gerbil: ["Agouti", "Black", "Argente", "Sapphire", "Lilac", "Schimmel"],
   "Rato Twister": [
-    "Dumbo", "Standard", "Rex", "Double Rex", "Hairless", "Tailless", "Satin",
+    "Dumbo",
+    "Standard",
+    "Rex",
+    "Double Rex",
+    "Hairless",
+    "Tailless",
+    "Satin",
   ],
   "Jabuti e Cágado": [
-    "Jabuti-piranga", "Jabuti-tinga", "Tigre-d'água", "Cágado-de-barbicha",
-    "Cágado-pescoço-de-cobra", "Muçuã",
+    "Jabuti-piranga",
+    "Jabuti-tinga",
+    "Tigre-d'água",
+    "Cágado-de-barbicha",
+    "Cágado-pescoço-de-cobra",
+    "Muçuã",
   ],
-  "Gecko": [
-    "Gecko-leopardo", "Crested Gecko", "Gecko-diurno", "Gecko-gárgula",
+  Gecko: [
+    "Gecko-leopardo",
+    "Crested Gecko",
+    "Gecko-diurno",
+    "Gecko-gárgula",
     "Tokay Gecko",
   ],
-  "Iguana": [
-    "Iguana-verde", "Iguana-azul", "Iguana-vermelha",
-  ],
-  "Cobra": [
-    "Corn Snake", "Piton-real", "Jiboia-constritora", "Falsa-coral",
-    "Milk Snake", "Cobra-rei-da-califórnia", "Piton-carpete", "Piton-verde",
+  Iguana: ["Iguana-verde", "Iguana-azul", "Iguana-vermelha"],
+  Cobra: [
+    "Corn Snake",
+    "Piton-real",
+    "Jiboia-constritora",
+    "Falsa-coral",
+    "Milk Snake",
+    "Cobra-rei-da-califórnia",
+    "Piton-carpete",
+    "Piton-verde",
   ],
 };
 
@@ -268,7 +399,7 @@ function HelpFindBanner({ styles }: { styles: ReturnType<typeof makeStyles> }) {
         duration: 1400,
         easing: Easing.linear,
         useNativeDriver: false,
-      })
+      }),
     );
     loop.start();
     return () => loop.stop();
@@ -282,10 +413,14 @@ function HelpFindBanner({ styles }: { styles: ReturnType<typeof makeStyles> }) {
   return (
     <View style={styles.helpFindRow}>
       <View style={styles.heartWrap}>
-        <Animated.View style={[styles.heartBig, { transform: [{ scale: helpScale }] }]}>
+        <Animated.View
+          style={[styles.heartBig, { transform: [{ scale: helpScale }] }]}
+        >
           <Ionicons name="heart" size={26} color="#FF3B30" />
         </Animated.View>
-        <Animated.View style={[styles.heartSmall, { transform: [{ scale: helpScale }] }]}>
+        <Animated.View
+          style={[styles.heartSmall, { transform: [{ scale: helpScale }] }]}
+        >
           <Ionicons name="heart" size={13} color="#FF3B30" />
         </Animated.View>
       </View>
@@ -461,7 +596,7 @@ export default function HomeScreen() {
         toValue: 1,
         duration: 1800,
         useNativeDriver: true,
-      })
+      }),
     );
     loop.start();
     return () => loop.stop();
@@ -526,7 +661,7 @@ export default function HomeScreen() {
         aiBarXYRef.current = next;
         setAiBarXY(next);
       },
-    })
+    }),
   ).current;
   const menuProgress = useSharedValue(0);
   useEffect(() => {
@@ -804,9 +939,7 @@ export default function HomeScreen() {
       // Posição conhecida (cache) — instantânea, igual ao Google Maps: mostra o
       // seu pino e centraliza JÁ, sem esperar fix fresco de GPS (que num
       // dispositivo "frio" pode levar vários segundos).
-      const last = await Location.getLastKnownPositionAsync().catch(
-        () => null,
-      );
+      const last = await Location.getLastKnownPositionAsync().catch(() => null);
       if (!cancelled && last) {
         const coords = {
           latitude: last.coords.latitude,
@@ -893,7 +1026,8 @@ export default function HomeScreen() {
     let assets: { uri: string; fileSize?: number | null }[] | null = null;
     if (isDevice) {
       // Dispositivo físico: galeria padrão do Android/iOS.
-      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { granted } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!granted) {
         showAlert(
           "permission",
@@ -1385,7 +1519,11 @@ export default function HomeScreen() {
       return;
     }
     if (results.length === 0) {
-      showAlert("info", "Sem resultados", "Nenhum pet encontrado para essa busca.");
+      showAlert(
+        "info",
+        "Sem resultados",
+        "Nenhum pet encontrado para essa busca.",
+      );
       return;
     }
     setAiResults(results);
@@ -1465,14 +1603,9 @@ export default function HomeScreen() {
       {/* Barra de busca semântica por IA (Gemini) — só aparece ao clicar em
           "Pesquisar"; arrastável pelo pegador (ícone de grip) à esquerda. */}
       {aiSearchVisible && (
-        <View
-          style={[styles.aiSearchBar, { top: aiBarXY.y }]}
-        >
+        <View style={[styles.aiSearchBar, { top: aiBarXY.y }]}>
           <View style={styles.aiSearchRow}>
-            <View
-              {...aiPan.panHandlers}
-              style={styles.aiDragHandle}
-            >
+            <View {...aiPan.panHandlers} style={styles.aiDragHandle}>
               <Ionicons name="reorder-two" size={18} color="#8E8E93" />
             </View>
             <Ionicons name="search" size={16} color="#8E8E93" />
@@ -1486,9 +1619,16 @@ export default function HomeScreen() {
               returnKeyType="search"
             />
             {aiSearching ? (
-              <ActivityIndicator size="small" color={themeColors.primaryButton} style={{ marginRight: 8 }} />
+              <ActivityIndicator
+                size="small"
+                color={themeColors.primaryButton}
+                style={{ marginRight: 8 }}
+              />
             ) : aiResults ? (
-              <TouchableOpacity style={styles.aiSearchClear} onPress={clearAiSearch}>
+              <TouchableOpacity
+                style={styles.aiSearchClear}
+                onPress={clearAiSearch}
+              >
                 <Ionicons name="close-circle" size={18} color="#8E8E93" />
               </TouchableOpacity>
             ) : (
@@ -1502,7 +1642,8 @@ export default function HomeScreen() {
             )}
           </View>
           <Text style={styles.aiSearchHint}>
-            Descreva a aparência do pet: espécie, cor e marcações. Ex.: gato cinza com manchas brancas
+            Descreva a aparência do pet: espécie, cor e marcações. Ex.: gato
+            cinza com manchas brancas
           </Text>
         </View>
       )}
@@ -1583,7 +1724,8 @@ export default function HomeScreen() {
                 const phone = s.phone;
                 const waDigits = (phone || "").replace(/\D/g, "");
                 const waUrl = waDigits
-                  ? "https://wa.me/" + (waDigits.startsWith("55") ? waDigits : "55" + waDigits)
+                  ? "https://wa.me/" +
+                    (waDigits.startsWith("55") ? waDigits : "55" + waDigits)
                   : null;
                 const instagram = s.instagram;
                 const facebook = s.facebook;
@@ -1621,7 +1763,9 @@ export default function HomeScreen() {
                           resizeMode="contain"
                         />
                       ) : null}
-                      <Text style={styles.siTitle}>{s.name || "Patrocinador"}</Text>
+                      <Text style={styles.siTitle}>
+                        {s.name || "Patrocinador"}
+                      </Text>
                       {s.address ? (
                         <Text style={styles.siLine}>{s.address}</Text>
                       ) : null}
@@ -1696,7 +1840,9 @@ export default function HomeScreen() {
                           style={styles.siBtnPrimary}
                           onPress={() => Linking.openURL(toUrl(link))}
                         >
-                          <Text style={styles.siBtnPrimaryText}>🔗 Abrir link</Text>
+                          <Text style={styles.siBtnPrimaryText}>
+                            🔗 Abrir link
+                          </Text>
                         </TouchableOpacity>
                       ) : (
                         <TouchableOpacity
@@ -1710,7 +1856,9 @@ export default function HomeScreen() {
                             )
                           }
                         >
-                          <Text style={styles.siBtnPrimaryText}>📍 Ver no mapa</Text>
+                          <Text style={styles.siBtnPrimaryText}>
+                            📍 Ver no mapa
+                          </Text>
                         </TouchableOpacity>
                       )}
                       <TouchableOpacity
@@ -1736,7 +1884,10 @@ export default function HomeScreen() {
         )}
 
         <View style={[styles.sideToolbar, { zIndex: 20 }]}>
-          <TouchableOpacity style={styles.sideToolbarBtn} onPress={centerOnUserGps}>
+          <TouchableOpacity
+            style={styles.sideToolbarBtn}
+            onPress={centerOnUserGps}
+          >
             <Ionicons name="locate" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
@@ -1764,7 +1915,8 @@ export default function HomeScreen() {
             onPress={() => {
               const nv = !aiSearchVisible;
               setAiSearchVisible(nv);
-              if (nv) setAiBarXY({ x: 12, y: insets.top + (titleBarH || 64) + 8 });
+              if (nv)
+                setAiBarXY({ x: 12, y: insets.top + (titleBarH || 64) + 8 });
               if (!nv) setAiResults(null);
             }}
           >
@@ -1913,150 +2065,150 @@ export default function HomeScreen() {
                   <Text style={styles.sectionTitle}>Fotos</Text>
                 </View>
                 {isCameraOpen ? (
-                <View style={styles.cameraBox}>
-                  <CameraView
-                    ref={cameraRef}
-                    style={styles.camera}
-                    facing={facing}
-                    zoom={zoom}
-                    flash={flash}
-                    onCameraReady={() => setCameraReady(true)}
-                  >
-                    {!cameraReady && (
-                      <View style={styles.cameraLoading}>
-                        <ActivityIndicator size="large" color="#FFFFFF" />
-                      </View>
-                    )}
-                  </CameraView>
-                  <View style={styles.cameraHeader}>
-                    <View style={styles.cameraPill}>
-                      <Text style={styles.cameraCounter}>
-                        {images.length}/{MAX_IMAGES}
-                      </Text>
-                    </View>
-                    <View style={styles.cameraHeaderRight}>
-                      <TouchableOpacity
-                        style={styles.cameraActionBtn}
-                        onPress={toggleFlash}
-                      >
-                        <Ionicons
-                          name={
-                            flash === "off"
-                              ? "flash-off"
-                              : flash === "on"
-                                ? "flash"
-                                : "flash-outline"
-                          }
-                          size={22}
-                          color="#FFFFFF"
-                        />
-                      </TouchableOpacity>
-                      <View style={styles.cameraCloseWrap}>
-                        <TouchableOpacity
-                          style={styles.cameraClose}
-                          onPress={() => setIsCameraOpen(false)}
-                        >
-                          <Ionicons name="close" size={22} color="#FFFFFF" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.cameraControls}>
-                    <View style={styles.cameraFlip}>
-                      <TouchableOpacity
-                        onPress={() =>
-                          setFacing((f) => (f === "back" ? "front" : "back"))
-                        }
-                      >
-                        <Ionicons
-                          name="camera-reverse"
-                          size={28}
-                          color="#FFFFFF"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.captureButton}
-                      onPress={tirarFoto}
-                      disabled={!cameraReady}
-                    />
-                    <View style={styles.cameraZoomGroup}>
-                      <TouchableOpacity
-                        style={styles.cameraZoomBtn}
-                        onPress={zoomOut}
-                        disabled={zoom <= 0}
-                      >
-                        <Ionicons
-                          name="remove"
-                          size={24}
-                          color={
-                            zoom <= 0 ? "rgba(255,255,255,0.4)" : "#FFFFFF"
-                          }
-                        />
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.cameraZoomBtn}
-                        onPress={zoomIn}
-                        disabled={zoom >= 1}
-                      >
-                        <Ionicons
-                          name="add"
-                          size={24}
-                          color={
-                            zoom >= 1 ? "rgba(255,255,255,0.4)" : "#FFFFFF"
-                          }
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.photoBlock}>
-                  <View style={styles.photoRow}>
-                    {images.map((uri, idx) => (
-                      <View key={uri} style={styles.photoThumb}>
-                        <Image
-                          source={{ uri }}
-                          style={styles.photoThumbImage}
-                        />
-                        <TouchableOpacity
-                          style={styles.photoRemove}
-                          onPress={() => removerFoto(uri)}
-                        >
-                          <Ionicons name="close" size={16} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        {idx === 0 && (
-                          <View style={styles.photoPrimaryBadge}>
-                            <Text style={styles.photoPrimaryText}>
-                              Principal
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                    {images.length < MAX_IMAGES && (
-                      <TouchableOpacity
-                        style={styles.photoAdd}
-                        onPress={escolherFonte}
-                      >
-                        <Ionicons
-                          name="camera"
-                          size={40}
-                          color={themeColors.primaryButton}
-                        />
-                        <Text style={styles.bigCameraButtonText}>
-                          Adicionar
+                  <View style={styles.cameraBox}>
+                    <CameraView
+                      ref={cameraRef}
+                      style={styles.camera}
+                      facing={facing}
+                      zoom={zoom}
+                      flash={flash}
+                      onCameraReady={() => setCameraReady(true)}
+                    >
+                      {!cameraReady && (
+                        <View style={styles.cameraLoading}>
+                          <ActivityIndicator size="large" color="#FFFFFF" />
+                        </View>
+                      )}
+                    </CameraView>
+                    <View style={styles.cameraHeader}>
+                      <View style={styles.cameraPill}>
+                        <Text style={styles.cameraCounter}>
+                          {images.length}/{MAX_IMAGES}
                         </Text>
-                      </TouchableOpacity>
-                    )}
+                      </View>
+                      <View style={styles.cameraHeaderRight}>
+                        <TouchableOpacity
+                          style={styles.cameraActionBtn}
+                          onPress={toggleFlash}
+                        >
+                          <Ionicons
+                            name={
+                              flash === "off"
+                                ? "flash-off"
+                                : flash === "on"
+                                  ? "flash"
+                                  : "flash-outline"
+                            }
+                            size={22}
+                            color="#FFFFFF"
+                          />
+                        </TouchableOpacity>
+                        <View style={styles.cameraCloseWrap}>
+                          <TouchableOpacity
+                            style={styles.cameraClose}
+                            onPress={() => setIsCameraOpen(false)}
+                          >
+                            <Ionicons name="close" size={22} color="#FFFFFF" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.cameraControls}>
+                      <View style={styles.cameraFlip}>
+                        <TouchableOpacity
+                          onPress={() =>
+                            setFacing((f) => (f === "back" ? "front" : "back"))
+                          }
+                        >
+                          <Ionicons
+                            name="camera-reverse"
+                            size={28}
+                            color="#FFFFFF"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.captureButton}
+                        onPress={tirarFoto}
+                        disabled={!cameraReady}
+                      />
+                      <View style={styles.cameraZoomGroup}>
+                        <TouchableOpacity
+                          style={styles.cameraZoomBtn}
+                          onPress={zoomOut}
+                          disabled={zoom <= 0}
+                        >
+                          <Ionicons
+                            name="remove"
+                            size={24}
+                            color={
+                              zoom <= 0 ? "rgba(255,255,255,0.4)" : "#FFFFFF"
+                            }
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.cameraZoomBtn}
+                          onPress={zoomIn}
+                          disabled={zoom >= 1}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={24}
+                            color={
+                              zoom >= 1 ? "rgba(255,255,255,0.4)" : "#FFFFFF"
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
-                  <Text style={styles.photoHint}>
-                    Até {MAX_IMAGES} fotos (máx. {formatBytes(MAX_IMAGE_BYTES)}{" "}
-                    cada). A primeira será a foto principal do alerta.
-                  </Text>
-                </View>
-              )}
-
+                ) : (
+                  <View style={styles.photoBlock}>
+                    <View style={styles.photoRow}>
+                      {images.map((uri, idx) => (
+                        <View key={uri} style={styles.photoThumb}>
+                          <Image
+                            source={{ uri }}
+                            style={styles.photoThumbImage}
+                          />
+                          <TouchableOpacity
+                            style={styles.photoRemove}
+                            onPress={() => removerFoto(uri)}
+                          >
+                            <Ionicons name="close" size={16} color="#FFFFFF" />
+                          </TouchableOpacity>
+                          {idx === 0 && (
+                            <View style={styles.photoPrimaryBadge}>
+                              <Text style={styles.photoPrimaryText}>
+                                Principal
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                      {images.length < MAX_IMAGES && (
+                        <TouchableOpacity
+                          style={styles.photoAdd}
+                          onPress={escolherFonte}
+                        >
+                          <Ionicons
+                            name="camera"
+                            size={40}
+                            color={themeColors.primaryButton}
+                          />
+                          <Text style={styles.bigCameraButtonText}>
+                            Adicionar
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <Text style={styles.photoHint}>
+                      Até {MAX_IMAGES} fotos (máx.{" "}
+                      {formatBytes(MAX_IMAGE_BYTES)} cada). A primeira será a
+                      foto principal do alerta.
+                    </Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.section}>
@@ -2068,96 +2220,100 @@ export default function HomeScreen() {
                   />
                   <Text style={styles.sectionTitle}>Localização</Text>
                 </View>
-              <Text style={styles.fieldLabel}>
-                Quando o pet sumiu? (opcional)
-              </Text>
-              <TouchableOpacity
-                style={styles.dateField}
-                onPress={() => setShowDatePicker(true)}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="calendar"
-                  size={18}
-                  color={themeColors.primaryButton}
-                />
-                <Text
-                  style={[
-                    styles.dateFieldText,
-                    !lostDate && { color: themeColors.icon },
-                  ]}
-                >
-                  {lostDate
-                    ? lostDate.toLocaleDateString("pt-BR")
-                    : "Toque para selecionar a data"}
+                <Text style={styles.fieldLabel}>
+                  Quando o pet sumiu? (opcional)
                 </Text>
-              </TouchableOpacity>
-
-              <Text style={styles.pickLabel}>Onde o pet foi visto?</Text>
-              <View style={styles.searchAddressRow}>
-                <TextInput
-                  style={styles.searchAddressInput}
-                  placeholder="Rua, número, cidade"
-                  placeholderTextColor="#8E8E93"
-                  value={searchAddress}
-                  onChangeText={setSearchAddress}
-                  returnKeyType="search"
-                  onSubmitEditing={procurarEndereco}
-                />
                 <TouchableOpacity
-                  style={styles.searchAddressBtn}
-                  onPress={procurarEndereco}
+                  style={styles.dateField}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="search" size={18} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-              <View
-                style={styles.pickMapWrap}
-                onStartShouldSetResponder={() => true}
-                onMoveShouldSetResponder={() => true}
-                onResponderTerminationRequest={() => false}
-              >
-                <MapPicker
-                  initial={
-                    petLocation ?? {
-                      latitude: mapRegion.latitude,
-                      longitude: mapRegion.longitude,
-                    }
-                  }
-                  value={petLocation}
-                  userLocation={userLocation}
-                  gpsNonce={gpsNonce}
-                  theme={theme}
-                  city={selectedCity}
-                  onPick={handlePickLocation}
-                />
-              </View>
-              <TouchableOpacity style={styles.useGpsBtn} onPress={usarMeuGps}>
-                <Ionicons name="locate" size={18} color="#0A84FF" />
-                <Text style={styles.useGpsText}>Usar meu GPS (onde estou)</Text>
-              </TouchableOpacity>
-              {cityName ? (
-                <View style={styles.cityHintRow}>
                   <Ionicons
-                    name="location"
-                    size={14}
-                    color={themeColors.icon}
+                    name="calendar"
+                    size={18}
+                    color={themeColors.primaryButton}
                   />
-                  <Text style={styles.cityHintText}>Cidade: {cityName}</Text>
-                </View>
-              ) : null}
+                  <Text
+                    style={[
+                      styles.dateFieldText,
+                      !lostDate && { color: themeColors.icon },
+                    ]}
+                  >
+                    {lostDate
+                      ? lostDate.toLocaleDateString("pt-BR")
+                      : "Toque para selecionar a data"}
+                  </Text>
+                </TouchableOpacity>
 
-              <Text style={styles.fieldLabel}>Última Localização Vista *</Text>
-              <TextInput
-                ref={locationRef}
-                style={styles.input}
-                placeholder="Ex.: Rua das Flores, perto da praça"
-                placeholderTextColor="#8E8E93"
-                value={location}
-                onChangeText={setLocation}
-                returnKeyType="next"
-                onSubmitEditing={() => descriptionRef.current?.focus()}
-              />
+                <Text style={styles.pickLabel}>Onde o pet foi visto?</Text>
+                <View style={styles.searchAddressRow}>
+                  <TextInput
+                    style={styles.searchAddressInput}
+                    placeholder="Rua, número, cidade"
+                    placeholderTextColor="#8E8E93"
+                    value={searchAddress}
+                    onChangeText={setSearchAddress}
+                    returnKeyType="search"
+                    onSubmitEditing={procurarEndereco}
+                  />
+                  <TouchableOpacity
+                    style={styles.searchAddressBtn}
+                    onPress={procurarEndereco}
+                  >
+                    <Ionicons name="search" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                <View
+                  style={styles.pickMapWrap}
+                  onStartShouldSetResponder={() => true}
+                  onMoveShouldSetResponder={() => true}
+                  onResponderTerminationRequest={() => false}
+                >
+                  <MapPicker
+                    initial={
+                      petLocation ?? {
+                        latitude: mapRegion.latitude,
+                        longitude: mapRegion.longitude,
+                      }
+                    }
+                    value={petLocation}
+                    userLocation={userLocation}
+                    gpsNonce={gpsNonce}
+                    theme={theme}
+                    city={selectedCity}
+                    onPick={handlePickLocation}
+                  />
+                </View>
+                <TouchableOpacity style={styles.useGpsBtn} onPress={usarMeuGps}>
+                  <Ionicons name="locate" size={18} color="#0A84FF" />
+                  <Text style={styles.useGpsText}>
+                    Usar meu GPS (onde estou)
+                  </Text>
+                </TouchableOpacity>
+                {cityName ? (
+                  <View style={styles.cityHintRow}>
+                    <Ionicons
+                      name="location"
+                      size={14}
+                      color={themeColors.icon}
+                    />
+                    <Text style={styles.cityHintText}>Cidade: {cityName}</Text>
+                  </View>
+                ) : null}
+
+                <Text style={styles.fieldLabel}>
+                  Última Localização Vista *
+                </Text>
+                <TextInput
+                  ref={locationRef}
+                  style={styles.input}
+                  placeholder="Ex.: Rua das Flores, perto da praça"
+                  placeholderTextColor="#8E8E93"
+                  value={location}
+                  onChangeText={setLocation}
+                  returnKeyType="next"
+                  onSubmitEditing={() => descriptionRef.current?.focus()}
+                />
               </View>
 
               <View style={styles.section}>
@@ -2169,92 +2325,100 @@ export default function HomeScreen() {
                   />
                   <Text style={styles.sectionTitle}>Sobre o pet</Text>
                 </View>
-              <Text style={styles.fieldLabel}>Espécie *</Text>
-              <DropDownPicker
-                open={speciesPickerOpen}
-                value={species || null}
-                items={speciesItems}
-                setOpen={setSpeciesPickerOpen}
-                setValue={(v) =>
-                  setSpecies(
-                    typeof v === "function"
-                      ? (v as (p: string) => string)(species)
-                      : ((v as string) ?? ""),
-                  )
-                }
-                onChangeValue={(v) => {
-                  const t = v ?? "";
-                  // Se a nova espécie é conhecida e a raça atual não pertence
-                  // a ela, limpa a raça (evita "cão com raça de gato").
-                  const valid = SPECIES_BREEDS[t];
-                  if (valid && breed && !valid.includes(breed)) {
-                    setBreed("");
+                <Text style={styles.fieldLabel}>Espécie *</Text>
+                <DropDownPicker
+                  open={speciesPickerOpen}
+                  value={species || null}
+                  items={speciesItems}
+                  setOpen={setSpeciesPickerOpen}
+                  setValue={(v) =>
+                    setSpecies(
+                      typeof v === "function"
+                        ? (v as (p: string) => string)(species)
+                        : ((v as string) ?? ""),
+                    )
                   }
-                  // Não abre o picker de Raça automaticamente: o usuário
-                  // toca no campo Raça quando quiser.
-                }}
-                listMode="MODAL"
-                maxHeight={400}
-                placeholder="Selecione a espécie"
-                searchPlaceholder="Digite para buscar"
-                searchable
-                modalTitle="Selecione a Espécie"
-                modalTitleStyle={styles.rdpModalTitle}
-                modalContentContainerStyle={[
-                  styles.rdpModalContent,
-                  { marginTop: insets.top + 8 },
-                ]}
-                modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
-                style={styles.rdpPicker}
-                dropDownContainerStyle={styles.rdpDropdown}
-                textStyle={styles.rdpText}
-                placeholderStyle={styles.rdpPlaceholder}
-                searchTextInputStyle={styles.rdpText}
-              />
-              <Text style={styles.fieldLabel}>Raça *</Text>
-              <DropDownPicker
-                open={breedPickerOpen}
-                value={breed || null}
-                items={breedItems}
-                setOpen={setBreedPickerOpen}
-                setValue={(v) =>
-                  setBreed(
-                    typeof v === "function"
-                      ? (v as (p: string) => string)(breed)
-                      : ((v as string) ?? ""),
-                  )
-                }
-                listMode="MODAL"
-                maxHeight={400}
-                placeholder="Selecione a raça"
-                searchPlaceholder="Digite para buscar"
-                searchable
-                disabled={breedItems.length === 0}
-                modalTitle="Selecione a Raça"
-                modalTitleStyle={styles.rdpModalTitle}
-                modalContentContainerStyle={[
-                  styles.rdpModalContent,
-                  { marginTop: insets.top + 8 },
-                ]}
-                modalProps={{ transparent: true, presentationStyle: "overFullScreen" }}
-                style={styles.rdpPicker}
-                dropDownContainerStyle={styles.rdpDropdown}
-                textStyle={styles.rdpText}
-                placeholderStyle={styles.rdpPlaceholder}
-                searchTextInputStyle={styles.rdpText}
-              />
-              <Text style={styles.fieldLabel}>Descrição Adicional (opcional)</Text>
-              <TextInput
-                ref={descriptionRef}
-                style={[styles.input, styles.textArea]}
-                placeholder="Detalhes que ajudem a identificar o pet"
-                placeholderTextColor="#8E8E93"
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                returnKeyType="next"
-                onSubmitEditing={() => contactRef.current?.focus()}
-              />
+                  onChangeValue={(v) => {
+                    const t = v ?? "";
+                    // Se a nova espécie é conhecida e a raça atual não pertence
+                    // a ela, limpa a raça (evita "cão com raça de gato").
+                    const valid = SPECIES_BREEDS[t];
+                    if (valid && breed && !valid.includes(breed)) {
+                      setBreed("");
+                    }
+                    // Não abre o picker de Raça automaticamente: o usuário
+                    // toca no campo Raça quando quiser.
+                  }}
+                  listMode="MODAL"
+                  maxHeight={400}
+                  placeholder="Selecione a espécie"
+                  searchPlaceholder="Digite para buscar"
+                  searchable
+                  modalTitle="Selecione a Espécie"
+                  modalTitleStyle={styles.rdpModalTitle}
+                  modalContentContainerStyle={[
+                    styles.rdpModalContent,
+                    { marginTop: insets.top + 8 },
+                  ]}
+                  modalProps={{
+                    transparent: true,
+                    presentationStyle: "overFullScreen",
+                  }}
+                  style={styles.rdpPicker}
+                  dropDownContainerStyle={styles.rdpDropdown}
+                  textStyle={styles.rdpText}
+                  placeholderStyle={styles.rdpPlaceholder}
+                  searchTextInputStyle={styles.rdpText}
+                />
+                <Text style={styles.fieldLabel}>Raça *</Text>
+                <DropDownPicker
+                  open={breedPickerOpen}
+                  value={breed || null}
+                  items={breedItems}
+                  setOpen={setBreedPickerOpen}
+                  setValue={(v) =>
+                    setBreed(
+                      typeof v === "function"
+                        ? (v as (p: string) => string)(breed)
+                        : ((v as string) ?? ""),
+                    )
+                  }
+                  listMode="MODAL"
+                  maxHeight={400}
+                  placeholder="Selecione a raça"
+                  searchPlaceholder="Digite para buscar"
+                  searchable
+                  disabled={breedItems.length === 0}
+                  modalTitle="Selecione a Raça"
+                  modalTitleStyle={styles.rdpModalTitle}
+                  modalContentContainerStyle={[
+                    styles.rdpModalContent,
+                    { marginTop: insets.top + 8 },
+                  ]}
+                  modalProps={{
+                    transparent: true,
+                    presentationStyle: "overFullScreen",
+                  }}
+                  style={styles.rdpPicker}
+                  dropDownContainerStyle={styles.rdpDropdown}
+                  textStyle={styles.rdpText}
+                  placeholderStyle={styles.rdpPlaceholder}
+                  searchTextInputStyle={styles.rdpText}
+                />
+                <Text style={styles.fieldLabel}>
+                  Descrição Adicional (opcional)
+                </Text>
+                <TextInput
+                  ref={descriptionRef}
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Detalhes que ajudem a identificar o pet"
+                  placeholderTextColor="#8E8E93"
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  returnKeyType="next"
+                  onSubmitEditing={() => contactRef.current?.focus()}
+                />
               </View>
 
               <View style={styles.section}>
@@ -2266,44 +2430,46 @@ export default function HomeScreen() {
                   />
                   <Text style={styles.sectionTitle}>Contato e Recompensa</Text>
                 </View>
-              <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
-              <View style={styles.rewardField}>
-                <Text style={styles.rewardPrefix}>R$</Text>
+                <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
+                <View style={styles.rewardField}>
+                  <Text style={styles.rewardPrefix}>R$</Text>
+                  <TextInput
+                    style={styles.rewardInput}
+                    placeholder="0,00"
+                    placeholderTextColor="#8E8E93"
+                    value={reward ? Number(reward).toLocaleString("pt-BR") : ""}
+                    onChangeText={(t) => setReward(t.replace(/\D/g, ""))}
+                    keyboardType="number-pad"
+                    returnKeyType="next"
+                    onSubmitEditing={() => contactRef.current?.focus()}
+                  />
+                </View>
+                <Text style={styles.fieldLabel}>Contato (WhatsApp) *</Text>
                 <TextInput
-                  style={styles.rewardInput}
-                  placeholder="0,00"
+                  ref={contactRef}
+                  style={[
+                    styles.input,
+                    contactError ? styles.inputError : null,
+                  ]}
+                  placeholder="(15) 99999-9999"
                   placeholderTextColor="#8E8E93"
-                  value={reward ? Number(reward).toLocaleString("pt-BR") : ""}
-                  onChangeText={(t) => setReward(t.replace(/\D/g, ""))}
-                  keyboardType="number-pad"
-                  returnKeyType="next"
-                  onSubmitEditing={() => contactRef.current?.focus()}
+                  value={contact}
+                  onChangeText={(t) => {
+                    const f = formatPhone(t);
+                    setContact(f);
+                    setContactError(
+                      f && !isValidPhone(f)
+                        ? "Número de WhatsApp inválido (use DDD + 9 dígitos)."
+                        : "",
+                    );
+                  }}
+                  keyboardType="phone-pad"
+                  returnKeyType="done"
+                  maxLength={16}
                 />
-              </View>
-              <Text style={styles.fieldLabel}>Contato (WhatsApp) *</Text>
-              <TextInput
-                ref={contactRef}
-                style={[styles.input, contactError ? styles.inputError : null]}
-                placeholder="(15) 99999-9999"
-                placeholderTextColor="#8E8E93"
-                value={contact}
-                onChangeText={(t) => {
-                  const f = formatPhone(t);
-                  setContact(f);
-                  setContactError(
-                    f && !isValidPhone(f)
-                      ? "Número de WhatsApp inválido (use DDD + 9 dígitos)."
-                      : "",
-                  );
-                }}
-                keyboardType="phone-pad"
-                returnKeyType="done"
-                maxLength={16}
-              />
-              {contactError ? (
-                <Text style={styles.fieldError}>{contactError}</Text>
-              ) : null}
-
+                {contactError ? (
+                  <Text style={styles.fieldError}>{contactError}</Text>
+                ) : null}
               </View>
 
               <TouchableOpacity
@@ -2317,54 +2483,51 @@ export default function HomeScreen() {
         </SafeAreaView>
       </Modal>
 
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isPhotoSourceVisible}
-          onRequestClose={fecharFonte}
-        >
-          <SafeAreaView
-            edges={["bottom"]}
-            style={styles.actionSheetOverlay}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isPhotoSourceVisible}
+        onRequestClose={fecharFonte}
+      >
+        <SafeAreaView edges={["bottom"]} style={styles.actionSheetOverlay}>
+          <TouchableOpacity
+            style={{ flex: 1, justifyContent: "flex-end" }}
+            activeOpacity={1}
+            onPress={fecharFonte}
           >
-            <TouchableOpacity
-              style={{ flex: 1, justifyContent: "flex-end" }}
-              activeOpacity={1}
-              onPress={fecharFonte}
-            >
-              <View style={styles.actionSheet}>
-                <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
-            <TouchableOpacity
-              style={styles.actionSheetOption}
-              onPress={abrirCamera}
-            >
-              <Ionicons name="camera" size={22} color={themeColors.text} />
-              <Text style={styles.actionSheetOptionText}>Câmera</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.actionSheetOption}
-              onPress={abrirGaleria}
-            >
-              <Ionicons name="images" size={22} color={themeColors.text} />
-              <Text style={styles.actionSheetOptionText}>Galeria</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionSheetOption, styles.actionSheetCancel]}
-              onPress={fecharFonte}
-            >
-              <Text
-                style={[
-                  styles.actionSheetOptionText,
-                  styles.actionSheetCancelText,
-                ]}
+            <View style={styles.actionSheet}>
+              <Text style={styles.actionSheetTitle}>Adicionar foto</Text>
+              <TouchableOpacity
+                style={styles.actionSheetOption}
+                onPress={abrirCamera}
               >
-                Cancelar
-              </Text>
-            </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </SafeAreaView>
-        </Modal>
+                <Ionicons name="camera" size={22} color={themeColors.text} />
+                <Text style={styles.actionSheetOptionText}>Câmera</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionSheetOption}
+                onPress={abrirGaleria}
+              >
+                <Ionicons name="images" size={22} color={themeColors.text} />
+                <Text style={styles.actionSheetOptionText}>Galeria</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionSheetOption, styles.actionSheetCancel]}
+                onPress={fecharFonte}
+              >
+                <Text
+                  style={[
+                    styles.actionSheetOptionText,
+                    styles.actionSheetCancelText,
+                  ]}
+                >
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </SafeAreaView>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -2672,7 +2835,8 @@ export default function HomeScreen() {
                             },
                           } as BarAction,
                         ]),
-                    ...((jaDenunciado || isOwner(selectedPet, myDeviceId, myPhone))
+                    ...(jaDenunciado ||
+                    isOwner(selectedPet, myDeviceId, myPhone)
                       ? []
                       : [
                           {
@@ -2976,13 +3140,7 @@ const MapPicker = ({
       </script>
     </body>
   </html>`;
-  }, [
-    isDark,
-    start.latitude,
-    start.longitude,
-    city.latitude,
-    city.longitude,
-  ]);
+  }, [isDark, start.latitude, start.longitude, city.latitude, city.longitude]);
 
   useEffect(() => {
     if (value && webRef.current) {
@@ -3255,13 +3413,7 @@ const MapLeaflet = ({
       </script>
     </body>
   </html>`,
-    [
-      initialCenter,
-      city,
-      center.latitude,
-      center.longitude,
-      mapFilter,
-    ],
+    [initialCenter, city, center.latitude, center.longitude, mapFilter],
   );
 
   // Delta de separação (graus) para pets na mesma coordenada (~33m). Como esta
@@ -3367,7 +3519,10 @@ const MapLeaflet = ({
   // (fix) so re-enquadra quando o CONJUNTO de resultados muda (ids), nao a
   // cada poll de GPS de 5s (que recria o array visiblePets e reativava o
   // fitBounds, redefinindo o zoom que o usuario deu). Veja aiFitKey abaixo.
-  const aiFitKey = (pets || []).map((p) => String(p.id)).sort().join("|");
+  const aiFitKey = (pets || [])
+    .map((p) => String(p.id))
+    .sort()
+    .join("|");
 
   // os pets resultantes. Sem isso, o pin do pet aparece fora da tela (ex.: gato
   // preto em Aracoiaba da Serra fica a dezenas de km do centro padrão/Sorocaba)
@@ -4562,7 +4717,7 @@ const makeStyles = (c: typeof Colors.light) =>
     helpFindSmall: {
       color: c.text,
       fontSize: 13,
-      fontWeight: "normal",
+      fontWeight: "bold",
     },
     demoRow: {
       flexDirection: "row",

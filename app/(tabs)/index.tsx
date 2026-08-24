@@ -259,6 +259,44 @@ const filtrarPorTamanho = async (
   return aceitas;
 };
 
+function HelpFindBanner({ styles }: { styles: ReturnType<typeof makeStyles> }) {
+  const helpPulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(helpPulse, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [helpPulse]);
+
+  const helpScale = helpPulse.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [1, 1.25, 1],
+  });
+
+  return (
+    <View style={styles.helpFindRow}>
+      <View style={styles.heartWrap}>
+        <Animated.View style={[styles.heartBig, { transform: [{ scale: helpScale }] }]}>
+          <Ionicons name="heart" size={26} color="#FF3B30" />
+        </Animated.View>
+        <Animated.View style={[styles.heartSmall, { transform: [{ scale: helpScale }] }]}>
+          <Ionicons name="heart" size={13} color="#FF3B30" />
+        </Animated.View>
+      </View>
+      <Text style={styles.helpFind}>
+        <Text style={styles.helpFindBold}>AJUDE </Text>
+        <Text style={styles.helpFindSmall}>A ENCONTRAR!</Text>
+      </Text>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { theme, toggleTheme } = useThemeMode();
@@ -2526,6 +2564,7 @@ export default function HomeScreen() {
                 >
                   <Ionicons name="close" size={22} color="#FFFFFF" />
                 </TouchableOpacity>
+                <HelpFindBanner styles={styles} />
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
                     images={selectedPet.images}
@@ -4492,6 +4531,38 @@ const makeStyles = (c: typeof Colors.light) =>
       fontWeight: "bold",
       color: c.text,
       marginBottom: 2,
+    },
+    helpFind: {
+      textAlign: "left",
+    },
+    helpFindRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 10,
+    },
+    heartWrap: {
+      position: "relative",
+      width: 30,
+      height: 30,
+      marginRight: 8,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    heartBig: {
+      position: "absolute",
+    },
+    heartSmall: {
+      position: "absolute",
+    },
+    helpFindBold: {
+      color: "#FF3B30",
+      fontWeight: "bold",
+      fontSize: 22,
+    },
+    helpFindSmall: {
+      color: c.text,
+      fontSize: 13,
+      fontWeight: "normal",
     },
     demoRow: {
       flexDirection: "row",

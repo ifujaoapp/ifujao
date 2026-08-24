@@ -103,9 +103,13 @@ export const fetchSponsorsDelta = async (since: string): Promise<SponsorDelta> =
       );
       return { changed: [], activeIds: null };
     }
+    // Traz TODOS os ativos alterados desde `since`, independente de expiração.
+    // A visibilidade (isSponsorVisible) é aplicada só no merge final
+    // (refreshSponsors), para que um patrocinador que passou a expirar seja
+    // atualizado no cache e então removido — se filtrássemos aqui, o registro
+    // antigo (ainda visível) sobraria no cache.
     const changed = ((changedRes.data as Array<Record<string, unknown>>) ?? [])
-      .map(mapRow)
-      .filter((s) => isSponsorVisible(s));
+      .map(mapRow);
     const activeIds = ((idsRes.data as Array<Record<string, unknown>>) ?? []).map(
       (r) => String(r.id),
     );

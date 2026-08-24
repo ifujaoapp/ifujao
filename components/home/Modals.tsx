@@ -315,6 +315,9 @@ export function SponsorInfoModal({
     >
       <View style={styles.siOverlay}>
         <View style={styles.siCard}>
+          <View style={styles.siBadge}>
+            <Text style={styles.siBadgeText}>ANÚNCIO</Text>
+          </View>
           {logo ? (
             <Image
               source={{ uri: logo }}

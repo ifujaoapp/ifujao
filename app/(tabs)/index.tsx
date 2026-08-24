@@ -1943,6 +1943,20 @@ const makeStyles = (c: typeof Colors.light) =>
       marginBottom: 6,
       textAlign: "center",
     },
+    siBadge: {
+      alignSelf: "center",
+      backgroundColor: c.primaryButton,
+      borderRadius: 6,
+      paddingVertical: 3,
+      paddingHorizontal: 10,
+      marginBottom: 12,
+    },
+    siBadgeText: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      letterSpacing: 1,
+    },
     siLine: {
       fontSize: 14,
       color: c.text,

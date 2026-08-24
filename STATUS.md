@@ -117,6 +117,13 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   — que carregavam metadata v4 (`addon2/04`) não suportada pelo AGP 8.11.0. O
   build agora roda limpo (`BUILD SUCCESSFUL`, sem o aviso). `platform-tools`,
   `build-tools`, `ndk`, `cmake` permanecem.
+- **Disclosura de patrocinador (Google Play):** badge "ANÚNCIO" no topo do
+  `SponsorInfoModal` (`components/home/Modals.tsx`) + pill "ANÚNCIO" **sempre
+  visível** abaixo do pin 🛍️ no mapa (`components/home/MapLeaflet.tsx`). Atende à
+  política de *rotulagem clara* (o mapa **não tem legenda** — foi removida; o
+  disclosura ocorre no pin e no modal). Termo "ANÚNCIO" (seguro segundo a Google
+  Play). Pendência manual: declarar "Contém anúncios" no Google Play Console e
+  citar patrocinadores na Política de Privacidade.
 
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace

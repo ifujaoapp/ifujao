@@ -301,7 +301,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       </header>
 
       <div className="admin-content">
-        <section style={panel}>
+        <section style={formPanel}>
           <h3 style={{ marginTop: 0 }}>
             {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
           </h3>
@@ -353,30 +353,32 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
               }
             }}
           />
-          <input
-            style={input}
-            placeholder="Link (opcional, ex.: site/Instagram)"
-            value={form.link ?? ""}
-            onChange={(e) => setForm({ ...form, link: e.target.value })}
-          />
-          <input
-            style={input}
-            placeholder="Telefone (opcional)"
-            value={form.phone ?? ""}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          />
-          <input
-            style={input}
-            placeholder="Instagram (opcional, ex.: @loja)"
-            value={form.instagram ?? ""}
-            onChange={(e) => setForm({ ...form, instagram: e.target.value })}
-          />
-          <input
-            style={input}
-            placeholder="Facebook (opcional, URL da página)"
-            value={form.facebook ?? ""}
-            onChange={(e) => setForm({ ...form, facebook: e.target.value })}
-          />
+          <div className="form-grid-2">
+            <input
+              style={input}
+              placeholder="Link (opcional, ex.: site/Instagram)"
+              value={form.link ?? ""}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+            />
+            <input
+              style={input}
+              placeholder="Telefone (opcional)"
+              value={form.phone ?? ""}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+            <input
+              style={input}
+              placeholder="Instagram (opcional, ex.: @loja)"
+              value={form.instagram ?? ""}
+              onChange={(e) => setForm({ ...form, instagram: e.target.value })}
+            />
+            <input
+              style={input}
+              placeholder="Facebook (opcional, URL da página)"
+              value={form.facebook ?? ""}
+              onChange={(e) => setForm({ ...form, facebook: e.target.value })}
+            />
+          </div>
           <label style={fieldLabel}>Logo (opcional, arquivo de imagem)</label>
           <input
             style={input}
@@ -423,7 +425,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             Ativo (visível no app)
           </label>
           {error ? <p style={err}>{error}</p> : null}
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ ...formFooter, display: "flex", gap: 8 }}>
             <button style={btnPrimary} disabled={saving} onClick={save}>
               {saving ? "Salvando…" : editing ? "Atualizar" : "Adicionar"}
             </button>
@@ -478,6 +480,9 @@ const header: React.CSSProperties = {
   padding: "16px 20px",
   background: "#fff",
   borderBottom: "1px solid #e5e5ea",
+  position: "sticky",
+  top: 0,
+  zIndex: 10,
 };
 const logoutBtn: React.CSSProperties = {
   padding: "8px 14px",
@@ -491,10 +496,16 @@ const panel: React.CSSProperties = {
   padding: 16,
   boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
 };
+const formPanel: React.CSSProperties = {
+  ...panel,
+  maxHeight: "calc(100vh - 96px)",
+  overflowY: "auto",
+  paddingRight: 4,
+};
 const input: React.CSSProperties = {
   width: "100%",
-  padding: 12,
-  marginBottom: 12,
+  padding: 10,
+  marginBottom: 8,
   borderRadius: 10,
   border: "1px solid #ccc",
   fontSize: 15,
@@ -557,6 +568,15 @@ const btnSmallDanger: React.CSSProperties = {
   fontSize: 13,
 };
 const err: React.CSSProperties = { color: "#FF3B30", fontSize: 13 };
+const formFooter: React.CSSProperties = {
+  position: "sticky",
+  bottom: 0,
+  background: "#fff",
+  marginTop: 12,
+  paddingTop: 12,
+  borderTop: "1px solid #e5e5ea",
+  zIndex: 5,
+};
 const item: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",

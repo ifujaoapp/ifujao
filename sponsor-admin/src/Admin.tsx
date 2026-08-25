@@ -333,13 +333,14 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             currentId={editing?.id ?? null}
             focus={focus}
           />
-          <button style={locBtn} onClick={markMyLocation} type="button">
-            📍 Usar minha localização (GPS)
-          </button>
-          <p style={{ fontSize: 13, color: "#666", marginBottom: 8 }}>
-            Posição atual — Lat: {form.latitude.toFixed(5)} / Lng:{" "}
-            {form.longitude.toFixed(5)}
-          </p>
+          <div style={posRow}>
+            <button style={locBtn} onClick={markMyLocation} type="button">
+              📍 GPS
+            </button>
+            <p style={posText}>
+              Lat: {form.latitude.toFixed(5)} / Lng: {form.longitude.toFixed(5)}
+            </p>
+          </div>
         </section>
 
         <section style={formPanel} className="area-form">
@@ -660,16 +661,31 @@ const logoPreviewStyle: React.CSSProperties = {
   marginTop: 8,
   border: "1px solid #e5e5ea",
 };
-const locBtn: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
+const posRow: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
   marginBottom: 12,
-  borderRadius: 10,
+};
+const locBtn: React.CSSProperties = {
+  flex: "0 0 auto",
+  padding: "6px 10px",
+  borderRadius: 8,
   border: "1px solid #FF9500",
   background: "#fff",
   color: "#FF9500",
-  fontSize: 14,
+  fontSize: 12,
   fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+const posText: React.CSSProperties = {
+  margin: 0,
+  fontSize: 11,
+  color: "#666",
+  lineHeight: 1.2,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 const btnPrimary: React.CSSProperties = {
   flex: 1,

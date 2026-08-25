@@ -75,7 +75,7 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
 
 ## ESTADO ATUAL — ONDE PARAMOS (leia isto ao retomar)
 
-> Atualizado em 2026-08-24.
+> Atualizado em 2026-08-25.
 
 ### Concluído (últimas sessões)
 - **Banner "AJUDE A ENCONTRAR!"** pulsante no card do pet (`HelpFindBanner`,
@@ -145,7 +145,20 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   ganhou `paddingHorizontal:20` para afastar o X da borda.
 - **Modal de descrição (card pet) rola:** `descScroll` com `maxHeight` + card
   `overflow:"hidden"` — descrição grande rola dentro do modal e não estoura a
-  tela (sem colapsar a 0, que era o caso com `flex:1`+`minHeight:0`).
+   tela (sem colapsar a 0, que era o caso com `flex:1`+`minHeight:0`).
+
+- **Rótulos nos pins de pet (`PERDIDO`/`DENÚNCIA`):** pills pequenas abaixo do
+   pin 🐾 (perdido, `#FF3B30`) e ⚑ (denúncia, `#B00020`) em
+   `components/home/MapLeaflet.tsx`, para diferenciar de anúncios no mapa.
+   Fonte 8px / padding enxuto. Aparecem **só a partir de `zoom >= 14`** (classe
+   `hide-pet-labels` no container do mapa via `map.on('zoomend')`), evitando
+   poluir o mapa em visão geral — em zoom baixo a distinção fica só pelo
+   emoji/format (🐾 azul vs 🛍️ estrela laranja vs ⚑ vermelho).
+- **Badge `Ad` no pin de patrocinador:** substituiu a pill `ANÚNCIO` de baixo por
+   um mini-badge `Ad` no canto superior direito da 🛍️ (`.sponsor-ad-badge`,
+   ~7px). Mantém a conformidade da Google Play (rótulo **na própria peça**) e
+   reduz a poluição. A pill `ANÚNCIO` dos pets e a dos patrocinadores foram
+   encolhidas (fonte 8px, padding 1px 5px).
 
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace
@@ -161,9 +174,10 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
 ### Pendências / em aberto
 1. **Rebuild nativo pendente** (`npx expo run:android`) para validar em runtime
    as mudanças de UI desta sessão: delta de patrocinadores no toggle, pin 🛍️
-   sumindo à meia-noite local (data `date`), CloseCircle uniforme (X de fechar
-   24×24), e o modal de descrição rolando. O admin web (GitHub Pages) reconstrói
-   sozinho no push; o app mobile exige rebuild.
+    sumindo à meia-noite local (data `date`), CloseCircle uniforme (X de fechar
+    24×24), o modal de descrição rolando, rótulos `PERDIDO`/`DENÚNCIA` por zoom e
+    o badge `Ad` no pin de patrocinador. O admin web (GitHub Pages) reconstrói
+    sozinho no push; o app mobile exige rebuild.
 2. **Busca por IA**: palavras que não nomeiam animal (ex.: `navio`) ainda podem
    retornar o pet mais próximo (piso `MIN_BEST_SIMILARITY=0.32`). Decisão do
    usuário: deixar assim.

@@ -54,7 +54,7 @@ export const MapLeaflet = ({
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .paw-pulse{position:absolute;left:50%;top:16px;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(10,132,255,0.30);box-shadow:0 0 0 2px rgba(10,132,255,0.25);animation:pawPulse 3s ease-out infinite;pointer-events:none;z-index:0;} .paw-pulse.paw-pulse-reported{background:rgba(255,59,48,0.30);box-shadow:0 0 0 2px rgba(255,59,48,0.25);} @keyframes pawPulse{0%{transform:scale(0.5);opacity:0.9;}70%{transform:scale(2);opacity:0;}100%{transform:scale(0.5);opacity:0;}} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 2.8s ease-out infinite;} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad{display:block;text-align:center;margin:3px auto 0;width:fit-content;font-size:10px;font-weight:700;letter-spacing:1px;color:#fff;background:#007AFF;border-radius:8px;padding:2px 7px;white-space:nowrap;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .paw-pulse{position:absolute;left:50%;top:16px;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(10,132,255,0.30);box-shadow:0 0 0 2px rgba(10,132,255,0.25);animation:pawPulse 3s ease-out infinite;pointer-events:none;z-index:0;} .paw-pulse.paw-pulse-reported{background:rgba(255,59,48,0.30);box-shadow:0 0 0 2px rgba(255,59,48,0.25);} @keyframes pawPulse{0%{transform:scale(0.5);opacity:0.9;}70%{transform:scale(2);opacity:0;}100%{transform:scale(0.5);opacity:0;}} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 2.8s ease-out infinite;} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;} .pet-pin-label span{display:inline-block;font-size:8px;font-weight:700;letter-spacing:0;color:#fff;background:#FF3B30;border-radius:6px;padding:1px 5px;white-space:nowrap;box-shadow:0 1px 2px rgba(0,0,0,0.4);} .pet-pin-label.pet-pin-reported span{background:#B00020;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
     </head>
     <body>
       <div id="map"></div>
@@ -75,33 +75,48 @@ export const MapLeaflet = ({
 
         var pawIcon = L.divIcon({
           className: 'paw-pin',
-          html: '<div style="position:relative;width:30px;height:40px;">' +
+          html: '<div style="position:relative;width:64px;height:58px;">' +
+            '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
             '<div class="paw-pulse"></div>' +
             '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
             '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#0A84FF" stroke-width="2"/>' +
             '</svg>' +
             '<div class="paw-emoji">🐾</div>' +
+            '</div>' +
+            '<div class="pet-pin-label"><span>PERDIDO</span></div>' +
             '</div>',
-          iconSize: [30, 40],
-          iconAnchor: [15, 40],
-          popupAnchor: [0, -36],
+          iconSize: [64, 58],
+          iconAnchor: [32, 40],
+          popupAnchor: [0, -44],
         });
 
         var reportedIcon = L.divIcon({
           className: 'paw-pin',
-          html: '<div style="position:relative;width:30px;height:40px;">' +
+          html: '<div style="position:relative;width:64px;height:58px;">' +
+            '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
             '<div class="paw-pulse paw-pulse-reported"></div>' +
             '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
             '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="#FF3B30" stroke-width="2"/>' +
             '</svg>' +
             '<div class="paw-emoji" style="color:#FF3B30;">⚑</div>' +
+            '</div>' +
+            '<div class="pet-pin-label pet-pin-reported"><span>DENÚNCIA</span></div>' +
             '</div>',
-          iconSize: [30, 40],
-          iconAnchor: [15, 40],
-          popupAnchor: [0, -36],
+          iconSize: [64, 58],
+          iconAnchor: [32, 40],
+          popupAnchor: [0, -44],
         });
 
         window.__map = map;
+        // Rótulos PERDIDO/DENÚNCIA só aparecem quando o usuário aproxima
+        // (zoom >= 14), evitando poluir o mapa em visão geral.
+        var __applyPetLabels = function(){
+          var el = map.getContainer();
+          if (map.getZoom() >= 14) el.classList.remove('hide-pet-labels');
+          else el.classList.add('hide-pet-labels');
+        };
+        map.on('zoomend', __applyPetLabels);
+        __applyPetLabels();
         window.__pawIcon = pawIcon;
         window.__reportedIcon = reportedIcon;
 
@@ -117,12 +132,16 @@ export const MapLeaflet = ({
              var showLabel = window.__showSponsorLabels !== false;
              var icon = L.divIcon({
               className: 'sponsor-pin-wrap',
-              html: '<div class="sponsor-star">🛍️</div>' + '<div class="sponsor-ad">ANÚNCIO</div>' + (showLabel ? '<div class="sponsor-label"><span>' + name + '</span></div>' : ''),
-              iconSize: showLabel ? [150, 112] : [70, 64],
-              // Anchor segue o tamanho do ícone: com o rótulo (150x96) o ponto
-              // fica no centro da estrela (75,19); sem rótulo (38x38) o centro é
-              // (19,19). Anchor fixo causava o pin aparecer fora da posição GPS.
-              iconAnchor: showLabel ? [75, 19] : [35, 19],
+              html: '<div style="position:relative;width:38px;height:38px;margin:0 auto;">' +
+                '<div class="sponsor-star">🛍️</div>' +
+                '<div class="sponsor-ad-badge">Ad</div>' +
+                '</div>' +
+                (showLabel ? '<div class="sponsor-label"><span>' + name + '</span></div>' : ''),
+              iconSize: showLabel ? [150, 58] : [50, 44],
+              // Anchor segue o tamanho do ícone: com o rótulo o ponto fica no
+              // centro da estrela (75,19); sem rótulo (38x38 centralizada em 50)
+              // o centro é (25,19). Anchor fixo causava o pin fora da posição GPS.
+              iconAnchor: showLabel ? [75, 19] : [25, 19],
               popupAnchor: [0, -30],
             });
             var m = L.marker([s.latitude, s.longitude], { icon: icon }).addTo(window.__map);

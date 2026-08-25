@@ -160,6 +160,15 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
    reduz a poluição. A pill `ANÚNCIO` dos pets e a dos patrocinadores foram
    encolhidas (fonte 8px, padding 1px 5px).
 
+- **UX do admin de patrocinadores (`sponsor-admin`):** melhorias de usabilidade
+   no `src/Admin.tsx` / `src/SponsorMap.tsx` / `src/index.css` — commit
+   `8de4668` (push feito; GitHub Pages reconstrói no push): (1) o mapa agora
+   mostra **todos os patrocinadores existentes** como markers read-only (com
+   tooltip do nome) e destaca o pin em edição em **azul**
+   (`.sponsor-star-editing`); (2) **layout responsivo** (grid 2 colunas → 1
+   coluna abaixo de 720px via classe `.admin-content` + `@media`); (3) **busca
+   por nome** na lista "Cadastrados" (filtro local + contador `visible.length`).
+
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace
   (`repository2/04`→`03`, etc.): o conteúdo é v4 de verdade e quebra o parse

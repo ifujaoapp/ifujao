@@ -147,13 +147,15 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   `overflow:"hidden"` — descrição grande rola dentro do modal e não estoura a
    tela (sem colapsar a 0, que era o caso com `flex:1`+`minHeight:0`).
 
-- **Rótulos nos pins de pet (`PERDIDO`/`DENÚNCIA`):** pills pequenas abaixo do
-   pin 🐾 (perdido, `#FF3B30`) e ⚑ (denúncia, `#B00020`) em
-   `components/home/MapLeaflet.tsx`, para diferenciar de anúncios no mapa.
-   Fonte 8px / padding enxuto. Aparecem **só a partir de `zoom >= 14`** (classe
-   `hide-pet-labels` no container do mapa via `map.on('zoomend')`), evitando
-   poluir o mapa em visão geral — em zoom baixo a distinção fica só pelo
-   emoji/format (🐾 azul vs 🛍️ estrela laranja vs ⚑ vermelho).
+- **Pin de pet (`MapLeaflet.tsx`):** volta ao **pin de gota original** (🐾 com
+   traço azul `#0A84FF` + pulsação para perdido; ⚑ com traço vermelho `#FF3B30`
+   para denúncia). O **rótulo não é mais um pill sólido**: é um **texto
+   flutuante transparente** abaixo do pin (sem fundo, só texto branco com
+   `text-shadow` preto para legibilidade), mostrando **espécie** (linha 1, 9px)
+   e **status** `PERDIDO`/`DENÚNCIA` (linha 2, 7px). Assim o rótulo "faz parte
+   do mapa" em vez de parecer um elemento solto sobre o pin. A espécie vem do
+   campo `species` do pet (`buildPetIcon(reported, label)` dinâmico). Aparece
+   **só a partir de `zoom >= 14`** (classe `hide-pet-labels` via `zoomend`).
 - **Badge `Ad` no pin de patrocinador:** substituiu a pill `ANÚNCIO` de baixo por
    um mini-badge `Ad` no canto superior direito da 🛍️ (`.sponsor-ad-badge`,
    ~7px). Mantém a conformidade da Google Play (rótulo **na própria peça**) e

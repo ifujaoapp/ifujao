@@ -169,6 +169,17 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
    coluna abaixo de 720px via classe `.admin-content` + `@media`); (3) **busca
    por nome** na lista "Cadastrados" (filtro local + contador `visible.length`).
 
+- **Refino de UX do admin (`sponsor-admin`):** ajustes de usabilidade no
+   `src/Admin.tsx` / `src/SponsorMap.tsx` / `src/index.css` — commits
+   `bc5a8b4`, `8c19807`, `3e3cfe1`, `f197eb1` (push feitos; GitHub Pages
+   reconstrói no push): (a) o formulário virou **coluna flex com scroll
+   interno** (`formPanel` + `formScroll`) e o rodapé (Salvar/Limpar) ficou
+   **fora** da área de scroll (`formFooter`), eliminando a sobreposição dos
+   botões sobre os campos; (b) **botão Cancelar** na edição (descarta via
+   `startNew`); (c) **mapa menor** (320→220px); (d) **cabeçalho compacto** e
+   com **estatísticas da tabela** ao lado do título (`total · ativos ·
+   inativos`, texto muted), visual com sombra suave no lugar da borda.
+
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace
   (`repository2/04`→`03`, etc.): o conteúdo é v4 de verdade e quebra o parse

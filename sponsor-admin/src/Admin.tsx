@@ -662,6 +662,8 @@ const listUl: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
   margin: 0,
+  maxHeight: 480,
+  overflowY: "auto",
 };
 const listThumb: React.CSSProperties = {
   width: 40,

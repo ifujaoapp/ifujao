@@ -1511,6 +1511,7 @@ const makeStyles = (c: typeof Colors.light) =>
       padding: 24,
       alignItems: "center",
       position: "relative",
+      overflow: "hidden",
     },
     descCover: {
       width: "100%",
@@ -1541,7 +1542,8 @@ const makeStyles = (c: typeof Colors.light) =>
       marginTop: 4,
     },
     descScroll: {
-      maxHeight: 300,
+      flex: 1,
+      minHeight: 0,
       width: "100%",
     },
     descText: {

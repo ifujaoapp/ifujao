@@ -79,6 +79,9 @@ textarea {
 }
 .area-form {
   grid-area: form;
+  position: sticky;
+  top: 16px;
+  align-self: start;
 }
 
 @media (max-width: 720px) {

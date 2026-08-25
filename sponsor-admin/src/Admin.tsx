@@ -79,6 +79,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const [advanced, setAdvanced] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; id: string } | null>(null);
+  const [page, setPage] = useState(1);
   const isTouchDevice =
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
@@ -304,6 +305,9 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const visible = list.filter((s) =>
     s.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
+  const perPage = 10;
+  const totalPages = Math.max(1, Math.ceil(visible.length / perPage));
+  const paged = visible.slice((page - 1) * perPage, page * perPage);
   const total = list.length;
   const ativos = list.filter((s) => s.active).length;
   const inativos = total - ativos;
@@ -503,11 +507,14 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             style={input}
             placeholder="Buscar por nome…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
           />
           {loading ? <p>Carregando…</p> : null}
           <ul style={listUl}>
-            {visible.map((s) => (
+            {paged.map((s) => (
               <li
                 key={s.id}
                 style={{ ...item, cursor: "pointer" }}
@@ -567,6 +574,33 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
               </li>
             ))}
           </ul>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginTop: 12,
+              gap: 8,
+            }}
+          >
+            <button
+              className="btn-edit"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Anterior
+            </button>
+            <span style={{ fontSize: 13, color: "#666" }}>
+              Página {page} de {totalPages}
+            </span>
+            <button
+              className="btn-edit"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Próxima →
+            </button>
+          </div>
         </section>
       </div>
       {toast ? <div className="toast">{toast}</div> : null}

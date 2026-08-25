@@ -49,5 +49,7 @@ build-local*.log
 build-unico*.log
 doctor.log
 prebuild.log
+lint-check.log
+lint-hook.log
 
 supabase/.temp/

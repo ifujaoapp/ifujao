@@ -663,6 +663,7 @@ const makeStyles = (c: typeof Colors.light) =>
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
+      paddingHorizontal: 20,
       marginBottom: 20,
     },
     modalTitle: {

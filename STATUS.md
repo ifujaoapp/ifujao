@@ -177,8 +177,24 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
    **fora** da área de scroll (`formFooter`), eliminando a sobreposição dos
    botões sobre os campos; (b) **botão Cancelar** na edição (descarta via
    `startNew`); (c) **mapa menor** (320→220px); (d) **cabeçalho compacto** e
-   com **estatísticas da tabela** ao lado do título (`total · ativos ·
-   inativos`, texto muted), visual com sombra suave no lugar da borda.
+    com **estatísticas da tabela** ao lado do título (`total · ativos ·
+    inativos`, texto muted), visual com sombra suave no lugar da borda.
+
+- **Ajustes finos do admin (`sponsor-admin`):** commits `0cf31b0`, `cef400f`,
+    `54e64de` (push feitos; GitHub Pages reconstrói no push). (1) **mapa menor**
+    (220→180px); (2) **botão GPS e "Posição atual" na mesma linha**, botão
+    enxuto (`📍 GPS`) e texto de coordenadas reduzido (fonte 11, `ellipsis`);
+    (3) **fim do espaço em branco no mapa**: `SponsorMap.tsx` ganhou
+    `ResizeFix` (`map.invalidateSize()` no mount e no `resize`), removida a
+    `marginTop` do `MapContainer`, e o card do mapa (`mapPanel`) passou a ter
+    `padding:0` + `overflow:hidden` para o mapa colar nas bordas (o respiro
+    interno foi para a linha GPS/posição via `posRow`);
+    (4) **coordenadas avançadas sincronizadas com o mapa**: o campo
+    "Coordenadas avançadas" (`src/Admin.tsx`) virou **controlado**
+    (`coordText`); ao **clicar no mapa** (`onPick`), usar **GPS** ou buscar
+    endereço, o texto `lat, lng` é preenchido e a seção avançada é **aberta
+    automaticamente**; `startEdit` também preenche o texto e `startNew` o limpa.
+
 
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace

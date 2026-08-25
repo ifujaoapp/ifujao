@@ -77,12 +77,15 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [advanced, setAdvanced] = useState(false);
+  const [coordText, setCoordText] = useState("");
   const [toast, setToast] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ lat: number; lng: number; id: string } | null>(null);
   const [page, setPage] = useState(1);
   const isTouchDevice =
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+  const fmtCoord = (lat: number, lng: number) => `${lat}, ${lng}`;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,6 +114,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const startNew = () => {
     setEditing(null);
     setForm(emptyForm());
+    setCoordText("");
     setLogoFile(null);
     setLogoPreview(null);
     setError("");
@@ -131,6 +135,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       active: s.active,
       visibleFrom: s.visible_from ?? "",
     });
+    setCoordText(fmtCoord(s.latitude, s.longitude));
     setLogoFile(null);
     setLogoPreview(null);
     setError("");
@@ -138,6 +143,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
 
   const onPick = (lat: number, lng: number) => {
     setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
+    setCoordText(fmtCoord(lat, lng));
+    setAdvanced(true);
   };
 
   const markMyLocation = () => {
@@ -324,7 +331,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
         </header>
 
       <div className="admin-content">
-        <section style={panel} className="area-map">
+        <section style={mapPanel} className="area-map">
           <SponsorMap
             lat={form.latitude}
             lng={form.longitude}
@@ -377,8 +384,11 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             <input
               style={input}
               placeholder="Latitude, longitude  (ex.: -23.505396644879013, -47.42821991461613)"
+              value={coordText}
               onChange={(e) => {
-                const partes = e.target.value
+                const v = e.target.value;
+                setCoordText(v);
+                const partes = v
                   .split(",")
                   .map((s) => parseFloat(s.trim()));
                 if (
@@ -634,6 +644,13 @@ const panel: React.CSSProperties = {
   padding: 16,
   boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
 };
+const mapPanel: React.CSSProperties = {
+  background: "#fff",
+  borderRadius: 14,
+  padding: 0,
+  overflow: "hidden",
+  boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+};
 const formPanel: React.CSSProperties = {
   ...panel,
 };
@@ -665,7 +682,8 @@ const posRow: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
-  marginBottom: 12,
+  padding: "10px 12px 12px",
+  margin: 0,
 };
 const locBtn: React.CSSProperties = {
   flex: "0 0 auto",

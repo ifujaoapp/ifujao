@@ -26,6 +26,20 @@ function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }
   return null;
 }
 
+function ResizeFix() {
+  const map = useMap();
+  useEffect(() => {
+    const fix = () => map.invalidateSize();
+    const t = setTimeout(fix, 0);
+    window.addEventListener("resize", fix);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("resize", fix);
+    };
+  }, [map]);
+  return null;
+}
+
 function Recenter({
   lat,
   lng,
@@ -70,9 +84,10 @@ export default function SponsorMap({
     <MapContainer
       center={center}
       zoom={13}
-      style={{ height: 180, width: "100%", borderRadius: 12, marginTop: 4 }}
+      style={{ height: 180, width: "100%", borderRadius: 12, display: "block" }}
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <ResizeFix />
       <ClickHandler onPick={onPick} />
       <Recenter lat={lat} lng={lng} focus={focus ? { lat: focus.lat, lng: focus.lng } : null} />
       {sponsors

@@ -311,21 +311,9 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   return (
     <div style={wrap}>
         <header style={header}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
-              🛍️ Patrocinadores
-            </h2>
-            <span style={statText}>
-              {total} total · {ativos} ativos · {inativos} inativos
-            </span>
-          </div>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+            🛍️ Patrocinadores
+          </h2>
           <button style={logoutBtn} onClick={logout}>
             Sair
           </button>
@@ -336,13 +324,6 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           <h3 style={{ marginTop: 0 }}>
             {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
           </h3>
-          <div style={formScroll}>
-          <input
-            style={input}
-            placeholder="Nome *"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
           <SponsorMap
             lat={form.latitude}
             lng={form.longitude}
@@ -358,6 +339,13 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             Posição atual — Lat: {form.latitude.toFixed(5)} / Lng:{" "}
             {form.longitude.toFixed(5)}
           </p>
+          <div style={formScroll}>
+          <input
+            style={input}
+            placeholder="Nome *"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
           <input
             style={input}
             placeholder="Endereço ou CEP (Enter para marcar no mapa)"
@@ -595,11 +583,6 @@ const header: React.CSSProperties = {
   position: "sticky",
   top: 0,
   zIndex: 10,
-};
-const statText: React.CSSProperties = {
-  fontSize: 12,
-  color: "#8e8e93",
-  fontWeight: 500,
 };
 const logoutBtn: React.CSSProperties = {
   padding: "6px 12px",

@@ -122,8 +122,30 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   visível** abaixo do pin 🛍️ no mapa (`components/home/MapLeaflet.tsx`). Atende à
   política de *rotulagem clara* (o mapa **não tem legenda** — foi removida; o
   disclosura ocorre no pin e no modal). Termo "ANÚNCIO" (seguro segundo a Google
-  Play). Pendência manual: declarar "Contém anúncios" no Google Play Console e
-  citar patrocinadores na Política de Privacidade.
+   Play). Pendência manual: declarar "Contém anúncios" no Google Play Console e
+   citar patrocinadores na Política de Privacidade.
+
+- **Delta de sync de patrocinadores + expiração por dia (`date`):** o toggle
+  "todos ↔ só meus" (`components/home/MapArea.tsx`) dispara `refreshSponsors`
+  com delta real. `lib/sponsors.ts`: `fetchSponsorsDelta(since)` traz só o que
+  mudou desde `lastSponsorSyncRef` (via `updated_at`) + a lista de ids ativos
+  para detectar remoção (o backend não tem `deleted_at`). `visible_from` virou
+  coluna **`date`** (sem fuso) em `supabase/sponsors.sql` — com o trigger
+  `sponsors_set_updated_at` que atualiza `updated_at` em todo UPDATE — eliminando
+  o off-by-one de fuso: o pin some à meia-noite local do dia seguinte (NUNCA às
+  21h). O admin (`sponsor-admin`) grava a data direta; `isSponsorVisible`
+  compara o dia de calendário local (`vf >= hoje`). Corrigido bug do delta que
+  não removia pin expirado (o `changed` filtrava `isSponsorVisible`, e o cache
+  antigo — ainda visível — sobrava no merge).
+- **CloseCircle unificado (`components/CloseCircle.tsx`):** componente único
+  (círculo 24×24, raio 12, ícone `close` 18, vetor centralizado) usado em TODOS
+  os X de fechar (ReportModal, PetDetailModal, Modals, ImageViewer, câmera,
+  remover foto). Removeu os estilos duplicados `roundClose`/`demoClose`/
+  `reportClose`/`cameraClose`/`cameraCloseWrap`/`photoRemove`. `modalHeader`
+  ganhou `paddingHorizontal:20` para afastar o X da borda.
+- **Modal de descrição (card pet) rola:** `descScroll` com `maxHeight` + card
+  `overflow:"hidden"` — descrição grande rola dentro do modal e não estoura a
+  tela (sem colapsar a 0, que era o caso com `flex:1`+`minHeight:0`).
 
 ### Lição concreta — device id / sync / build (não repetir)
 - **NUNCA editar os `package.xml` do Android SDK** para baixar namespace
@@ -138,7 +160,10 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
 
 ### Pendências / em aberto
 1. **Rebuild nativo pendente** (`npx expo run:android`) para validar em runtime
-   as mudanças de UI (banner AJUDE, legenda removida, pulso FAB, dropdowns).
+   as mudanças de UI desta sessão: delta de patrocinadores no toggle, pin 🛍️
+   sumindo à meia-noite local (data `date`), CloseCircle uniforme (X de fechar
+   24×24), e o modal de descrição rolando. O admin web (GitHub Pages) reconstrói
+   sozinho no push; o app mobile exige rebuild.
 2. **Busca por IA**: palavras que não nomeiam animal (ex.: `navio`) ainda podem
    retornar o pet mais próximo (piso `MIN_BEST_SIMILARITY=0.32`). Decisão do
    usuário: deixar assim.

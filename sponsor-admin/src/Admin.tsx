@@ -313,7 +313,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const inativos = total - ativos;
 
   return (
-    <div style={wrap}>
+    <div className="admin-wrap">
         <header style={header}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
             🛍️ Patrocinadores
@@ -608,7 +608,6 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   );
 }
 
-const wrap: React.CSSProperties = { minHeight: "100vh", paddingBottom: 40 };
 const header: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
@@ -696,6 +695,8 @@ const listUl: React.CSSProperties = {
   listStyle: "none",
   padding: 0,
   margin: 0,
+  flex: 1,
+  minHeight: 0,
   maxHeight: 480,
   overflowY: "auto",
 };

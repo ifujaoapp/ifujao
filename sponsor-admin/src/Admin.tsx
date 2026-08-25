@@ -320,7 +320,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
         </header>
 
       <div className="admin-content">
-        <section style={panel} className="map-panel">
+        <section style={panel} className="area-map">
           <SponsorMap
             lat={form.latitude}
             lng={form.longitude}
@@ -338,8 +338,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           </p>
         </section>
 
-        <div style={rightCol}>
-          <section style={formPanel}>
+        <section style={formPanel} className="area-form">
             <h3 style={{ marginTop: 0 }}>
               {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
             </h3>
@@ -478,7 +477,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           </div>
         </section>
 
-        <section style={panel}>
+        <section style={panel} className="area-list">
           <div
             style={{
               display: "flex",
@@ -569,7 +568,6 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             ))}
           </ul>
         </section>
-        </div>
       </div>
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
@@ -604,15 +602,6 @@ const panel: React.CSSProperties = {
 };
 const formPanel: React.CSSProperties = {
   ...panel,
-};
-const mapPanel: React.CSSProperties = {
-  ...panel,
-};
-const rightCol: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 16,
-  minWidth: 0,
 };
 const formScroll: React.CSSProperties = {};
 const input: React.CSSProperties = {

@@ -290,15 +290,32 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const visible = list.filter((s) =>
     s.name.toLowerCase().includes(search.trim().toLowerCase()),
   );
+  const total = list.length;
+  const ativos = list.filter((s) => s.active).length;
+  const inativos = total - ativos;
 
   return (
     <div style={wrap}>
         <header style={header}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Patrocinadores</h2>
-        <button style={logoutBtn} onClick={logout}>
-          Sair
-        </button>
-      </header>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>
+              🛍️ Patrocinadores
+            </h2>
+            <span style={statText}>
+              {total} total · {ativos} ativos · {inativos} inativos
+            </span>
+          </div>
+          <button style={logoutBtn} onClick={logout}>
+            Sair
+          </button>
+        </header>
 
       <div className="admin-content">
         <section style={formPanel}>
@@ -485,12 +502,18 @@ const header: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
+  gap: 12,
   padding: "10px 16px",
   background: "#fff",
-  borderBottom: "1px solid #e5e5ea",
+  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
   position: "sticky",
   top: 0,
   zIndex: 10,
+};
+const statText: React.CSSProperties = {
+  fontSize: 12,
+  color: "#8e8e93",
+  fontWeight: 500,
 };
 const logoutBtn: React.CSSProperties = {
   padding: "6px 12px",

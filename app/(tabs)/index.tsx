@@ -1542,8 +1542,7 @@ const makeStyles = (c: typeof Colors.light) =>
       marginTop: 4,
     },
     descScroll: {
-      flex: 1,
-      minHeight: 0,
+      maxHeight: 300,
       width: "100%",
     },
     descText: {

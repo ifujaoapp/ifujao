@@ -75,6 +75,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const [error, setError] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const isTouchDevice =
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
@@ -286,6 +287,10 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     onLogout();
   };
 
+  const visible = list.filter((s) =>
+    s.name.toLowerCase().includes(search.trim().toLowerCase()),
+  );
+
   return (
     <div style={wrap}>
       <header style={header}>
@@ -295,7 +300,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
         </button>
       </header>
 
-      <div style={content}>
+      <div className="admin-content">
         <section style={panel}>
           <h3 style={{ marginTop: 0 }}>
             {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
@@ -310,6 +315,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             lat={form.latitude}
             lng={form.longitude}
             onPick={onPick}
+            sponsors={list}
+            currentId={editing?.id ?? null}
           />
           <button style={locBtn} onClick={markMyLocation} type="button">
             📍 Usar minha localização (GPS)
@@ -427,10 +434,16 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
         </section>
 
         <section style={panel}>
-          <h3 style={{ marginTop: 0 }}>Cadastrados ({list.length})</h3>
+          <h3 style={{ marginTop: 0 }}>Cadastrados ({visible.length})</h3>
+          <input
+            style={input}
+            placeholder="Buscar por nome…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
           {loading ? <p>Carregando…</p> : null}
           <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {list.map((s) => (
+            {visible.map((s) => (
               <li key={s.id} style={item}>
                 <div>
                   <strong>{s.name}</strong>{" "}
@@ -471,14 +484,6 @@ const logoutBtn: React.CSSProperties = {
   borderRadius: 10,
   border: "1px solid #ccc",
   background: "#fff",
-};
-const content: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)",
-  gap: 16,
-  padding: 16,
-  maxWidth: 1100,
-  margin: "0 auto",
 };
 const panel: React.CSSProperties = {
   background: "#fff",

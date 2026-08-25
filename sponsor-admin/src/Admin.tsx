@@ -305,6 +305,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           <h3 style={{ marginTop: 0 }}>
             {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
           </h3>
+          <div style={formScroll}>
           <input
             style={input}
             placeholder="Nome *"
@@ -425,13 +426,20 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             Ativo (visível no app)
           </label>
           {error ? <p style={err}>{error}</p> : null}
-          <div style={{ ...formFooter, display: "flex", gap: 8 }}>
+          </div>
+          <div style={formFooter}>
             <button style={btnPrimary} disabled={saving} onClick={save}>
               {saving ? "Salvando…" : editing ? "Atualizar" : "Adicionar"}
             </button>
-            <button style={btnGhost} onClick={startNew}>
-              Limpar
-            </button>
+            {editing ? (
+              <button style={btnGhost} onClick={startNew}>
+                Cancelar
+              </button>
+            ) : (
+              <button style={btnGhost} onClick={startNew}>
+                Limpar
+              </button>
+            )}
           </div>
         </section>
 
@@ -499,6 +507,14 @@ const panel: React.CSSProperties = {
 const formPanel: React.CSSProperties = {
   ...panel,
   maxHeight: "calc(100vh - 96px)",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+  paddingRight: 4,
+};
+const formScroll: React.CSSProperties = {
+  flex: 1,
+  minHeight: 0,
   overflowY: "auto",
   paddingRight: 4,
 };
@@ -569,13 +585,11 @@ const btnSmallDanger: React.CSSProperties = {
 };
 const err: React.CSSProperties = { color: "#FF3B30", fontSize: 13 };
 const formFooter: React.CSSProperties = {
-  position: "sticky",
-  bottom: 0,
-  background: "#fff",
+  display: "flex",
+  gap: 8,
   marginTop: 12,
   paddingTop: 12,
   borderTop: "1px solid #e5e5ea",
-  zIndex: 5,
 };
 const item: React.CSSProperties = {
   display: "flex",

@@ -320,10 +320,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
         </header>
 
       <div className="admin-content">
-        <section style={formPanel}>
-          <h3 style={{ marginTop: 0 }}>
-            {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
-          </h3>
+        <section style={panel} className="map-panel">
           <SponsorMap
             lat={form.latitude}
             lng={form.longitude}
@@ -339,13 +336,20 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             Posição atual — Lat: {form.latitude.toFixed(5)} / Lng:{" "}
             {form.longitude.toFixed(5)}
           </p>
-          <div style={formScroll}>
-          <input
-            style={input}
-            placeholder="Nome *"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-          />
+        </section>
+
+        <div style={rightCol}>
+          <section style={formPanel}>
+            <h3 style={{ marginTop: 0 }}>
+              {editing ? `Editando: ${editing.name}` : "Novo patrocinador"}
+            </h3>
+            <div style={formScroll}>
+            <input
+              style={input}
+              placeholder="Nome *"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
           <input
             style={input}
             placeholder="Endereço ou CEP (Enter para marcar no mapa)"
@@ -565,6 +569,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             ))}
           </ul>
         </section>
+        </div>
       </div>
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
@@ -599,18 +604,17 @@ const panel: React.CSSProperties = {
 };
 const formPanel: React.CSSProperties = {
   ...panel,
-  maxHeight: "calc(100vh - 80px)",
+};
+const mapPanel: React.CSSProperties = {
+  ...panel,
+};
+const rightCol: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  overflow: "hidden",
-  paddingRight: 4,
+  gap: 16,
+  minWidth: 0,
 };
-const formScroll: React.CSSProperties = {
-  flex: 1,
-  minHeight: 0,
-  overflowY: "auto",
-  paddingRight: 4,
-};
+const formScroll: React.CSSProperties = {};
 const input: React.CSSProperties = {
   width: "100%",
   padding: 10,

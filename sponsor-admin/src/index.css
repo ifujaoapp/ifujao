@@ -67,9 +67,18 @@ textarea {
   margin: 0 auto;
 }
 
+.map-panel {
+  position: sticky;
+  top: 16px;
+  align-self: flex-start;
+}
+
 @media (max-width: 720px) {
   .admin-content {
     grid-template-columns: 1fr;
+  }
+  .map-panel {
+    position: static;
   }
 }
 

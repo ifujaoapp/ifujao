@@ -293,8 +293,8 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div style={wrap}>
-      <header style={header}>
-        <h2 style={{ margin: 0 }}>Patrocinadores</h2>
+        <header style={header}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Patrocinadores</h2>
         <button style={logoutBtn} onClick={logout}>
           Sair
         </button>
@@ -485,7 +485,7 @@ const header: React.CSSProperties = {
   display: "flex",
   justifyContent: "space-between",
   alignItems: "center",
-  padding: "16px 20px",
+  padding: "10px 16px",
   background: "#fff",
   borderBottom: "1px solid #e5e5ea",
   position: "sticky",
@@ -493,10 +493,11 @@ const header: React.CSSProperties = {
   zIndex: 10,
 };
 const logoutBtn: React.CSSProperties = {
-  padding: "8px 14px",
+  padding: "6px 12px",
   borderRadius: 10,
   border: "1px solid #ccc",
   background: "#fff",
+  fontSize: 14,
 };
 const panel: React.CSSProperties = {
   background: "#fff",
@@ -506,7 +507,7 @@ const panel: React.CSSProperties = {
 };
 const formPanel: React.CSSProperties = {
   ...panel,
-  maxHeight: "calc(100vh - 96px)",
+  maxHeight: "calc(100vh - 80px)",
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",

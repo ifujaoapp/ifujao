@@ -26,13 +26,22 @@ function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }
   return null;
 }
 
-function Recenter({ lat, lng }: { lat: number; lng: number }) {
+function Recenter({
+  lat,
+  lng,
+  focus,
+}: {
+  lat: number;
+  lng: number;
+  focus?: { lat: number; lng: number } | null;
+}) {
   const map = useMap();
   useEffect(() => {
-    if (typeof lat === "number" && typeof lng === "number") {
-      map.setView([lat, lng], map.getZoom());
+    const f = focus ?? { lat, lng };
+    if (typeof f.lat === "number" && typeof f.lng === "number") {
+      map.setView([f.lat, f.lng], map.getZoom());
     }
-  }, [lat, lng, map]);
+  }, [focus?.lat, focus?.lng, lat, lng, map]);
   return null;
 }
 
@@ -42,12 +51,14 @@ export default function SponsorMap({
   onPick,
   sponsors = [],
   currentId = null,
+  focus = null,
 }: {
   lat: number;
   lng: number;
   onPick: (lat: number, lng: number) => void;
   sponsors?: Sponsor[];
   currentId?: string | null;
+  focus?: { lat: number; lng: number; id: string } | null;
 }) {
   const center: [number, number] =
     typeof lat === "number" && typeof lng === "number"
@@ -59,18 +70,18 @@ export default function SponsorMap({
     <MapContainer
       center={center}
       zoom={13}
-      style={{ height: 220, width: "100%", borderRadius: 12, marginTop: 4 }}
+      style={{ height: 240, width: "100%", borderRadius: 12, marginTop: 4 }}
     >
       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
       <ClickHandler onPick={onPick} />
-      <Recenter lat={lat} lng={lng} />
+      <Recenter lat={lat} lng={lng} focus={focus ? { lat: focus.lat, lng: focus.lng } : null} />
       {sponsors
         .filter((s) => s.id !== currentId)
         .map((s) => (
           <Marker
             key={s.id}
             position={[s.latitude, s.longitude]}
-            icon={sponsorIcon}
+            icon={s.id === focus?.id ? editingIcon : sponsorIcon}
           >
             <Tooltip>{s.name}</Tooltip>
           </Marker>

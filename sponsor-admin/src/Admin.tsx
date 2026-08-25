@@ -76,6 +76,9 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [advanced, setAdvanced] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ lat: number; lng: number; id: string } | null>(null);
   const isTouchDevice =
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
@@ -270,6 +273,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     setLogoFile(null);
     setLogoPreview(null);
     load();
+    showToast(editing ? "Patrocinador atualizado!" : "Patrocinador adicionado!");
   };
 
   const remove = async (s: Sponsor) => {
@@ -280,6 +284,16 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       return;
     }
     load();
+    showToast("Patrocinador excluído.");
+  };
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2600);
+  };
+
+  const focusSponsor = (s: Sponsor) => {
+    setFocus({ lat: s.latitude, lng: s.longitude, id: s.id });
   };
 
   const logout = async () => {
@@ -335,33 +349,18 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             onPick={onPick}
             sponsors={list}
             currentId={editing?.id ?? null}
+            focus={focus}
           />
           <button style={locBtn} onClick={markMyLocation} type="button">
             📍 Usar minha localização (GPS)
           </button>
-          <p style={{ fontSize: 13, color: "#666" }}>
-            Clique no mapa, use o GPS acima ou cole as coordenadas. Lat:{" "}
-            {form.latitude.toFixed(5)} / Lng: {form.longitude.toFixed(5)}
+          <p style={{ fontSize: 13, color: "#666", marginBottom: 8 }}>
+            Posição atual — Lat: {form.latitude.toFixed(5)} / Lng:{" "}
+            {form.longitude.toFixed(5)}
           </p>
           <input
             style={input}
-            placeholder="Coordenadas: latitude, longitude  (ex.: -23.505396644879013, -47.42821991461613)"
-            onChange={(e) => {
-              const partes = e.target.value
-                .split(",")
-                .map((s) => parseFloat(s.trim()));
-              if (
-                partes.length === 2 &&
-                !Number.isNaN(partes[0]) &&
-                !Number.isNaN(partes[1])
-              ) {
-                setForm({ ...form, latitude: partes[0], longitude: partes[1] });
-              }
-            }}
-          />
-          <input
-            style={input}
-            placeholder="Endereço (opcional, texto legível) — Enter para marcar no mapa"
+            placeholder="Endereço ou CEP (Enter para marcar no mapa)"
             value={form.address ?? ""}
             onChange={(e) => setForm({ ...form, address: e.target.value })}
             onKeyDown={(e) => {
@@ -371,6 +370,31 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
               }
             }}
           />
+          <button
+            type="button"
+            className="disclosure"
+            onClick={() => setAdvanced((a) => !a)}
+          >
+            {advanced ? "▾ Coordenadas avançadas" : "▸ Coordenadas avançadas"}
+          </button>
+          {advanced ? (
+            <input
+              style={input}
+              placeholder="Latitude, longitude  (ex.: -23.505396644879013, -47.42821991461613)"
+              onChange={(e) => {
+                const partes = e.target.value
+                  .split(",")
+                  .map((s) => parseFloat(s.trim()));
+                if (
+                  partes.length === 2 &&
+                  !Number.isNaN(partes[0]) &&
+                  !Number.isNaN(partes[1])
+                ) {
+                  setForm({ ...form, latitude: partes[0], longitude: partes[1] });
+                }
+              }}
+            />
+          ) : null}
           <div className="form-grid-2">
             <input
               style={input}
@@ -446,22 +470,44 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           </div>
           <div style={formFooter}>
             <button style={btnPrimary} disabled={saving} onClick={save}>
-              {saving ? "Salvando…" : editing ? "Atualizar" : "Adicionar"}
+              {saving ? (
+                <>
+                  <span className="spinner" /> Salvando…
+                </>
+              ) : editing ? (
+                "Atualizar"
+              ) : (
+                "Adicionar"
+              )}
             </button>
-            {editing ? (
-              <button style={btnGhost} onClick={startNew}>
-                Cancelar
-              </button>
-            ) : (
-              <button style={btnGhost} onClick={startNew}>
-                Limpar
-              </button>
-            )}
+            <button type="button" style={btnText} onClick={startNew}>
+              {editing ? "Cancelar" : "Limpar"}
+            </button>
           </div>
         </section>
 
         <section style={panel}>
-          <h3 style={{ marginTop: 0 }}>Cadastrados ({visible.length})</h3>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: 8,
+              marginTop: 0,
+            }}
+          >
+            <h3 style={{ margin: 0 }}>Cadastrados ({visible.length})</h3>
+            <div style={{ display: "flex", gap: 6 }}>
+              <span className="stat-badge stat-badge-total">{total}</span>
+              <span className="stat-badge stat-badge-active">
+                {ativos} ativos
+              </span>
+              <span className="stat-badge stat-badge-inactive">
+                {inativos} inativos
+              </span>
+            </div>
+          </div>
           <input
             style={input}
             placeholder="Buscar por nome…"
@@ -469,22 +515,61 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
             onChange={(e) => setSearch(e.target.value)}
           />
           {loading ? <p>Carregando…</p> : null}
-          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul style={listUl}>
             {visible.map((s) => (
-              <li key={s.id} style={item}>
-                <div>
-                  <strong>{s.name}</strong>{" "}
-                  {!s.active ? <span style={badge}>inativo</span> : null}
-                  <div style={{ fontSize: 12, color: "#666" }}>
-                    {s.address || `${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`}
-                    {s.visible_from ? ` · exibe até ${s.visible_from}` : ""}
+              <li
+                key={s.id}
+                style={{ ...item, cursor: "pointer" }}
+                onClick={() => focusSponsor(s)}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  {s.logo ? (
+                    <img src={s.logo} alt="" style={listThumb} />
+                  ) : (
+                    <div style={listThumbEmpty}>🛍️</div>
+                  )}
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <strong
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {s.name}
+                      </strong>
+                      {!s.active ? <span style={badge}>inativo</span> : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#666" }}>
+                      {s.address ||
+                        `${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`}
+                      {s.visible_from ? ` · exibe até ${s.visible_from}` : ""}
+                    </div>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button style={btnSmall} onClick={() => startEdit(s)}>
+                <div
+                  style={{ display: "flex", gap: 6 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button className="btn-edit" onClick={() => startEdit(s)}>
                     Editar
                   </button>
-                  <button style={btnSmallDanger} onClick={() => remove(s)}>
+                  <button className="btn-danger" onClick={() => remove(s)}>
                     Excluir
                   </button>
                 </div>
@@ -493,6 +578,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
           </ul>
         </section>
       </div>
+      {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
 }
@@ -586,26 +672,40 @@ const btnPrimary: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 600,
 };
-const btnGhost: React.CSSProperties = {
-  padding: "12px 16px",
+const btnText: React.CSSProperties = {
+  background: "none",
+  border: "none",
+  color: "#0A84FF",
+  padding: "12px 8px",
+  fontSize: 14,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+const listUl: React.CSSProperties = {
+  listStyle: "none",
+  padding: 0,
+  margin: 0,
+};
+const listThumb: React.CSSProperties = {
+  width: 40,
+  height: 40,
   borderRadius: 10,
-  border: "1px solid #ccc",
-  background: "#fff",
+  objectFit: "cover",
+  border: "1px solid #e5e5ea",
+  flex: "0 0 auto",
 };
-const btnSmall: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 8,
-  border: "1px solid #ccc",
-  background: "#fff",
-  fontSize: 13,
-};
-const btnSmallDanger: React.CSSProperties = {
-  padding: "6px 10px",
-  borderRadius: 8,
-  border: "1px solid #FF3B30",
-  color: "#FF3B30",
-  background: "#fff",
-  fontSize: 13,
+const listThumbEmpty: React.CSSProperties = {
+  width: 40,
+  height: 40,
+  borderRadius: 10,
+  border: "1px solid #e5e5ea",
+  flex: "0 0 auto",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 18,
+  background: "#fff7ec",
 };
 const err: React.CSSProperties = { color: "#FF3B30", fontSize: 13 };
 const formFooter: React.CSSProperties = {

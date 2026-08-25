@@ -85,3 +85,94 @@ textarea {
   }
 }
 
+.disclosure {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #0a84ff;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 0 10px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-edit {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-danger {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #1c1c1e;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.btn-danger:hover {
+  border-color: #ff3b30;
+  color: #ff3b30;
+}
+
+.stat-badge {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.stat-badge-total {
+  color: #1c1c1e;
+  background: #e5e5ea;
+}
+.stat-badge-active {
+  color: #1d7a3f;
+  background: #e3f5ea;
+}
+.stat-badge-inactive {
+  color: #9a6b00;
+  background: #fff2d6;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-right: 6px;
+  vertical-align: -2px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: rgba(28, 28, 30, 0.92);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  z-index: 50;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+

@@ -111,6 +111,11 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
                 />
+                <ScrollView
+                  style={styles.demoSheetScroll}
+                  contentContainerStyle={styles.demoSheetScrollContent}
+                  showsVerticalScrollIndicator={true}
+                >
                 {selectedPet.foundAt ? null : <HelpFindBanner styles={styles} />}
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
@@ -199,6 +204,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     <Text style={styles.demoDescBtnText}>Ver descrição</Text>
                   </TouchableOpacity>
                 ) : null}
+                </ScrollView>
                 <View style={styles.demoActionBar}>
                   {(() => {
                     type BarAction = {

@@ -1418,7 +1418,6 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     demoSheet: {
       width: "100%",
-      flex: 1,
       maxHeight: "88%",
       backgroundColor: c.card,
       borderTopLeftRadius: 20,
@@ -1430,12 +1429,6 @@ const makeStyles = (c: typeof Colors.light) =>
       shadowOpacity: 0.3,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: -3 },
-    },
-    demoSheetScroll: {
-      flex: 1,
-    },
-    demoSheetScrollContent: {
-      paddingBottom: 4,
     },
     demoSheetHandle: {
       width: "100%",

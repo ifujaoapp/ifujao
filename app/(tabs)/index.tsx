@@ -1643,7 +1643,6 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 16,
       color: c.text,
       lineHeight: 24,
-      textAlign: "justify",
     },
     descFooter: {
       width: "100%",

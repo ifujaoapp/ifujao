@@ -6,6 +6,11 @@ import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { isOwner, normalizePhone } from "@/constants/breeds";
 import { addPendingDelete, fetchPetRemote, isSupabaseConfigured, runSync } from "@/lib/sync";
 import { deletePetPhotos } from "@/lib/photos";
+import {
+  loginModerator as libLoginModerator,
+  logoutModerator as libLogoutModerator,
+  moderatorSoftDelete,
+} from "@/lib/moderation";
 import { onDeepLinkPet, consumePendingPetId } from "@/lib/deeplink";
 import { clearPhotos, loadPets, savePets, type PetRecord } from "@/lib/storage";
 import { fetchSponsors, fetchSponsorsDelta, isSponsorVisible, type SponsorPin } from "@/lib/sponsors";
@@ -28,6 +33,17 @@ export function usePets() {
   const [reportTarget, setReportTarget] = useState<PetPost | null>(null);
   const [sponsorInfo, setSponsorInfo] = useState<SponsorPin | null>(null);
   const shareCardRef = useRef<any>(null);
+
+  // Modo deus (moderação): habilita editar/apagar pets de outros usuários.
+  const [godMode, setGodMode] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const t = await SecureStore.getItemAsync("ifujao_god_token");
+        if (t) setGodMode(true);
+      } catch {}
+    })();
+  }, []);
 
   const commitPets = useCallback(
     async (next: PetPost[]) => {
@@ -224,7 +240,9 @@ export function usePets() {
     showAlert(
       "trash",
       "Apagar alerta",
-      "Tem certeza que deseja apagar este alerta? Esta ação não pode ser desfeita.",
+      godMode
+        ? "Modo deus: isto removerá o post de outro usuário do servidor. Confirmar?"
+        : "Tem certeza que deseja apagar este alerta? Esta ação não pode ser desfeita.",
       [
         { text: "Cancelar", style: "cancel" },
         {
@@ -233,18 +251,32 @@ export function usePets() {
           onPress: async () => {
             const pet = pets.find((p) => p.id === petId);
             const next = pets.filter((p) => p.id !== petId);
-            await addPendingDelete(petId);
-            commitPets(next);
-            if (
-              pet &&
-              isSupabaseConfigured &&
-              isOwner(pet, myDeviceId, myPhone)
-            ) {
-              const urls = pet.remoteImageUrls ?? [];
-              if (urls.length > 0) {
-                deletePetPhotos(urls, myDeviceId).catch((e) => {
-                  console.warn("[index] delete fotos:", e);
-                });
+            if (godMode) {
+              const ok = await moderatorSoftDelete(petId);
+              if (!ok) {
+                showAlert(
+                  "error",
+                  "Erro",
+                  "Não foi possível remover o post no servidor.",
+                );
+              } else {
+                commitPets(next);
+                triggerSync(true);
+              }
+            } else {
+              await addPendingDelete(petId);
+              commitPets(next);
+              if (
+                pet &&
+                isSupabaseConfigured &&
+                isOwner(pet, myDeviceId, myPhone)
+              ) {
+                const urls = pet.remoteImageUrls ?? [];
+                if (urls.length > 0) {
+                  deletePetPhotos(urls, myDeviceId).catch((e) => {
+                    console.warn("[index] delete fotos:", e);
+                  });
+                }
               }
             }
             setSelectedPet(null);
@@ -252,6 +284,17 @@ export function usePets() {
         },
       ],
     );
+  };
+
+  const loginModerator = async (username: string, password: string) => {
+    const ok = await libLoginModerator(username, password);
+    if (ok) setGodMode(true);
+    return ok;
+  };
+
+  const logoutModerator = async () => {
+    await libLogoutModerator();
+    setGodMode(false);
   };
 
   // --- bootstrap (identidade + carga local + patrocinadores) ---
@@ -323,5 +366,8 @@ export function usePets() {
     reportPet,
     submitReport,
     deletePet,
+    godMode,
+    loginModerator,
+    logoutModerator,
   };
 }

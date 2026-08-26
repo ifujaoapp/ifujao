@@ -220,7 +220,13 @@ export const runSync = async (
     try {
       const { error } = await sb.from('pets').update({ deleted_at: new Date().toISOString() }).in('id', pending);
       if (!error) await clearPendingDeletes();
-      else console.warn('[sync] delete pendente falhou:', error.message);
+      else {
+        console.warn('[sync] delete pendente falhou:', error.message);
+        // Se o erro é de RLS (ex.: delete pendente de pet que não é deste
+        // device, ou já apagado por moderação), não adianta tentar de novo —
+        // limpa para parar de warning em loop.
+        if (/row-level security/i.test(error.message)) await clearPendingDeletes();
+      }
     } catch (e) {
       console.warn('[sync] erro no delete pendente:', e);
     }

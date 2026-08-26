@@ -50,6 +50,7 @@ import { resolveContact, revealContact } from "@/lib/contacts";
 import { type PetRecord } from "@/lib/storage";
 import { MapArea } from "@/components/home/MapArea";
 import { PetDetailModal } from "@/components/home/PetDetailModal";
+import { GodLoginModal } from "@/components/home/GodLoginModal";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -62,6 +63,25 @@ export default function HomeScreen() {
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
+  const [isGodLoginVisible, setIsGodLoginVisible] = useState(false);
+  const godTapCount = useRef(0);
+  const godTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleClockTap = () => {
+    godTapCount.current += 1;
+    if (godTapTimer.current) clearTimeout(godTapTimer.current);
+    godTapTimer.current = setTimeout(() => {
+      godTapCount.current = 0;
+    }, 3000);
+    if (godTapCount.current >= 10) {
+      godTapCount.current = 0;
+      if (godMode) {
+        logoutModerator();
+        showAlert("info", "Modo deus", "Modo deus desativado.");
+      } else {
+        setIsGodLoginVisible(true);
+      }
+    }
+  };
   const camera = usePetCamera();
   const {
     isPhotoSourceVisible,
@@ -123,6 +143,9 @@ export default function HomeScreen() {
     reportPet,
     submitReport,
     deletePet,
+    godMode,
+    loginModerator,
+    logoutModerator,
   } = usePets();
 
   const mapLocation = useMapLocation(triggerSync);
@@ -311,28 +334,39 @@ export default function HomeScreen() {
           style={styles.titleBar}
           onLayout={(e) => setTitleBarH(e.nativeEvent.layout.height)}
         >
-          <Ionicons
-            style={styles.clockIcon}
-            name={isDay ? "sunny" : "moon"}
-            size={22}
-            color={isDay ? "#FFD60A" : "#E6E6FA"}
-          />
-          <View style={styles.clockText}>
-            <Text style={styles.clockTime}>
-              {now.toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
-            </Text>
-            <Text style={styles.clockDate}>
-              {now.toLocaleDateString("pt-BR", {
-                weekday: "short",
-                day: "2-digit",
-                month: "short",
-              })}
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={styles.clockWrap}
+            activeOpacity={0.7}
+            onPress={handleClockTap}
+          >
+            <Ionicons
+              style={styles.clockIcon}
+              name={isDay ? "sunny" : "moon"}
+              size={22}
+              color={isDay ? "#FFD60A" : "#E6E6FA"}
+            />
+            <View style={styles.clockText}>
+              <Text style={styles.clockTime}>
+                {now.toLocaleTimeString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                })}
+              </Text>
+              <Text style={styles.clockDate}>
+                {now.toLocaleDateString("pt-BR", {
+                  weekday: "short",
+                  day: "2-digit",
+                  month: "short",
+                })}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          {godMode ? (
+            <View style={styles.godBadge}>
+              <Text style={styles.godBadgeText}>⚡ DEUS</Text>
+            </View>
+          ) : null}
           <TouchableOpacity
             style={styles.titleInfoBtn}
             onPress={() => setIsAboutVisible(true)}
@@ -478,6 +512,16 @@ export default function HomeScreen() {
         styles={styles}
       />
 
+      <GodLoginModal
+        visible={isGodLoginVisible}
+        onClose={() => setIsGodLoginVisible(false)}
+        onSuccess={() => {
+          setIsGodLoginVisible(false);
+          showAlert("info", "Modo deus", "Modo deus ativado. Você pode moderar posts de outros usuários.");
+        }}
+        loginModerator={loginModerator}
+      />
+
       <PetDetailModal
         selectedPet={selectedPet}
         setSelectedPet={setSelectedPet}
@@ -495,6 +539,7 @@ export default function HomeScreen() {
         commitPets={commitPets}
         pets={pets}
         deletePet={deletePet}
+        godMode={godMode}
         setShowDescriptionModal={setShowDescriptionModal}
         showDescriptionModal={showDescriptionModal}
         shareCardRef={shareCardRef}
@@ -1081,6 +1126,22 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     clockIcon: {
       marginRight: 8,
+    },
+    clockWrap: {
+      flexDirection: "row",
+      alignItems: "center",
+    },
+    godBadge: {
+      marginLeft: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 8,
+      backgroundColor: "#FFD60A",
+    },
+    godBadgeText: {
+      color: "#111",
+      fontSize: 11,
+      fontWeight: "800",
     },
     clockText: {
       alignItems: "flex-start",

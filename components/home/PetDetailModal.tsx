@@ -28,6 +28,7 @@ export interface PetDetailModalProps {
   commitPets: (pets: PetRecord[]) => void;
   pets: PetRecord[];
   deletePet: (id: string) => void;
+  godMode: boolean;
   setShowDescriptionModal: (v: boolean) => void;
   showDescriptionModal: boolean;
   shareCardRef: RefObject<ViewShot>;
@@ -51,6 +52,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
     commitPets,
     pets,
     deletePet,
+    godMode,
     setShowDescriptionModal,
     showDescriptionModal,
     shareCardRef,
@@ -83,12 +85,12 @@ export function PetDetailModal(props: PetDetailModalProps) {
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
                     images={selectedPet.images}
-                    blurRadius={selectedPet.reported ? 18 : 0}
+                    blurRadius={selectedPet.reported && !godMode ? 18 : 0}
                     onPressImage={(imgs, idx) => {
-                      if (!selectedPet.reported) openInViewer(imgs, idx);
+                      if (!selectedPet.reported || godMode) openInViewer(imgs, idx);
                     }}
                   />
-                  {selectedPet.reported ? (
+                  {selectedPet.reported && !godMode ? (
                     <View style={styles.reportedBanner}>
                       <Text style={styles.reportedBannerText}>DENÚNCIA</Text>
                     </View>
@@ -208,11 +210,13 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       onPress: () => sharePetCard(selectedPet),
                     },
                   ];
-                  if (isOwner(selectedPet, myDeviceId, myPhone)) {
+                  if (isOwner(selectedPet, myDeviceId, myPhone) || godMode) {
                     actions.push({
                       key: "delete",
                       icon: "trash",
-                      label: "Apagar",
+                      label: godMode && !isOwner(selectedPet, myDeviceId, myPhone)
+                        ? "Apagar (mod)"
+                        : "Apagar",
                       color: "#FF3B30",
                       onPress: () => deletePet(selectedPet.id),
                     });
@@ -303,9 +307,9 @@ export function PetDetailModal(props: PetDetailModalProps) {
                 source={{ uri: selectedPet.images[0] }}
                 style={styles.shareCardPhoto}
                 resizeMode="cover"
-                blurRadius={selectedPet.reported ? 18 : 0}
+                blurRadius={selectedPet.reported && !godMode ? 18 : 0}
               />
-              {selectedPet.reported && (
+              {selectedPet.reported && !godMode && (
                 <View style={styles.shareCardReported}>
                   <Text style={styles.shareCardReportedText}>DENÚNCIA</Text>
                 </View>

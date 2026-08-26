@@ -247,6 +247,61 @@ Remove-Item -Recurse -Force ..\node_modules\.cache, ..\.expo
 
 ---
 
+## Modo Deus (moderação) — 2026-08-25
+
+Moderação para apagar posts de **outros** usuários e ver denúncias sem bloqueio
+visual. Backend Supabase (Opção B: tabela `moderators` + Edge Function que
+devolve JWT de moderador). **Funcionando em produção** (testado).
+
+### App (mobile)
+- **Gatilho:** 10 toques no relógio da `titleBar` (`app/(tabs)/index.tsx`, bloco
+  `clockWrap` + `onPress={handleClockTap}`, janela de 3s). 10 toques abrem
+  `GodLoginModal` (usuário+senha); 10 toques **com modo ativo** desativam.
+- **Badge:** "⚡ DEUS" amarelo na `titleBar` quando ativo.
+- **Login seguro:** `lib/moderation.ts` → `loginModerator` chama a Edge Function
+  `god-login`; o token JWT é salvo em `SecureStore` (`ifujao_god_token`) e
+  persistido (reativa sozinho ao reabrir o app). `usePets` expõe `godMode`,
+  `loginModerator`, `logoutModerator`.
+- **Delete de moderação:** `moderatorSoftDelete` faz **PATCH direto na PostgREST**
+  (`PATCH /rest/v1/pets?id=eq.<id>` com `Authorization: Bearer <token>` +
+  `apikey`), setando `deleted_at`. Feito **antes** de remover localmente, e só
+  remove o pet do estado (`commitPets`) se o servidor confirmar — assim o pin
+  soma do mapa e não é repuxado pelo sync.
+- **Imagens de denúncia:** no modo deus as fotos NÃO são borradas (carrossel e
+  card de compartilhar) e o toque abre o viewer; o banner "DENÚNCIA" também é
+  ocultado (`PetDetailModal` usa `selectedPet.reported && !godMode`).
+- **Sync:** `lib/sync.ts` limpa os deletes pendentes quando o erro é de RLS
+  (evita loop de warnings com pendentes órfãos de tentativas anteriores).
+
+### Backend (Supabase)
+- `supabase/moderators.sql`: tabela `moderators` (username + `password_hash`
+  bcrypt) + RLS que bloqueia anon/authenticated (só `service_role` lê). O
+  `insert` é recriado do zero (drop + create) para facilitar recadastro.
+- `supabase/functions/god-login/index.ts`: valida `{username,password}` contra o
+  hash (bcryptjs `compare`) e devolve JWT **HS256** com claim `is_moderator: true`
+  (role `authenticated`, `aud: authenticated`, `sub` = UUID fixo válido, exp 1h).
+  Assinado com a JWT secret do projeto (secret `MODERATOR_JWT_SECRET`).
+  - **Detalhe crítico:** o `sub` PRECISA ser um UUID válido, senão `auth.uid()`
+    (usado em `current_device_id()`) quebra com "invalid input syntax for type
+    uuid". Por isso `sub` é `00000000-0000-0000-0000-0000000000ad`.
+- `supabase/schema.sql`: policy `pets update` ganhou
+  `or ( (auth.jwt() ->> 'is_moderator')::boolean is true )` — libera editar/apagar
+  qualquer pet quando o JWT traz a claim. (App só faz soft-delete via UPDATE.)
+
+### Passos de backend (idempotentes)
+1. SQL Editor: rodar `supabase/moderators.sql` (drop+create+RLS; insert tem
+   placeholder — substitua o hash).
+2. Gerar hash: `npm i bcryptjs` e
+   `node -e "const b=require('bcryptjs'); console.log(b.hashSync(process.argv[1],12))" "SUA_SENHA"`
+   → cole no `insert` (substituindo `COLE_SEU_HASH_BCRYPT_AQUI`).
+3. `supabase secrets set MODERATOR_JWT_SECRET=<Legacy JWT Secret do projeto>`
+   (Dashboard → Settings → JWT → "Legacy JWT Secret").
+4. `supabase functions deploy god-login`.
+5. Reaplicar a policy `pets update` (bloco em `supabase/schema.sql`).
+6. **Rebuild nativo** (`npx expo run:android`) — UI/mode só vale após rebuild.
+
+---
+
 ## Índice do histórico
 
 O histórico completo das sessões (PII/RLS/Edge Function, mapa/GPS, busca por IA,

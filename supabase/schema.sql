@@ -270,6 +270,9 @@ create policy "pets update"
            and reporter_device_id = public.current_device_id()
            and deleted_at is null )
     )
+    -- MODO DEUS (moderação): JWT com claim is_moderator=true (Edge Function
+    -- god-login) libera editar/apagar qualquer pet, ignorando device_id.
+    or ( (auth.jwt() ->> 'is_moderator')::boolean is true )
   );
 
 -- ============================================================================

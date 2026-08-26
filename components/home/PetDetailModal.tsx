@@ -133,7 +133,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                         color="#FFFFFF"
                       />
                       <Text style={styles.foundBannerText}>
-                        REENCONTRADO
+                        Encontrado!
                         {formatLostDate(selectedPet.foundAt)
                           ? ` · ${formatLostDate(selectedPet.foundAt)}`
                           : ""}

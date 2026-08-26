@@ -1,4 +1,4 @@
-import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder } from "react-native";
+import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder, useWindowDimensions } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Ionicons } from "@expo/vector-icons";
 import { type RefObject, useRef } from "react";
@@ -61,6 +61,8 @@ export function PetDetailModal(props: PetDetailModalProps) {
   // BottomSheet: anima o painel para cima/baixo e permite dispensá-lo arrastando
   // o "pegador" (handle) para baixo.
   const sheetY = useRef(new Animated.Value(0)).current;
+  const { height: windowHeight } = useWindowDimensions();
+  const isSmall = windowHeight < 720;
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -91,19 +93,25 @@ export function PetDetailModal(props: PetDetailModalProps) {
             visible={true}
             onRequestClose={() => setSelectedPet(null)}
           >
-            <View
-              style={styles.demoOverlay}
-              onStartShouldSetResponder={() => true}
-              onTouchStart={() => setSelectedPet(null)}
-            >
-              <Animated.View
-                style={[
-                  styles.demoSheet,
-                  { transform: [{ translateY: sheetY }], paddingBottom: insets.bottom + 16 },
-                ]}
+              <View
+                style={[styles.demoOverlay, { justifyContent: isSmall ? "flex-start" : "flex-end" }]}
                 onStartShouldSetResponder={() => true}
-                onTouchStart={(e) => e.stopPropagation()}
+                onTouchStart={() => setSelectedPet(null)}
               >
+                <Animated.View
+                  style={[
+                    styles.demoSheet,
+                    {
+                      transform: [{ translateY: sheetY }],
+                      paddingBottom: insets.bottom + (isSmall ? 6 : 16),
+                      ...(isSmall
+                        ? { marginTop: insets.top + 6, maxHeight: "96%" }
+                        : {}),
+                    },
+                  ]}
+                  onStartShouldSetResponder={() => true}
+                  onTouchStart={(e) => e.stopPropagation()}
+                >
                 <View {...panResponder.panHandlers} style={styles.demoSheetHandle}>
                   <View style={styles.demoSheetHandleBar} />
                 </View>
@@ -141,7 +149,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.demoName}>
+                <Text style={[styles.demoName, isSmall && { marginTop: -8, marginBottom: 0 }]}>
                   {selectedPet.name
                     ? selectedPet.name
                     : selectedPet.species}
@@ -161,7 +169,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   </Text>
                 </View>
                 {formatLostDate(selectedPet.lostDate) ? (
-                  <View style={styles.demoRow}>
+                  <View style={[styles.demoRow, isSmall && { marginBottom: 4 }]}>
                     <Ionicons
                       name="calendar"
                       size={16}
@@ -174,7 +182,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                 ) : null}
                 {typeof selectedPet.reward === "number" &&
                 Number.isFinite(selectedPet.reward) ? (
-                  <View style={styles.demoRewardBadge}>
+                  <View style={[styles.demoRewardBadge, isSmall && { marginTop: 2, marginBottom: 4 }]}>
                     <Ionicons name="cash" size={16} color="#B8860B" />
                     <Text style={styles.demoRewardBadgeText}>
                       Recompensa:{" "}
@@ -186,9 +194,9 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   </View>
                 ) : null}
                 {selectedPet.description ? (
-                  <TouchableOpacity
-                    style={styles.demoDescBtn}
-                    onPress={() => setShowDescriptionModal(true)}
+                    <TouchableOpacity
+                      style={[styles.demoDescBtn, isSmall && { marginBottom: 4 }]}
+                      onPress={() => setShowDescriptionModal(true)}
                     activeOpacity={0.7}
                   >
                     <Ionicons
@@ -199,7 +207,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     <Text style={styles.demoDescBtnText}>Ver descrição</Text>
                   </TouchableOpacity>
                 ) : null}
-                <View style={styles.demoActionBar}>
+                <View style={[styles.demoActionBar, isSmall && { marginTop: 8 }]}>
                   {(() => {
                     type BarAction = {
                       key: string;

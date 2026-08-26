@@ -125,6 +125,21 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       <Text style={styles.reportedBannerText}>DENÚNCIA</Text>
                     </View>
                   ) : null}
+                  {selectedPet.foundAt ? (
+                    <View style={styles.foundBanner}>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={14}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.foundBannerText}>
+                        REENCONTRADO
+                        {formatLostDate(selectedPet.foundAt)
+                          ? ` · ${formatLostDate(selectedPet.foundAt)}`
+                          : ""}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <Text style={styles.demoName}>
                   {selectedPet.name
@@ -194,6 +209,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       primary?: boolean;
                       iconColor?: string;
                       textColor?: string;
+                      bgColor?: string;
                       reportedDisabled?: boolean;
                       onPress: () => void;
                     };
@@ -278,6 +294,60 @@ export function PetDetailModal(props: PetDetailModalProps) {
                         },
                       } as BarAction);
                     }
+                    // Marcar como encontrado: só o dono (ou modo deus) pode.
+                    // Verde e temporário: some do mapa após a janela (48h).
+                    let topFound: BarAction | null = null;
+                    if (isOwn || godMode) {
+                      if (!selectedPet.foundAt) {
+                        const foundAction: BarAction = {
+                          key: "found",
+                          icon: "checkmark-circle",
+                          label: "Marcar como encontrado",
+                          color: "#34C759",
+                          iconColor: "#FFFFFF",
+                          textColor: "#FFFFFF",
+                          bgColor: "#34C759",
+                          primary: isOwn, // dono não tem "Contatar", fica em destaque
+                          onPress: () => {
+                            const id = selectedPet.id;
+                            commitPets(
+                              pets.map((p) =>
+                                p.id === id
+                                  ? {
+                                      ...p,
+                                      foundAt: new Date().toISOString(),
+                                      dirty: true,
+                                    }
+                                  : p,
+                              ),
+                            );
+                            setSelectedPet(null);
+                          },
+                        };
+                        if (isOwn) topFound = foundAction;
+                        else secondary.push(foundAction);
+                      } else {
+                        secondary.push({
+                          key: "unfound",
+                          icon: "close-circle",
+                          label: "Desmarcar encontrado",
+                          color: "#8E8E93",
+                          iconColor: "#8E8E93",
+                          textColor: "#48484A",
+                          onPress: () => {
+                            const id = selectedPet.id;
+                            commitPets(
+                              pets.map((p) =>
+                                p.id === id
+                                  ? { ...p, foundAt: undefined, dirty: true }
+                                  : p,
+                              ),
+                            );
+                            setSelectedPet(null);
+                          },
+                        } as BarAction);
+                      }
+                    }
                     const renderBtn = (item: BarAction) => {
                       const disabled =
                         item.reportedDisabled && selectedPet.reported;
@@ -287,7 +357,13 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       return (
                         <TouchableOpacity
                           key={item.key}
-                          style={[base, disabled && styles.demoActionBtnDisabled]}
+                          style={[
+                            base,
+                            item.bgColor
+                              ? { backgroundColor: item.bgColor, borderWidth: 0 }
+                              : null,
+                            disabled && styles.demoActionBtnDisabled,
+                          ]}
                           disabled={disabled}
                           activeOpacity={0.7}
                           onPress={item.onPress}
@@ -329,6 +405,9 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       <View>
                         {contact ? (
                           <View style={styles.demoActionRowTop}>{renderBtn(contact)}</View>
+                        ) : null}
+                        {topFound ? (
+                          <View style={styles.demoActionRowTop}>{renderBtn(topFound)}</View>
                         ) : null}
                         <View style={styles.demoActionRow}>
                           {secondary.map((item) => renderBtn(item))}

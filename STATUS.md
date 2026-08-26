@@ -98,7 +98,20 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   "Desde dd/mm") via `formatRelDays`/`relDays`, em vez de espécie/status. Os
   marcadores de pet foram para um **pane dedicado** (`petPane`, `zIndex:650`) com
   `zIndexOffset:1000`, garantindo que fiquem **acima dos patrocinadores**.
-- **Cadastro de pet (nome + validações):**
+- **Botão "Marcar como encontrado" (reencontro temporário)**
+  (`components/home/PetDetailModal.tsx`, `MapLeaflet.tsx`, `constants/breeds.ts`,
+  `lib/storage.ts`, `lib/sync.ts`): o **dono** (`isOwn`) ou o **modo deus**
+  (`godMode`) pode marcar o pet como reencontrado. `PetRecord.foundAt`
+  (timestamp ISO) foi adicionado; `FOUND_WINDOW_HOURS = 48` define a janela.
+  - **Mapa:** durante 48h o pino fica **verde** com ✓ e rótulo "REENCONTRADO"
+    (pulso verde, borda `#34C759`); após a janela o marcador **some
+    automaticamente** do mapa (filtro `withinFoundWindow` no `__renderPets`,
+    não apaga o registro). CSS `.paw-pulse-found`/`.pet-text-found` no Leaflet.
+  - **Card do pet:** banner verde "✓ REENCONTRADO" (data) no topo da foto; ação
+    "Marcar como encontrado" (botão verde, `bgColor` em `BarAction`) em destaque
+    para o dono; "Desmarcar encontrado" volta ao estado perdido (remove o pino
+    imediatamente). `commitPets` grava `foundAt` + `dirty:true`; sync preserva
+    via payload (`lib/sync.ts` mapeia `foundAt`).
   - Campo **"Nome do pet"** opcional adicionado (`ReportModal.tsx`,
     `hooks/useReportForm.ts` com `name/setName`, `lib/storage.ts`
     `PetRecord.name?`); a mensagem de compartilhar (`app/(tabs)/index.tsx`)

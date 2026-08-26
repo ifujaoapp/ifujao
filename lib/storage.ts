@@ -26,6 +26,7 @@ export interface PetRecord {
   reportReason?: string;
   reportedBy?: string;
   lostDate?: string;
+  foundAt?: string | null;
   // Campos de sincronização (backend)
   dirty?: boolean;
   remoteImageUrls?: string[];

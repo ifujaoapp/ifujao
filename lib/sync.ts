@@ -57,6 +57,7 @@ const toLocalPet = (row: any): PetRecord => {
     ownerDeviceId: (row.owner_device_id as string | undefined) ?? pet.ownerDeviceId,
     reporterDeviceId: (row.reporter_device_id as string | undefined) ?? pet.reporterDeviceId,
     reported: (row.reported as boolean) ?? pet.reported ?? false,
+    foundAt: ((row.found_at as string) ?? pet.foundAt ?? null) as string | null,
     images: remoteUrls.length > 0 ? remoteUrls : (pet.images ?? []),
     remoteImageUrls: remoteUrls,
     dirty: false,

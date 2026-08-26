@@ -2,6 +2,20 @@ import { type PetRecord } from "@/lib/storage";
 
 export type PetPost = PetRecord;
 
+// Janela em que o pino "REENCONTRADO" (verde) fica visível no mapa após o dono
+// marcar o pet como encontrado. Passada a janela, o pino some automaticamente
+// do mapa (mas o registro permanece no app, com selo "Encontrado").
+export const FOUND_WINDOW_HOURS = 48;
+export const FOUND_WINDOW_MS = FOUND_WINDOW_HOURS * 3600 * 1000;
+
+// Verdadeiro enquanto o pino verde de reencontro ainda deve aparecer no mapa.
+export const isFoundActive = (foundAt?: string | null): boolean => {
+  if (!foundAt) return false;
+  const t = new Date(foundAt).getTime();
+  if (isNaN(t)) return false;
+  return Date.now() - t <= FOUND_WINDOW_MS;
+};
+
 export const MAX_IMAGES = 3;
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 

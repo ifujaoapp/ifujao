@@ -103,10 +103,11 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   `lib/storage.ts`, `lib/sync.ts`): o **dono** (`isOwn`) ou o **modo deus**
   (`godMode`) pode marcar o pet como reencontrado. `PetRecord.foundAt`
   (timestamp ISO) foi adicionado; `FOUND_WINDOW_HOURS = 48` define a janela.
-  - **Mapa:** durante 48h o pino fica **verde** com ✓ e rótulo "REENCONTRADO"
-    (pulso verde, borda `#34C759`); após a janela o marcador **some
-    automaticamente** do mapa (filtro `withinFoundWindow` no `__renderPets`,
-    não apaga o registro). CSS `.paw-pulse-found`/`.pet-text-found` no Leaflet.
+  - **Mapa:** durante 48h o pino fica **verde sólido** com borda branca de 2px
+    (mesmo peso dos pinos ativos), **emoji da espécie** no centro (branco) + **selo
+    ✓ verde** no canto, e rótulo em **pílula** "🎉 Encontrado!" (padrão do app);
+    após a janela o marcador **some automaticamente** do mapa (filtro
+    `withinFoundWindow` no `__renderPets`, não apaga o registro).
   - **Card do pet:** banner verde "✓ REENCONTRADO" (data) no topo da foto; ação
     "Marcar como encontrado" (botão verde, `bgColor` em `BarAction`) em destaque
     para o dono; "Desmarcar encontrado" volta ao estado perdido (remove o pino

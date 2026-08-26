@@ -105,19 +105,29 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
   (timestamp ISO) foi adicionado; `FOUND_WINDOW_HOURS = 48` define a janela.
   - **Mapa:** durante 48h o pino fica **verde sólido** com borda branca de 2px
     (mesmo peso dos pinos ativos), **emoji da espécie** no centro (branco) + **selo
-    ✓ verde** no canto, e rótulo em **pílula** "🎉 Encontrado!" (padrão do app);
-    após a janela o marcador **some automaticamente** do mapa (filtro
+    ✓ verde** no canto; **sem rótulo de texto** (o pill "Encontrado!" foi removido
+    a pedido). Após a janela o marcador **some automaticamente** do mapa (filtro
     `withinFoundWindow` no `__renderPets`, não apaga o registro).
-  - **Card do pet:** banner verde "✓ REENCONTRADO" (data) no topo da foto; ação
-    "Marcar como encontrado" (botão verde, `bgColor` em `BarAction`) em destaque
-    para o dono; "Desmarcar encontrado" volta ao estado perdido (remove o pino
-    imediatamente). `commitPets` grava `foundAt` + `dirty:true`; sync preserva
-    via payload (`lib/sync.ts` mapeia `foundAt`).
-  - **Ações quando ENCONTRADO** (refino UX): pet reencontrado NÃO mostra
+  - **Card do pet:** banner verde "Encontrado!" (com data) no topo da foto; o
+    banner "AJUDE A ENCONTRAR!" (corações) é **ocultado** quando `foundAt` existe.
+    Ação "Marcar como encontrado" (botão verde, `bgColor`) em destaque para o
+    dono; "Desmarcar encontrado" volta ao estado perdido.
+  - **Ações quando ENCONTRADO** (UX): pet reencontrado NÃO mostra
     Contatar/Compartilhar/Denunciar. Dono/modo deus veem só **"Desmarcar
     encontrado"** (destaque, `bgColor` cinza) + **"Apagar"**; o **finder não vê
-    nenhum botão** (só o banner). A linha secundária só renderiza se houver
-    ações, evitando botões minúsculos/linha vazia.
+    nenhum botão** (só o banner). A linha secundária só renderiza se houver ações.
+  - **Backend:** coluna top-level `found_at timestamptz` no Supabase
+    (`supabase/schema.sql`, idempotente + índice `pets_found_idx`); `lib/sync.ts`
+    grava `found_at` no upsert e lê em `toLocalPet`. Permite filtrar/ordenar
+    "encontrado" via API (`?found_at=not.is.null`). A janela de 48h segue
+    client-side.
+  - **Layout do card (small phone):** em telas `< 720px` o modal **sobe para o
+    topo** (`justifyContent: flex-start` + `marginTop` no safe area, `maxHeight:
+    96%`) e compacta margens/paddings internos; `paddingBottom` só
+    `insets.bottom + 6`. Sem ScrollView (tentativa com ScrollView foi revertida
+    — usuário não gostou).
+  - **Descrição:** texto do modal "Ver descrição" sem justificação (`descText`
+    sem `textAlign:"justify"`).
   - Campo **"Nome do pet"** opcional adicionado (`ReportModal.tsx`,
     `hooks/useReportForm.ts` com `name/setName`, `lib/storage.ts`
     `PetRecord.name?`); a mensagem de compartilhar (`app/(tabs)/index.tsx`)

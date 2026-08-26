@@ -28,6 +28,7 @@ create table if not exists public.pets (
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
   deleted_at timestamptz,
+  found_at timestamptz,
   embedding vector(3072)
 );
 
@@ -55,6 +56,12 @@ end $$;
 create index if not exists pets_owner_idx on public.pets (owner_device_id);
 create index if not exists pets_reporter_idx on public.pets (reporter_device_id);
 create index if not exists pets_updated_idx on public.pets (updated_at);
+
+-- Coluna top-level `found_at` (reencontro): idempotente p/ bases já populadas.
+-- Permite filtrar/ordenar por "encontrado" via API normal (ex.:
+-- ?found_at=not.is.null) em vez de cavar o jsonb do payload.
+alter table public.pets add column if not exists found_at timestamptz;
+create index if not exists pets_found_idx on public.pets (found_at);
 
 -- CORREÇÃO N4: listas ordenam por updated_at ignorando deletados. Índice
 -- parcial evita varrer linhas soft-deletadas.

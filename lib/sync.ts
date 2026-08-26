@@ -184,6 +184,7 @@ export const runSync = async (
           reported: !!pet.reported,
           updated_at: now,
           deleted_at: pet.deletedAt ?? null,
+          found_at: pet.foundAt ?? null,
         },
         { onConflict: 'id' }
       );

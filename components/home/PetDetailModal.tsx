@@ -214,91 +214,128 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       onPress: () => void;
                     };
                     const isOwn = isOwner(selectedPet, myDeviceId, myPhone);
-                    // Linha 1 (100%): Contatar tutor — ação principal do app.
-                    const contact: BarAction | null = isOwn
-                      ? null
-                      : {
-                          key: "contact",
-                          icon: "logo-whatsapp",
-                          label: "Contatar tutor",
-                          color: "#128C7E",
+                    const isFound = !!selectedPet.foundAt;
+                    let contact: BarAction | null = null;
+                    let topFound: BarAction | null = null;
+                    const secondary: BarAction[] = [];
+
+                    if (isFound) {
+                      // Pet REENCONTRADO: nenhuma ação de busca faz sentido.
+                      // Dono/modo deus podem desfazer (desmarcar) ou apagar de vez.
+                      if (isOwn || godMode) {
+                        topFound = {
+                          key: "unfound",
+                          icon: "close-circle",
+                          label: "Desmarcar encontrado",
+                          color: "#8E8E93",
+                          iconColor: "#FFFFFF",
+                          textColor: "#FFFFFF",
+                          bgColor: "#8E8E93",
                           primary: true,
-                          reportedDisabled: true,
                           onPress: () => {
-                            const pet = selectedPet;
+                            const id = selectedPet.id;
+                            commitPets(
+                              pets.map((p) =>
+                                p.id === id
+                                  ? { ...p, foundAt: undefined, dirty: true }
+                                  : p,
+                              ),
+                            );
                             setSelectedPet(null);
-                            handleContact(pet);
                           },
                         };
-                    // Linha 2 (50/50): Compartilhar + Denunciar (mais dono/modo deus).
-                    const secondary: BarAction[] = [];
-                    if (!selectedPet.reported && !isOwn) {
+                        secondary.push({
+                          key: "delete",
+                          icon: "trash",
+                          label: godMode && !isOwn ? "Apagar (mod)" : "Apagar",
+                          color: "#FF3B30",
+                          iconColor: "#FF3B30",
+                          textColor: "#FF3B30",
+                          onPress: () => deletePet(selectedPet.id),
+                        } as BarAction);
+                      }
+                      // Finder (não dono, não deus): nenhum botão.
+                    } else {
+                      // Pet ainda perdido: ações normais.
+                      contact = isOwn
+                        ? null
+                        : {
+                            key: "contact",
+                            icon: "logo-whatsapp",
+                            label: "Contatar tutor",
+                            color: "#128C7E",
+                            primary: true,
+                            reportedDisabled: true,
+                            onPress: () => {
+                              const pet = selectedPet;
+                              setSelectedPet(null);
+                              handleContact(pet);
+                            },
+                          };
+                      if (!selectedPet.reported && !isOwn) {
+                        secondary.push({
+                          key: "report",
+                          icon: "flag",
+                          label: "Denunciar",
+                          color: "#FF9500",
+                          iconColor: "#FF9500",
+                          textColor: "#48484A",
+                          onPress: () => reportPet(selectedPet),
+                        } as BarAction);
+                      }
                       secondary.push({
-                        key: "report",
-                        icon: "flag",
-                        label: "Denunciar",
-                        color: "#FF9500",
-                        iconColor: "#FF9500",
+                        key: "share",
+                        icon: "share-social",
+                        label: "Compartilhar",
+                        color: "#6E6E73",
+                        iconColor: "#6E6E73",
                         textColor: "#48484A",
-                        onPress: () => reportPet(selectedPet),
-                      } as BarAction);
-                    }
-                    secondary.push({
-                      key: "share",
-                      icon: "share-social",
-                      label: "Compartilhar",
-                      color: "#6E6E73",
-                      iconColor: "#6E6E73",
-                      textColor: "#48484A",
-                      reportedDisabled: true,
-                      onPress: () => sharePetCard(selectedPet),
-                    });
-                    if (isOwn || godMode) {
-                      secondary.push({
-                        key: "delete",
-                        icon: "trash",
-                        label: godMode && !isOwn ? "Apagar (mod)" : "Apagar",
-                        color: "#FF3B30",
-                        iconColor: "#FF3B30",
-                        textColor: "#FF3B30",
-                        onPress: () => deletePet(selectedPet.id),
-                      } as BarAction);
-                    }
-                    if (
-                      selectedPet.reported &&
-                      !!myDeviceId &&
-                      selectedPet.reporterDeviceId === myDeviceId
-                    ) {
-                      secondary.push({
-                        key: "undoReport",
-                        icon: "flag",
-                        label: "Apagar denúncia",
-                        color: "#0A84FF",
-                        iconColor: "#0A84FF",
-                        textColor: "#0A84FF",
-                        onPress: () => {
-                          commitPets(
-                            pets.map((p) =>
-                              p.id === selectedPet.id
-                                ? {
-                                    ...p,
-                                    reported: false,
-                                    reportReason: undefined,
-                                    reportedBy: undefined,
-                                    dirty: true,
-                                  }
-                                : p,
-                            ),
-                          );
-                          setSelectedPet(null);
-                        },
-                      } as BarAction);
-                    }
-                    // Marcar como encontrado: só o dono (ou modo deus) pode.
-                    // Verde e temporário: some do mapa após a janela (48h).
-                    let topFound: BarAction | null = null;
-                    if (isOwn || godMode) {
-                      if (!selectedPet.foundAt) {
+                        reportedDisabled: true,
+                        onPress: () => sharePetCard(selectedPet),
+                      });
+                      if (isOwn || godMode) {
+                        secondary.push({
+                          key: "delete",
+                          icon: "trash",
+                          label: godMode && !isOwn ? "Apagar (mod)" : "Apagar",
+                          color: "#FF3B30",
+                          iconColor: "#FF3B30",
+                          textColor: "#FF3B30",
+                          onPress: () => deletePet(selectedPet.id),
+                        } as BarAction);
+                      }
+                      if (
+                        selectedPet.reported &&
+                        !!myDeviceId &&
+                        selectedPet.reporterDeviceId === myDeviceId
+                      ) {
+                        secondary.push({
+                          key: "undoReport",
+                          icon: "flag",
+                          label: "Apagar denúncia",
+                          color: "#0A84FF",
+                          iconColor: "#0A84FF",
+                          textColor: "#0A84FF",
+                          onPress: () => {
+                            commitPets(
+                              pets.map((p) =>
+                                p.id === selectedPet.id
+                                  ? {
+                                      ...p,
+                                      reported: false,
+                                      reportReason: undefined,
+                                      reportedBy: undefined,
+                                      dirty: true,
+                                    }
+                                  : p,
+                              ),
+                            );
+                            setSelectedPet(null);
+                          },
+                        } as BarAction);
+                      }
+                      // Marcar como encontrado: dono/modo deus.
+                      if (isOwn || godMode) {
                         const foundAction: BarAction = {
                           key: "found",
                           icon: "checkmark-circle",
@@ -307,7 +344,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                           iconColor: "#FFFFFF",
                           textColor: "#FFFFFF",
                           bgColor: "#34C759",
-                          primary: isOwn, // dono não tem "Contatar", fica em destaque
+                          primary: isOwn,
                           onPress: () => {
                             const id = selectedPet.id;
                             commitPets(
@@ -326,26 +363,6 @@ export function PetDetailModal(props: PetDetailModalProps) {
                         };
                         if (isOwn) topFound = foundAction;
                         else secondary.push(foundAction);
-                      } else {
-                        secondary.push({
-                          key: "unfound",
-                          icon: "close-circle",
-                          label: "Desmarcar encontrado",
-                          color: "#8E8E93",
-                          iconColor: "#8E8E93",
-                          textColor: "#48484A",
-                          onPress: () => {
-                            const id = selectedPet.id;
-                            commitPets(
-                              pets.map((p) =>
-                                p.id === id
-                                  ? { ...p, foundAt: undefined, dirty: true }
-                                  : p,
-                              ),
-                            );
-                            setSelectedPet(null);
-                          },
-                        } as BarAction);
                       }
                     }
                     const renderBtn = (item: BarAction) => {
@@ -409,9 +426,11 @@ export function PetDetailModal(props: PetDetailModalProps) {
                         {topFound ? (
                           <View style={styles.demoActionRowTop}>{renderBtn(topFound)}</View>
                         ) : null}
-                        <View style={styles.demoActionRow}>
-                          {secondary.map((item) => renderBtn(item))}
-                        </View>
+                        {secondary.length > 0 ? (
+                          <View style={styles.demoActionRow}>
+                            {secondary.map((item) => renderBtn(item))}
+                          </View>
+                        ) : null}
                       </View>
                     );
                   })()}

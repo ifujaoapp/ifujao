@@ -112,6 +112,11 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
     para o dono; "Desmarcar encontrado" volta ao estado perdido (remove o pino
     imediatamente). `commitPets` grava `foundAt` + `dirty:true`; sync preserva
     via payload (`lib/sync.ts` mapeia `foundAt`).
+  - **Ações quando ENCONTRADO** (refino UX): pet reencontrado NÃO mostra
+    Contatar/Compartilhar/Denunciar. Dono/modo deus veem só **"Desmarcar
+    encontrado"** (destaque, `bgColor` cinza) + **"Apagar"**; o **finder não vê
+    nenhum botão** (só o banner). A linha secundária só renderiza se houver
+    ações, evitando botões minúsculos/linha vazia.
   - Campo **"Nome do pet"** opcional adicionado (`ReportModal.tsx`,
     `hooks/useReportForm.ts` com `name/setName`, `lib/storage.ts`
     `PetRecord.name?`); a mensagem de compartilhar (`app/(tabs)/index.tsx`)

@@ -228,13 +228,25 @@ export const SPECIES_BREEDS: Record<string, string[]> = {
   ],
 };
 
+// Garante "Sem Raça Definida" (SRD) como PRIMEIRA opção em TODAS as espécies.
+Object.keys(SPECIES_BREEDS).forEach((sp) => {
+  const list = SPECIES_BREEDS[sp];
+  if (!list.includes("Sem Raça Definida")) list.unshift("Sem Raça Definida");
+});
+
 // Ordena as raças alfabeticamente (pt-BR) UMA vez, aqui na definição, para que a
 // referência de cada array permaneça estável. O dropdown de busca interna da lib
 // captura `data` por closure e quebra se a referência mudar a cada render (a
 // busca passa a filtrar contra a lista da 1ª montagem). Por isso NÃO se faz
-// `.sort()` no `options` por render — ordena-se aqui, de forma estável.
+// `.sort()` no `options` por render — ordena-se aqui, de forma estável. O SRD
+// sempre fica em primeiro (independentemente da ordem alfabética).
 Object.values(SPECIES_BREEDS).forEach((list) =>
-  list.sort((a, b) => a.localeCompare(b, "pt-BR")),
+  list.sort((a, b) => {
+    const sa = a === "Sem Raça Definida" ? -1 : 0;
+    const sb = b === "Sem Raça Definida" ? -1 : 0;
+    if (sa !== sb) return sa - sb;
+    return a.localeCompare(b, "pt-BR");
+  }),
 );
 
 export const SPECIES_OPTIONS = Object.keys(SPECIES_BREEDS).sort((a, b) =>

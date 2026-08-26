@@ -10,6 +10,7 @@ export interface PetRecord {
   id: string;
   species: string;
   breed?: string;
+  name?: string;
   location: string;
   description: string;
   contact: string;

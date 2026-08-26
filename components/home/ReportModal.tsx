@@ -54,6 +54,8 @@ export function ReportModal({
     setSpecies,
     breed,
     setBreed,
+    name,
+    setName,
     location,
     setLocation,
     cityName,
@@ -293,9 +295,9 @@ export function ReportModal({
                 />
                 <Text style={styles.sectionTitle}>Localização</Text>
               </View>
-              <Text style={styles.fieldLabel}>
-                Quando o pet sumiu? (opcional)
-              </Text>
+                <Text style={styles.fieldLabel}>
+                  Quando o pet sumiu? *
+                </Text>
               <TouchableOpacity
                 style={styles.dateField}
                 onPress={() => setShowDatePicker(true)}
@@ -398,6 +400,17 @@ export function ReportModal({
                 />
                 <Text style={styles.sectionTitle}>Sobre o pet</Text>
               </View>
+              <Text style={styles.fieldLabel}>Nome do pet (opcional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex.: Thor, Mel, Bob"
+                placeholderTextColor="#8E8E93"
+                value={name}
+                onChangeText={setName}
+                returnKeyType="next"
+                maxLength={40}
+                onSubmitEditing={() => descriptionRef.current?.focus()}
+              />
               <Text style={styles.fieldLabel}>Espécie *</Text>
               <DropDownPicker
                 open={speciesPickerOpen}

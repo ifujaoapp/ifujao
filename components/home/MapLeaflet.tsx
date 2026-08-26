@@ -83,14 +83,71 @@ export const MapLeaflet = ({
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
         };
-        function buildPetIcon(reported, label) {
+        function speciesEmoji(s) {
+          var n = (s || '').toString().toLowerCase();
+          var map = {
+            'cachorro':'🐶','cão':'🐶','cao':'🐶','dog':'🐶',
+            'gato':'🐱','cat':'🐱',
+            'passaro':'🐦','pássaro':'🐦','tucano':'🐦','bird':'🐦',
+            'papagaio':'🦜','periquito':'🦜','calopsita':'🦜','cacatua':'🦜','arara':'🦜','parrot':'🦜',
+            'canario':'🐤','peru':'🦃','turkey':'🦃',
+            'coelho':'🐰','rabbit':'🐰','bunny':'🐰',
+            'hamster':'🐹','chinchila':'🐹','porquinho da india':'🐹','porquinho-da-índia':'🐹',
+            'rato':'🐭','camundongo':'🐭','mouse':'🐭',
+            'cavalo':'🐴','pônei':'🐴','pontei':'🐴','horse':'🐴',
+            'lagarto':'🦎','iguana':'🦎','axolote':'🦎','salamandra':'🦎','lizard':'🦎',
+            'serpente':'🐍','cobra':'🐍','snake':'🐍',
+            'tartaruga':'🐢','turtle':'🐢','tartaruga da terra':'🐢',
+            'peixe':'🐠','peixe beta':'🐟','betta':'🐟','goldfish':'🐠','fish':'🐠',
+            'porco':'🐷','ovelha':'🐑','cabra':'🐐','pig':'🐷',
+            'galinha':'🐔','pato':'🦆','ganso':'🦢','chicken':'🐔','duck':'🦆',
+            'sapo':'🐸','rã':'🐸','ra':'🐸','frog':'🐸',
+            'furão':'🦡','furao':'🦡','ferret':'🦡',
+            'camelo':'🐫','elefante':'🐘','macaco':'🐵','urso':'🐻','leão':'🦁','tigre':'🐯','vaca':'🐮','bode':'🐐'
+          };
+          return map[n] || '🐾';
+        }
+        function formatRelDays(iso) {
+          if (!iso) return '';
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return '';
+          var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          var now = new Date();
+          var b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          var diff = Math.round((b - a) / 86400000);
+          if (diff <= 0) return 'Hoje';
+          if (diff === 1) return 'Ontem';
+          if (diff <= 7) return 'Há ' + diff + 'd';
+          var dd = (d.getDate() < 10 ? '0' : '') + d.getDate();
+          var mm = (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1);
+          return 'Desde ' + dd + '/' + mm;
+        }
+        // Dias desde o desaparecimento (null se sem data) — base para a cor da borda.
+        function relDays(iso) {
+          if (!iso) return null;
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return null;
+          var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          var now = new Date();
+          var b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          return Math.round((b - a) / 86400000);
+        }
+        // Cor da BORDA por recência: vermelho (hoje/ontem = urgente), laranja
+        // (2-3 dias) e cinza (mais de 3 dias ou sem data). O preenchimento
+        // permanece branco.
+        function recencyColor(days) {
+          if (days === null || days > 3) return '#8E8E93';
+          if (days <= 1) return '#FF3B30';
+          return '#FF9500';
+        }
+        function buildPetIcon(reported, label, lostDate) {
           var species = __esc(label) || 'Pet';
-          var status = reported ? 'DENÚNCIA' : 'PERDIDO';
+          var relText = __esc(formatRelDays(lostDate));
           var pulseCls = reported ? 'paw-pulse paw-pulse-reported' : 'paw-pulse';
-          var stroke = reported ? '#FF3B30' : '#0A84FF';
+          var stroke = reported ? '#FF3B30' : recencyColor(relDays(lostDate));
           var emoji = reported
             ? '<div class="paw-emoji" style="color:#FF3B30;">⚑</div>'
-            : '<div class="paw-emoji">🐾</div>';
+            : '<div class="paw-emoji">' + speciesEmoji(species) + '</div>';
           return L.divIcon({
             className: 'paw-pin',
             html: '<div style="position:relative;width:64px;height:58px;">' +
@@ -101,7 +158,7 @@ export const MapLeaflet = ({
               '</svg>' +
               emoji +
               '</div>' +
-              '<div class="pet-pin-label"><span class="pet-text">' + species + '</span><span class="pet-text pet-text-status">' + status + '</span></div>' +
+              '<div class="pet-pin-label"><span class="pet-text">' + relText + '</span></div>' +
               '</div>',
             iconSize: [64, 58],
             iconAnchor: [32, 40],
@@ -110,6 +167,10 @@ export const MapLeaflet = ({
         }
 
         window.__map = map;
+        // Pane dedicado aos pinos de PET, com z-index maior que o markerPane
+        // (600) padrão dos patrocinadores, garantindo que os pets fiquem SEMPRE
+        // acima de anúncios/pontos comerciais, mesmo sobrepostos no mesmo ponto.
+        try { map.createPane('petPane'); map.getPane('petPane').style.zIndex = 650; } catch (e) {}
         // O chip do pet (pata + espécie + status) só aparece quando o usuário
         // aproxima (zoom >= 14), evitando poluir o mapa em visão geral.
         var __applyPetLabels = function(){
@@ -144,7 +205,7 @@ export const MapLeaflet = ({
               iconAnchor: showLabel ? [75, 19] : [25, 19],
               popupAnchor: [0, -30],
             });
-            var m = L.marker([s.latitude, s.longitude], { icon: icon }).addTo(window.__map);
+            var m = L.marker([s.latitude, s.longitude], { icon: icon, zIndexOffset: 1 }).addTo(window.__map);
             m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, logo: s.logo, latitude: s.latitude, longitude: s.longitude })); });
             window.__sponsorMarkers.push(m);
           });
@@ -154,7 +215,7 @@ export const MapLeaflet = ({
           window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
           window.__petMarkers = [];
           function addMarker(p, lat, lng){
-            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species) }).addTo(window.__map);
+            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
             m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
             window.__petMarkers.push(m);
           }
@@ -187,7 +248,7 @@ export const MapLeaflet = ({
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
         function addMarker(p, lat, lng){
-          var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species) }).addTo(window.__map);
+          var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
           m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
           window.__petMarkers.push(m);
         }

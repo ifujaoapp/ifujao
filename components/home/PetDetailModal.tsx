@@ -1,7 +1,7 @@
-import { Modal, ScrollView, Text, TouchableOpacity, View, Image } from "react-native";
+import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Ionicons } from "@expo/vector-icons";
-import { type RefObject } from "react";
+import { type RefObject, useRef } from "react";
 import { type EdgeInsets } from "react-native-safe-area-context";
 import { HelpFindBanner } from "./HelpFindBanner";
 import { ImageCarousel } from "./ImageCarousel";
@@ -55,8 +55,32 @@ export function PetDetailModal(props: PetDetailModalProps) {
     godMode,
     setShowDescriptionModal,
     showDescriptionModal,
-    shareCardRef,
-  } = props;
+      shareCardRef,
+    } = props;
+
+  // BottomSheet: anima o painel para cima/baixo e permite dispensá-lo arrastando
+  // o "pegador" (handle) para baixo.
+  const sheetY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_evt, g) => Math.abs(g.dy) > 4,
+      onPanResponderMove: (_evt, g) => {
+        if (g.dy > 0) sheetY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_evt, g) => {
+        if (g.dy > 100) {
+          setSelectedPet(null);
+        } else {
+          Animated.spring(sheetY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
   return (
     <>
       {selectedPet !== null && (
@@ -68,15 +92,21 @@ export function PetDetailModal(props: PetDetailModalProps) {
             onRequestClose={() => setSelectedPet(null)}
           >
             <View
-              style={[styles.demoOverlay, { paddingTop: insets.top + 24 }]}
+              style={styles.demoOverlay}
               onStartShouldSetResponder={() => true}
               onTouchStart={() => setSelectedPet(null)}
             >
-              <View
-                style={styles.demoCard}
+              <Animated.View
+                style={[
+                  styles.demoSheet,
+                  { transform: [{ translateY: sheetY }], paddingBottom: insets.bottom + 16 },
+                ]}
                 onStartShouldSetResponder={() => true}
                 onTouchStart={(e) => e.stopPropagation()}
               >
+                <View {...panResponder.panHandlers} style={styles.demoSheetHandle}>
+                  <View style={styles.demoSheetHandleBar} />
+                </View>
                 <CloseCircle
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
@@ -97,8 +127,12 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   ) : null}
                 </View>
                 <Text style={styles.demoName}>
-                  {selectedPet.species}
-                  {selectedPet.breed ? ` - ${selectedPet.breed}` : ""}
+                  {selectedPet.name
+                    ? selectedPet.name
+                    : selectedPet.species}
+                  {!selectedPet.name && selectedPet.breed
+                    ? ` - ${selectedPet.breed}`
+                    : ""}
                 </Text>
                 <View style={styles.demoRow}>
                   <Ionicons
@@ -125,13 +159,9 @@ export function PetDetailModal(props: PetDetailModalProps) {
                 ) : null}
                 {typeof selectedPet.reward === "number" &&
                 Number.isFinite(selectedPet.reward) ? (
-                  <View style={styles.demoRow}>
-                    <Ionicons
-                      name="cash"
-                      size={16}
-                      color={themeColors.primaryButton}
-                    />
-                    <Text style={styles.demoReward}>
+                  <View style={styles.demoRewardBadge}>
+                    <Ionicons name="cash" size={16} color="#B8860B" />
+                    <Text style={styles.demoRewardBadgeText}>
                       Recompensa:{" "}
                       {new Intl.NumberFormat("pt-BR", {
                         style: "currency",
@@ -154,139 +184,160 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     <Text style={styles.demoDescBtnText}>Ver descrição</Text>
                   </TouchableOpacity>
                 ) : null}
-              </View>
-              <View
-                style={[styles.demoActionBar, { bottom: insets.bottom + 16 }]}
-                onTouchStart={(e) => e.stopPropagation()}
-              >
-                {(() => {
-                  type BarAction = {
-                    key: string;
-                    icon: string;
-                    label: string;
-                    color: string;
-                    reportedDisabled?: boolean;
-                    onPress: () => void;
-                  };
-                  // Não faz sentido "Denunciar" de novo um pet já denunciado:
-                  // oculta o botão sempre que reported=true (qualquer denúncia,
-                  // não importa quem fez). Quem denunciou vê "Apagar denúncia".
-                  const jaDenunciado = selectedPet.reported;
-                  const actions: BarAction[] = [
-                    ...(isOwner(selectedPet, myDeviceId, myPhone)
-                      ? []
-                      : [
-                          {
-                            key: "contact",
-                            icon: "logo-whatsapp",
-                            label: "Contatar tutor",
-                            color: "#25D366",
-                            reportedDisabled: true,
-                            onPress: () => {
-                              const pet = selectedPet;
-                              setSelectedPet(null);
-                              handleContact(pet);
-                            },
-                          } as BarAction,
-                        ]),
-                    ...(jaDenunciado ||
-                    isOwner(selectedPet, myDeviceId, myPhone)
-                      ? []
-                      : [
-                          {
-                            key: "report",
-                            icon: "flag",
-                            label: "Denunciar",
-                            color: "#FF9500",
-                            onPress: () => reportPet(selectedPet),
-                          } as BarAction,
-                        ]),
-                    {
+                <View style={styles.demoActionBar}>
+                  {(() => {
+                    type BarAction = {
+                      key: string;
+                      icon: string;
+                      label: string;
+                      color: string;
+                      primary?: boolean;
+                      iconColor?: string;
+                      textColor?: string;
+                      reportedDisabled?: boolean;
+                      onPress: () => void;
+                    };
+                    const isOwn = isOwner(selectedPet, myDeviceId, myPhone);
+                    // Linha 1 (100%): Contatar tutor — ação principal do app.
+                    const contact: BarAction | null = isOwn
+                      ? null
+                      : {
+                          key: "contact",
+                          icon: "logo-whatsapp",
+                          label: "Contatar tutor",
+                          color: "#128C7E",
+                          primary: true,
+                          reportedDisabled: true,
+                          onPress: () => {
+                            const pet = selectedPet;
+                            setSelectedPet(null);
+                            handleContact(pet);
+                          },
+                        };
+                    // Linha 2 (50/50): Compartilhar + Denunciar (mais dono/modo deus).
+                    const secondary: BarAction[] = [];
+                    if (!selectedPet.reported && !isOwn) {
+                      secondary.push({
+                        key: "report",
+                        icon: "flag",
+                        label: "Denunciar",
+                        color: "#FF9500",
+                        iconColor: "#FF9500",
+                        textColor: "#48484A",
+                        onPress: () => reportPet(selectedPet),
+                      } as BarAction);
+                    }
+                    secondary.push({
                       key: "share",
                       icon: "share-social",
                       label: "Compartilhar",
-                      color: "#25D366",
+                      color: "#6E6E73",
+                      iconColor: "#6E6E73",
+                      textColor: "#48484A",
                       reportedDisabled: true,
                       onPress: () => sharePetCard(selectedPet),
-                    },
-                  ];
-                  if (isOwner(selectedPet, myDeviceId, myPhone) || godMode) {
-                    actions.push({
-                      key: "delete",
-                      icon: "trash",
-                      label: godMode && !isOwner(selectedPet, myDeviceId, myPhone)
-                        ? "Apagar (mod)"
-                        : "Apagar",
-                      color: "#FF3B30",
-                      onPress: () => deletePet(selectedPet.id),
                     });
-                  }
-                  if (
-                    selectedPet.reported &&
-                    !!myDeviceId &&
-                    selectedPet.reporterDeviceId === myDeviceId
-                  ) {
-                    actions.push({
-                      key: "undoReport",
-                      icon: "flag",
-                      label: "Apagar denúncia",
-                      color: "#0A84FF",
-                      onPress: () => {
-                        commitPets(
-                          pets.map((p) =>
-                            p.id === selectedPet.id
-                              ? {
-                                  ...p,
-                                  reported: false,
-                                  reportReason: undefined,
-                                  reportedBy: undefined,
-                                  dirty: true,
-                                }
-                              : p,
-                          ),
-                        );
-                        setSelectedPet(null);
-                      },
-                    });
-                  }
-                  return (
-                    <View style={styles.demoActionRow}>
-                      {actions.map((item) => {
-                        const disabled =
-                          item.reportedDisabled && selectedPet.reported;
-                        return (
-                          <TouchableOpacity
-                            key={item.key}
+                    if (isOwn || godMode) {
+                      secondary.push({
+                        key: "delete",
+                        icon: "trash",
+                        label: godMode && !isOwn ? "Apagar (mod)" : "Apagar",
+                        color: "#FF3B30",
+                        iconColor: "#FF3B30",
+                        textColor: "#FF3B30",
+                        onPress: () => deletePet(selectedPet.id),
+                      } as BarAction);
+                    }
+                    if (
+                      selectedPet.reported &&
+                      !!myDeviceId &&
+                      selectedPet.reporterDeviceId === myDeviceId
+                    ) {
+                      secondary.push({
+                        key: "undoReport",
+                        icon: "flag",
+                        label: "Apagar denúncia",
+                        color: "#0A84FF",
+                        iconColor: "#0A84FF",
+                        textColor: "#0A84FF",
+                        onPress: () => {
+                          commitPets(
+                            pets.map((p) =>
+                              p.id === selectedPet.id
+                                ? {
+                                    ...p,
+                                    reported: false,
+                                    reportReason: undefined,
+                                    reportedBy: undefined,
+                                    dirty: true,
+                                  }
+                                : p,
+                            ),
+                          );
+                          setSelectedPet(null);
+                        },
+                      } as BarAction);
+                    }
+                    const renderBtn = (item: BarAction) => {
+                      const disabled =
+                        item.reportedDisabled && selectedPet.reported;
+                      const base = item.primary
+                        ? styles.demoActionBtnPrimary
+                        : styles.demoActionBtnNeutral;
+                      return (
+                        <TouchableOpacity
+                          key={item.key}
+                          style={[base, disabled && styles.demoActionBtnDisabled]}
+                          disabled={disabled}
+                          activeOpacity={0.7}
+                          onPress={item.onPress}
+                        >
+                          <Ionicons
+                            name={item.icon as any}
+                            size={item.primary ? 26 : 16}
+                            color={
+                              disabled
+                                ? "#C7C7CC"
+                                : item.primary
+                                ? "#FFFFFF"
+                                : item.iconColor ?? item.color
+                            }
+                          />
+                          <Text
+                            numberOfLines={1}
+                            adjustsFontSizeToFit={true}
+                            minimumFontScale={0.8}
                             style={[
-                              styles.demoActionBtn,
-                              { borderColor: item.color },
-                              disabled && styles.demoActionBtnDisabled,
+                              styles.demoActionLabel,
+                              {
+                                color: disabled
+                                  ? "#C7C7CC"
+                                  : item.primary
+                                  ? "#FFFFFF"
+                                  : item.textColor ?? item.color,
+                                fontSize: item.primary ? 15 : 11,
+                                fontWeight: "600",
+                              },
                             ]}
-                            disabled={disabled}
-                            activeOpacity={0.7}
-                            onPress={item.onPress}
                           >
-                            <Ionicons
-                              name={item.icon as any}
-                              size={22}
-                              color={disabled ? "#8E8E93" : item.color}
-                            />
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.demoActionLabel,
-                                { color: disabled ? "#8E8E93" : item.color },
-                              ]}
-                            >
-                              {item.label}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  );
-                })()}
-              </View>
+                            {item.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    };
+                    return (
+                      <View>
+                        {contact ? (
+                          <View style={styles.demoActionRowTop}>{renderBtn(contact)}</View>
+                        ) : null}
+                        <View style={styles.demoActionRow}>
+                          {secondary.map((item) => renderBtn(item))}
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </View>
+              </Animated.View>
             </View>
           </Modal>
           <ViewShot
@@ -301,7 +352,11 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   style={styles.shareCardLogo}
                 />
                 <Text style={styles.shareCardApp}>iFujão</Text>
-                <Text style={styles.shareCardTag}>Pet perdido</Text>
+                <Text style={styles.shareCardTag}>
+                  {selectedPet.name
+                    ? `Pet perdido · ${selectedPet.name}`
+                    : "Pet perdido"}
+                </Text>
               </View>
               <Image
                 source={{ uri: selectedPet.images[0] }}

@@ -64,6 +64,7 @@ export function useReportForm(params: UseReportFormParams) {
 
   const [species, setSpecies] = useState("");
   const [breed, setBreed] = useState("");
+  const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [cityName, setCityName] = useState("");
   const [searchAddress, setSearchAddress] = useState("");
@@ -109,7 +110,14 @@ export function useReportForm(params: UseReportFormParams) {
   };
 
   const handleAddPet = async () => {
-    if (images.length === 0 || !species || !breed || !location || !contact) {
+    if (
+      images.length === 0 ||
+      !species ||
+      !breed ||
+      !location ||
+      !contact ||
+      !lostDate
+    ) {
       showAlert(
         "warning",
         "Atenção",
@@ -168,6 +176,7 @@ export function useReportForm(params: UseReportFormParams) {
     const newPet: PetPost = {
       id: Date.now().toString(),
       species,
+      name: name.trim() || undefined,
       location,
       description,
       contact,
@@ -185,6 +194,7 @@ export function useReportForm(params: UseReportFormParams) {
     commitPets([newPet, ...pets]);
     setSpecies("");
     setBreed("");
+    setName("");
     setLocation("");
     setCityName("");
     setDescription("");
@@ -364,6 +374,8 @@ export function useReportForm(params: UseReportFormParams) {
     setSpecies,
     breed,
     setBreed,
+    name,
+    setName,
     location,
     setLocation,
     cityName,

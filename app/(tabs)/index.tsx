@@ -280,7 +280,9 @@ export default function HomeScreen() {
     // faz sentido enviar o card do pet para quem já o conhece. A mensagem foca
     // em avisar o dono que o pet foi avistado/encontrado.
     const petLabel = pet
-      ? `${pet.species}${pet.breed ? ` - ${pet.breed}` : ""}`
+      ? pet.name
+        ? pet.name
+        : `${pet.species}${pet.breed ? ` - ${pet.breed}` : ""}`
       : "";
     const message = encodeURIComponent(
       petLabel
@@ -983,6 +985,7 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 16,
       color: c.text,
       marginBottom: 15,
+      width: "100%",
     },
     inputError: {
       borderColor: "#FF3B30",
@@ -1410,18 +1413,34 @@ const makeStyles = (c: typeof Colors.light) =>
     demoOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.5)",
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 24,
-      paddingBottom: 120,
+      justifyContent: "flex-end",
+      alignItems: "stretch",
     },
-    demoCard: {
+    demoSheet: {
       width: "100%",
-      maxHeight: "90%",
+      maxHeight: "88%",
       backgroundColor: c.card,
-      borderRadius: 18,
-      padding: 18,
-      position: "relative",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingTop: 4,
+      paddingHorizontal: 18,
+      elevation: 10,
+      shadowColor: "#000",
+      shadowOpacity: 0.3,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: -3 },
+    },
+    demoSheetHandle: {
+      width: "100%",
+      alignItems: "center",
+      paddingVertical: 8,
+      marginBottom: 2,
+    },
+    demoSheetHandleBar: {
+      width: 40,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: c.cardStroke,
     },
     demoCardScroll: {
       maxHeight: "100%",
@@ -1534,10 +1553,24 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 14,
       color: c.text,
     },
-    demoReward: {
+    demoRewardBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      alignSelf: "flex-start",
+      marginTop: 4,
+      marginBottom: 8,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      backgroundColor: "#FFF3C4",
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: "#F4D03F",
+    },
+    demoRewardBadgeText: {
       fontSize: 14,
-      color: c.text,
-      fontWeight: "600",
+      color: "#8A6D00",
+      fontWeight: "bold",
     },
     demoDescription: {
       fontSize: 14,
@@ -1776,10 +1809,7 @@ const makeStyles = (c: typeof Colors.light) =>
       fontWeight: "bold",
     },
     demoActionBar: {
-      position: "absolute",
-      left: 16,
-      right: 16,
-      bottom: 16,
+      marginTop: 14,
       backgroundColor: c.card,
       borderRadius: 16,
       paddingVertical: 12,
@@ -1787,16 +1817,14 @@ const makeStyles = (c: typeof Colors.light) =>
       flexDirection: "row",
       justifyContent: "space-around",
       alignItems: "center",
-      elevation: 8,
-      shadowColor: "#000",
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: -2 },
+      borderTopWidth: 1,
+      borderColor: c.cardStroke,
     },
     demoActionRow: {
       flexDirection: "row",
       justifyContent: "space-evenly",
       alignItems: "center",
+      gap: 8,
       width: "100%",
     },
     demoActionBtn: {
@@ -1810,15 +1838,48 @@ const makeStyles = (c: typeof Colors.light) =>
       borderColor: "#25D366",
       backgroundColor: "transparent",
     },
+    demoActionBtnPrimary: {
+      width: "100%",
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 8,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: "#128C7E",
+      elevation: 3,
+      shadowColor: "#0E6B60",
+      shadowOpacity: 0.35,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    demoActionBtnNeutral: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      flexDirection: "row",
+      gap: 4,
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderRadius: 12,
+      backgroundColor: "#FAFAFA",
+      borderWidth: 1,
+      borderColor: "#E0E0E0",
+    },
+    demoActionRowTop: {
+      width: "100%",
+      marginBottom: 10,
+    },
     demoActionBtnDisabled: {
       borderColor: "#8E8E93",
       opacity: 0.5,
     },
     demoActionLabel: {
-      marginTop: 4,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "600",
       textAlign: "center",
+      flexShrink: 1,
       flexWrap: "nowrap",
     },
     circularBtn: {
@@ -1845,6 +1906,18 @@ const makeStyles = (c: typeof Colors.light) =>
     reportImageWrap: {
       width: "100%",
       position: "relative",
+    },
+    demoReportTopBtn: {
+      position: "absolute",
+      top: 12,
+      left: 12,
+      zIndex: 2,
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+      backgroundColor: "rgba(0,0,0,0.55)",
+      justifyContent: "center",
+      alignItems: "center",
     },
     reportedBanner: {
       position: "absolute",

@@ -75,9 +75,38 @@ Você é um Desenvolvedor Senior React Native com vasta experiência na criaçã
 
 ## ESTADO ATUAL — ONDE PARAMOS (leia isto ao retomar)
 
-> Atualizado em 2026-08-25.
+> Atualizado em 2026-08-26.
 
 ### Concluído (últimas sessões)
+- **Card de pet como bottom sheet + ações reformuladas**
+  (`components/home/PetDetailModal.tsx` + estilos em `app/(tabs)/index.tsx`):
+  o modal agora sobe de baixo (`demoSheet`, `borderTopRadius:20`, sombra) com
+  cabo arrastável (`demoSheetHandle`/`demoSheetHandleBar`). A barra de ações
+  (`demoActionBar`) deixou de ser absoluta e ficou embutida no rodapé. Botão
+  primário **"Contatar tutor"** (WhatsApp) em largura total
+  (`demoActionBtnPrimary`, fundo `#128C7E`), com ícone `logo-whatsapp` em
+  **26px** e texto em **15px** (sem negrito); os botões neutros
+  "Compartilhar"/"Apagar" ficam numa linha (`demoActionBtnNeutral` +
+  `demoActionRowTop`/`demoActionRow`). A denúncia saiu da barra e virou um
+  círculo superior esquerdo (`demoReportTopBtn`). A recompensa virou pill
+  (`demoRewardBadge`, fundo amarelo).
+- **Pinos de pet no mapa (recência + espécie)** (`components/home/MapLeaflet.tsx`):
+  o pino agora usa o **emoji da espécie** (`speciesEmoji`, ex.: 🐶🐱🐦🐢)
+  em vez da pata 🐾; a **cor da borda** reflete a recência do desaparecimento
+  (`recencyColor`): vermelho (hoje/ontem), laranja (2–3 dias), cinza (>3 dias ou
+  sem data). O **rótulo flutuante** mostra o tempo ("Hoje", "Ontem", "Há Xd",
+  "Desde dd/mm") via `formatRelDays`/`relDays`, em vez de espécie/status. Os
+  marcadores de pet foram para um **pane dedicado** (`petPane`, `zIndex:650`) com
+  `zIndexOffset:1000`, garantindo que fiquem **acima dos patrocinadores**.
+- **Cadastro de pet (nome + validações):**
+  - Campo **"Nome do pet"** opcional adicionado (`ReportModal.tsx`,
+    `hooks/useReportForm.ts` com `name/setName`, `lib/storage.ts`
+    `PetRecord.name?`); a mensagem de compartilhar (`app/(tabs)/index.tsx`)
+    usa `pet.name` quando houver.
+  - **"Quando o pet sumiu?"** passou a ser obrigatório (`*`) e o submit
+    (`handleAddPet`) agora exige `lostDate`.
+  - `constants/breeds.ts`: **"Sem Raça Definida" (SRD)** forçado como **1ª
+    opção** de toda espécie, antes da ordenação alfabética PT-BR estável.
 - **Banner "AJUDE A ENCONTRAR!"** pulsante no card do pet (`HelpFindBanner`,
   `app/(tabs)/index.tsx`) — componente isolado com `useNativeDriver: false`
   (funciona dentro do `Modal` do card).

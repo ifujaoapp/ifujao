@@ -111,7 +111,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
                 />
-                <HelpFindBanner styles={styles} />
+                {selectedPet.foundAt ? null : <HelpFindBanner styles={styles} />}
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
                     images={selectedPet.images}

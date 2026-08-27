@@ -90,6 +90,10 @@ export function PetDetailModal(props: PetDetailModalProps) {
       cancelled = true;
     };
   }, [selectedPet, isOwner, myDeviceId, myPhone, pets]);
+  useEffect(() => {
+    setShowMore(false);
+  }, [selectedPet]);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,

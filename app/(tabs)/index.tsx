@@ -193,6 +193,9 @@ export default function HomeScreen() {
     setShowDatePicker,
     lostDate,
     setLostDate,
+    postType,
+    foundDate,
+    setFoundDate,
   } = form;
 
   const bubbleOpacity = useRef(new Animated.Value(0)).current;
@@ -316,6 +319,7 @@ export default function HomeScreen() {
   // Busca semântica por IA (Gemini): ranqueia pets por linguagem natural e
   // filtra o mapa só para os resultados. Quando `aiResults` é null, o mapa
   // volta ao comportamento normal (Todos / Somente meus).
+  const [postTypeFilter, setPostTypeFilter] = useState<'all' | 'lost' | 'found'>('all');
   const visiblePets = (() => {
     let base = showOnlyMine
       ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
@@ -324,10 +328,30 @@ export default function HomeScreen() {
       const ids = new Set(aiResults.map((r) => r.id));
       base = base.filter((p) => ids.has(p.id));
     }
+    // Filtro perdido/achado (manual matching): 'all' mostra tudo; 'lost' só
+    // posts de perda; 'found' só posts de quem encontrou um pet.
+    if (postTypeFilter !== 'all') {
+      base = base.filter((p) => (p.postType ?? 'lost') === postTypeFilter);
+    }
+    // Achados NÃO são ocultados ao confirmar um match: um "reencontro" falso não
+    // pode esconder o post (anti-fraude). O pin permanece visível (marcado como
+    // resolvido) até moderação/disputa.
     return base;
   })();
   const petsDenunciados = visiblePets.filter((p) => p.reported);
   const totalPetsNoMapa = visiblePets.length;
+  // Matches pendentes que envolvem este device (aguardando sua confirmação ou
+  // a do outro lado) — usado no indicador in-app. Conta tanto o pet que eu
+  // iniciei quanto o pet alheio que aponta para um meu pet como pendente.
+  const pendingMatches = visiblePets.filter((p) => {
+    if (p.matchStatus === 'pending' && isOwner(p, myDeviceId, myPhone)) return true;
+    if (p.matchedPetId) {
+      const mine = pets.find((x) => x.id === p.matchedPetId);
+      if (mine && isOwner(mine, myDeviceId, myPhone) && p.matchStatus === 'pending')
+        return true;
+    }
+    return false;
+  }).length;
 
   return (
     <View style={styles.container}>
@@ -450,6 +474,9 @@ export default function HomeScreen() {
         userLocation={userLocation}
         recenterNonce={recenterNonce}
         visiblePets={visiblePets}
+        postTypeFilter={postTypeFilter}
+        setPostTypeFilter={setPostTypeFilter}
+        pendingMatches={pendingMatches}
         sponsors={sponsors}
         handleSponsorPress={handleSponsorPress}
         aiResults={aiResults}
@@ -569,12 +596,13 @@ export default function HomeScreen() {
 
       <DatePickerCalendar
         isVisible={showDatePicker}
-        initialDate={lostDate ?? new Date()}
+        initialDate={(postType === 'found' ? foundDate : lostDate) ?? new Date()}
         maximumDate={new Date()}
         onCancel={() => setShowDatePicker(false)}
         onConfirm={(selected) => {
           setShowDatePicker(false);
-          setLostDate(selected);
+          if (postType === 'found') setFoundDate(selected);
+          else setLostDate(selected);
         }}
       />
     </View>
@@ -709,7 +737,7 @@ const makeStyles = (c: typeof Colors.light) =>
     modalHeader: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "center",
+      alignItems: "flex-start",
       paddingHorizontal: 20,
       marginBottom: 20,
     },
@@ -717,6 +745,9 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 28,
       fontWeight: "bold",
       color: c.text,
+      flexShrink: 1,
+      flexWrap: "wrap",
+      marginRight: 12,
     },
     bigCameraButtonText: {
       color: c.primaryButton,
@@ -1224,9 +1255,6 @@ const makeStyles = (c: typeof Colors.light) =>
       padding: 4,
     },
     counterFloat: {
-      position: "absolute",
-      top: 8,
-      zIndex: 20,
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: "rgba(10,132,255,0.92)",
@@ -1238,6 +1266,15 @@ const makeStyles = (c: typeof Colors.light) =>
       shadowOpacity: 0.25,
       shadowRadius: 4,
       shadowOffset: { width: 0, height: 2 },
+    },
+    counterFloatRow: {
+      position: "absolute",
+      right: 12,
+      left: undefined,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      zIndex: 20,
     },
     counterFloatText: {
       color: "#FFFFFF",
@@ -1259,6 +1296,21 @@ const makeStyles = (c: typeof Colors.light) =>
       color: "#FFFFFF",
       fontSize: 10,
       fontWeight: "bold",
+    },
+    counterFloatDivider: {
+      width: 1,
+      height: 16,
+      backgroundColor: "rgba(255,255,255,0.35)",
+      marginHorizontal: 6,
+    },
+    counterFloatPending: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#FF9F0A",
+      borderRadius: 12,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      marginLeft: 2,
     },
     cityBox: {
       position: "absolute",
@@ -1821,6 +1873,7 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     demoActionRow: {
       flexDirection: "row",
+      flexWrap: "wrap",
       justifyContent: "space-evenly",
       alignItems: "center",
       gap: 8,
@@ -1853,8 +1906,9 @@ const makeStyles = (c: typeof Colors.light) =>
       shadowOffset: { width: 0, height: 2 },
     },
     demoActionBtnNeutral: {
-      flex: 1,
-      minWidth: 0,
+      flexBasis: "48%",
+      flexGrow: 0,
+      flexShrink: 1,
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",
@@ -1875,11 +1929,34 @@ const makeStyles = (c: typeof Colors.light) =>
       opacity: 0.5,
     },
     demoActionLabel: {
-      fontSize: 11,
+      fontSize: 12.5,
       fontWeight: "600",
       textAlign: "center",
       flexShrink: 1,
-      flexWrap: "nowrap",
+    },
+    demoActionGroupLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: "#8E8E93",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      marginBottom: 4,
+      paddingHorizontal: 2,
+    },
+    demoMoreToggle: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingVertical: 10,
+      marginTop: 10,
+      borderRadius: 12,
+      backgroundColor: "#F2F2F7",
+    },
+    demoMoreToggleText: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: "#8E8E93",
     },
     circularBtn: {
       position: "absolute",
@@ -1956,6 +2033,87 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 13,
       fontWeight: "bold",
       letterSpacing: 0.5,
+    },
+    pendingBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 8,
+      marginBottom: 4,
+      backgroundColor: "#FFF3E0",
+      borderWidth: 1,
+      borderColor: "#FFE0B2",
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+    },
+    pendingBannerText: {
+      flex: 1,
+      color: "#9A6A00",
+      fontSize: 12.5,
+      fontWeight: "600",
+      lineHeight: 16,
+    },
+    claimantsBox: {
+      marginTop: 10,
+      padding: 12,
+      backgroundColor: "#F2F2F7",
+      borderRadius: 12,
+    },
+    claimantsTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: "#1C1C1E",
+      marginBottom: 8,
+    },
+    claimantRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: "#E5E5EA",
+    },
+    claimantName: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: "#1C1C1E",
+    },
+    claimantProof: {
+      fontSize: 12,
+      color: "#636366",
+      marginTop: 2,
+    },
+    claimantDisputed: {
+      fontSize: 12,
+      color: "#FF9500",
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    claimantConfirm: {
+      backgroundColor: "#34C759",
+      paddingVertical: 8,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+    },
+    claimantConfirmText: {
+      color: "#FFFFFF",
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    claimantDispute: {
+      padding: 6,
+    },
+    claimProofInput: {
+      marginTop: 10,
+      backgroundColor: "#F2F2F7",
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: "#E0E0E0",
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      fontSize: 14,
+      color: "#1C1C1E",
     },
     reportOverlay: {
       flex: 1,

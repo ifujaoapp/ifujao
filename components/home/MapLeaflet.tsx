@@ -148,9 +148,8 @@ export const MapLeaflet = ({
           if (isNaN(t)) return false;
           return (Date.now() - t) <= FOUND_WINDOW_HOURS * 3600 * 1000;
         }
-        function buildPetIcon(reported, label, lostDate, foundAt) {
-          // Pet REENCONTRADO: gota verde sólida + borda branca, emoji da espécie
-          // no centro e selo ✓ no canto; rótulo em pílula (padrão do app).
+        function buildPetIcon(reported, label, lostDate, foundAt, postType, foundDate, claims) {
+          // Pet REENCONTRADO (dono marcou o próprio caso): gota verde + ✓.
           if (foundAt && withinFoundWindow(foundAt)) {
             var fEmoji = speciesEmoji(__esc(label)) || '🐾';
             return L.divIcon({
@@ -164,6 +163,32 @@ export const MapLeaflet = ({
                 '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
                 '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
                 '</div>' +
+                '</div>',
+              iconSize: [64, 58],
+              iconAnchor: [32, 40],
+              popupAnchor: [0, -44],
+            });
+          }
+          // Post de ACHADO (terceiro encontrou um pet): espelha o pino de
+          // reencontro (gota verde + emoji da espécie), mas usa selo azul 🔍
+          // (em vez do ✓) para diferenciar "achado ativo" de "reencontrado".
+          // Sem rótulo de texto embaixo (mantém consistência com os pins perdidos).
+          if (postType === 'found') {
+            var fEmoji = speciesEmoji(__esc(label)) || '🐾';
+            var relText = __esc(formatRelDays(foundDate));
+            return L.divIcon({
+              className: 'paw-pin',
+              html: '<div style="position:relative;width:64px;height:58px;">' +
+                '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                '<div class="paw-pulse paw-pulse-found"></div>' +
+                '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
+                '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
+                '</svg>' +
+                 '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
+                 '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#0A84FF;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">🔍</div>' +
+                 (claims > 0 ? '<div style="position:absolute;top:40px;left:6px;width:18px;height:18px;border-radius:9px;background:#FF9500;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:5;">' + claims + '</div>' : '') +
+                 '</div>' +
+                (relText ? '<div class="pet-pin-label"><span class="pet-text">' + relText + '</span></div>' : '') +
                 '</div>',
               iconSize: [64, 58],
               iconAnchor: [32, 40],
@@ -243,10 +268,12 @@ export const MapLeaflet = ({
           if (!window.__petMarkers) window.__petMarkers = [];
           window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
           window.__petMarkers = [];
-          function addMarker(p, lat, lng){
+           function addMarker(p, lat, lng){
             // Pet reencontrado fora da janela: não aparece mais no mapa.
             if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
-            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+            // Achado já resolvido (match confirmado): some do mapa.
+            // achados confirmados permanecem visíveis (anti-fraude)
+            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus)c++;}return c;})()), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
             m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
             window.__petMarkers.push(m);
           }
@@ -279,9 +306,11 @@ export const MapLeaflet = ({
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
         function addMarker(p, lat, lng){
-          // Pet reencontrado fora da janela: não aparece mais no mapa.
-          if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
-          var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+           // Pet reencontrado fora da janela: não aparece mais no mapa.
+           if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
+           // Achado já resolvido (match confirmado): some do mapa.
+           // achados confirmados permanecem visíveis (anti-fraude)
+           var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus)c++;}return c;})()), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
           m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
           window.__petMarkers.push(m);
         }

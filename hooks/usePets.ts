@@ -14,6 +14,7 @@ import {
 import { onDeepLinkPet, consumePendingPetId } from "@/lib/deeplink";
 import { clearPhotos, loadPets, savePets, type PetRecord } from "@/lib/storage";
 import { fetchSponsors, fetchSponsorsDelta, isSponsorVisible, type SponsorPin } from "@/lib/sponsors";
+import { requestNotificationPermission, notifyMatchRequest } from "@/lib/notify";
 
 type PetPost = PetRecord;
 
@@ -27,6 +28,8 @@ export function usePets() {
   const [localLoaded, setLocalLoaded] = useState(false);
   const triggerSyncRef = useRef<() => void>(() => {});
   const lastSponsorSyncRef = useRef<string | null>(null);
+  // Ids de matches pendentes já notificados (evita notificar de novo a cada sync).
+  const seenPendingRef = useRef<Set<string>>(new Set());
   const [selectedPet, setSelectedPet] = useState<PetPost | null>(null);
   const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [showDescriptionModal, setShowDescriptionModal] = useState(false);
@@ -43,6 +46,11 @@ export function usePets() {
         if (t) setGodMode(true);
       } catch {}
     })();
+  }, []);
+
+  // Solicita permissão de notificação (barra do sistema) uma vez no boot.
+  useEffect(() => {
+    requestNotificationPermission();
   }, []);
 
   const commitPets = useCallback(
@@ -93,6 +101,27 @@ export function usePets() {
         );
         petsRef.current = synced;
         setPets(synced);
+        // Notifica (barra do celular) quando surge um NOVO match pendente do qual
+        // este device é o lado que deve confirmar (não quem iniciou). Só dispara
+        // com app aberto/segundo plano; app fechado fica sem aviso (sem FCM).
+        for (const p of synced) {
+          const isResponder =
+            (p.postType === 'lost' && p.matchRequestedBy === 'finder') ||
+            (p.postType === 'found' && p.matchRequestedBy === 'owner');
+          if (
+            p.matchStatus === 'pending' &&
+            isResponder &&
+            isOwner(p, deviceId, myPhone) &&
+            !seenPendingRef.current.has(p.id)
+          ) {
+            notifyMatchRequest(p, p.postType === 'found');
+          }
+        }
+        seenPendingRef.current = new Set(
+          synced
+            .filter((p) => p.matchStatus === 'pending' && isOwner(p, deviceId, myPhone))
+            .map((p) => p.id),
+        );
         console.log(
           "[index] SYNC concluído -> pets no estado:",
           synced.length,

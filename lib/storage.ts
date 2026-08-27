@@ -27,6 +27,17 @@ export interface PetRecord {
   reportedBy?: string;
   lostDate?: string;
   foundAt?: string | null;
+  // Tipo de post: 'lost' = dono perdeu o pet; 'found' = terceiro encontrou um
+  // pet perdido (fluxo de quem achou). Padrão 'lost' para registros legados.
+  postType?: 'lost' | 'found';
+  // Data em que o pet foi ENCONTRADO (usado quando postType === 'found').
+  foundDate?: string;
+  // Matching manual (perdido <-> achado): matchedPetId aponta para o post
+  // relacionado; matchStatus: 'pending' | 'confirmed'; matchRequestedBy indica
+  // quem iniciou ('owner' = dono do perdido, 'finder' = dono do achado).
+  matchedPetId?: string | null;
+  matchStatus?: 'pending' | 'confirmed' | null;
+  matchRequestedBy?: 'owner' | 'finder' | null;
   // Campos de sincronização (backend)
   dirty?: boolean;
   remoteImageUrls?: string[];

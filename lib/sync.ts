@@ -58,6 +58,9 @@ const toLocalPet = (row: any): PetRecord => {
     reporterDeviceId: (row.reporter_device_id as string | undefined) ?? pet.reporterDeviceId,
     reported: (row.reported as boolean) ?? pet.reported ?? false,
     foundAt: ((row.found_at as string) ?? pet.foundAt ?? null) as string | null,
+    // `post_type` é a fonte autoritativa do tipo de post (espelhado no payload
+    // também). Padrão 'lost' para registros legados sem a coluna.
+    postType: ((row.post_type as string) ?? pet.postType ?? 'lost') as 'lost' | 'found',
     images: remoteUrls.length > 0 ? remoteUrls : (pet.images ?? []),
     remoteImageUrls: remoteUrls,
     dirty: false,
@@ -185,6 +188,7 @@ export const runSync = async (
           updated_at: now,
           deleted_at: pet.deletedAt ?? null,
           found_at: pet.foundAt ?? null,
+          post_type: pet.postType ?? 'lost',
         },
         { onConflict: 'id' }
       );

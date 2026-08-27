@@ -63,6 +63,14 @@ create index if not exists pets_updated_idx on public.pets (updated_at);
 alter table public.pets add column if not exists found_at timestamptz;
 create index if not exists pets_found_idx on public.pets (found_at);
 
+-- Coluna top-level `post_type` (tipo de post): 'lost' = dono perdeu o pet;
+-- 'found' = terceiro encontrou um pet perdido (fluxo de quem achou). Permite
+-- filtrar posts de achados no mapa/feed via API normal (?post_type=eq.found)
+-- sem cavar o jsonb do payload. Padrão 'lost' mantém registros legados como
+-- posts de perda.
+alter table public.pets add column if not exists post_type text default 'lost';
+create index if not exists pets_post_type_idx on public.pets (post_type);
+
 -- CORREÇÃO N4: listas ordenam por updated_at ignorando deletados. Índice
 -- parcial evita varrer linhas soft-deletadas.
 create index if not exists pets_active_idx
@@ -355,6 +363,42 @@ alter table if exists public.ai_searches add column if not exists device_id text
 create index if not exists ai_searches_device_day_idx
   on public.ai_searches (device_id, created_at);
 grant insert on table public.ai_searches to service_role;
+
+-- ============================================================================
+-- Provas de posse de match (anti-fraude): tabela RESTRITA.
+-- Espelha o padrão de `pet_contacts`: só as duas partes da match (dono do
+-- perdido que reclamou e dono do achado) e a moderação (service_role) leem/escrevem.
+-- NUNCA vai no `payload` público de `pets` (evita expor PII / fotos de terceiros).
+-- Uma linha por pet perdido que reclamou um achado.
+-- ============================================================================
+create table if not exists public.pet_match_proofs (
+  pet_id               text primary key references public.pets (id) on delete cascade,
+  found_pet_id         text not null,
+  claimer_device_id    text not null,
+  found_owner_device_id text not null,
+  proof                text,
+  disputed             boolean default false,
+  created_at           timestamptz default now()
+);
+
+alter table public.pet_match_proofs enable row level security;
+
+drop policy if exists "match_proofs readable by parties" on public.pet_match_proofs;
+create policy "match_proofs readable by parties"
+  on public.pet_match_proofs for select to authenticated
+  using (
+    claimer_device_id = public.current_device_id()
+    or found_owner_device_id = public.current_device_id()
+  );
+
+drop policy if exists "match_proofs claimer write" on public.pet_match_proofs;
+create policy "match_proofs claimer write"
+  on public.pet_match_proofs for all to authenticated
+  using (claimer_device_id = public.current_device_id())
+  with check (claimer_device_id = public.current_device_id());
+
+grant select, insert, update, delete on table public.pet_match_proofs to authenticated;
+grant all on table public.pet_match_proofs to service_role;
 
 -- ============================================================================
 -- IMPORTANTE: ative o "Anonymous Sign-ins" em

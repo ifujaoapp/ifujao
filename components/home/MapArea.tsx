@@ -24,6 +24,9 @@ export interface MapAreaProps {
   userLocation: { latitude: number; longitude: number } | null;
   recenterNonce: number;
   visiblePets: PetRecord[];
+  postTypeFilter: 'all' | 'lost' | 'found';
+  setPostTypeFilter: Dispatch<SetStateAction<'all' | 'lost' | 'found'>>;
+  pendingMatches: number;
   sponsors: SponsorPin[];
   handleSponsorPress: (s: SponsorPin) => void;
   aiResults: unknown;
@@ -64,6 +67,9 @@ export function MapArea(props: MapAreaProps) {
     userLocation,
     recenterNonce,
     visiblePets,
+    postTypeFilter,
+    setPostTypeFilter,
+    pendingMatches,
     sponsors,
     handleSponsorPress,
     aiResults,
@@ -95,20 +101,72 @@ export function MapArea(props: MapAreaProps) {
   return (
       <View style={styles.mapArea}>
         <View
-          style={[
-            styles.counterFloat,
-            { top: insets.top + 8, right: 12, left: undefined },
-          ]}
+          style={[styles.counterFloatRow, { top: 46 }]}
         >
-          <Ionicons name="paw" size={13} color="#FFFFFF" />
-          <Text style={styles.counterFloatText}>{totalPetsNoMapa}</Text>
-          {petsDenunciados.length > 0 && (
-            <View style={styles.counterFloatBadge}>
-              <Text style={styles.counterFloatBadgeText}>
-                {petsDenunciados.length}
-              </Text>
-            </View>
-          )}
+          <View style={styles.counterFloat}>
+            <Ionicons name="paw" size={13} color="#FFFFFF" />
+            <Text style={styles.counterFloatText}>{totalPetsNoMapa}</Text>
+            {petsDenunciados.length > 0 && (
+              <View style={styles.counterFloatBadge}>
+                <Text style={styles.counterFloatBadgeText}>
+                  {petsDenunciados.length}
+                </Text>
+              </View>
+            )}
+            {pendingMatches > 0 && (
+              <>
+                <View style={styles.counterFloatDivider} />
+                <View style={styles.counterFloatPending}>
+                  <Ionicons name="link" size={13} color="#FFFFFF" />
+                  <Text style={styles.counterFloatText}>{pendingMatches}</Text>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+
+        <View
+          style={{
+            position: "absolute",
+            top: 8,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            alignItems: "center",
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              backgroundColor: "rgba(0,0,0,0.62)",
+              borderRadius: 16,
+              padding: 2,
+            }}
+          >
+            {(["all", "lost", "found"] as const).map((opt) => (
+              <TouchableOpacity
+                key={opt}
+                onPress={() => setPostTypeFilter(opt)}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 10,
+                  borderRadius: 14,
+                  backgroundColor:
+                    postTypeFilter === opt ? "#FFFFFF" : "transparent",
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: postTypeFilter === opt ? "#000000" : "#FFFFFF",
+                  }}
+                >
+                  {opt === "all" ? "Todos" : opt === "lost" ? "Perdidos" : "Achados"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {initialCenterRef.current && (

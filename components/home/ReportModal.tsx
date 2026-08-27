@@ -71,6 +71,10 @@ export function ReportModal({
     setContactError,
     lostDate,
     setShowDatePicker,
+    postType,
+    setPostType,
+    foundDate,
+    setFoundDate,
     speciesPickerOpen,
     setSpeciesPickerOpen,
     breedPickerOpen,
@@ -84,6 +88,7 @@ export function ReportModal({
     handlePickLocation,
     usarMeuGps,
   } = form;
+  const activeDate = postType === 'found' ? foundDate : lostDate;
   const {
     isCameraOpen,
     setIsCameraOpen,
@@ -130,8 +135,61 @@ export function ReportModal({
           keyboardVerticalOffset={0}
         >
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Reportar Pet Perdido</Text>
+            <Text style={styles.modalTitle}>
+              {postType === 'found' ? 'Reportar Pet Encontrado' : 'Reportar Pet Perdido'}
+            </Text>
             <CloseCircle onPress={onClose} />
+          </View>
+          <View
+            style={{
+              flexDirection: 'row',
+              backgroundColor: '#E5E5EA',
+              borderRadius: 10,
+              padding: 3,
+              marginHorizontal: 16,
+              marginBottom: 12,
+            }}
+          >
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                paddingVertical: 9,
+                borderRadius: 8,
+                backgroundColor: postType === 'lost' ? '#FFFFFF' : 'transparent',
+              }}
+              onPress={() => setPostType('lost')}
+            >
+              <Text
+                style={{
+                  textAlign: 'center',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: postType === 'lost' ? themeColors.primaryButton : '#3C3C43',
+                }}
+              >
+                Perdi um pet
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                paddingVertical: 9,
+                borderRadius: 8,
+                backgroundColor: postType === 'found' ? '#FFFFFF' : 'transparent',
+              }}
+              onPress={() => setPostType('found')}
+            >
+              <Text
+                style={{
+                  textAlign: 'center',
+                  fontSize: 14,
+                  fontWeight: '600',
+                  color: postType === 'found' ? themeColors.primaryButton : '#3C3C43',
+                }}
+              >
+                Encontrei um pet
+              </Text>
+            </TouchableOpacity>
           </View>
           <ScrollView
             style={{ flex: 1 }}
@@ -296,7 +354,7 @@ export function ReportModal({
                 <Text style={styles.sectionTitle}>Localização</Text>
               </View>
                 <Text style={styles.fieldLabel}>
-                  Quando o pet sumiu? *
+                  {postType === 'found' ? 'Quando você encontrou? *' : 'Quando o pet sumiu? *'}
                 </Text>
               <TouchableOpacity
                 style={styles.dateField}
@@ -311,11 +369,11 @@ export function ReportModal({
                 <Text
                   style={[
                     styles.dateFieldText,
-                    !lostDate && { color: themeColors.icon },
+                    !activeDate && { color: themeColors.icon },
                   ]}
                 >
-                  {lostDate
-                    ? lostDate.toLocaleDateString("pt-BR")
+                  {activeDate
+                    ? activeDate.toLocaleDateString("pt-BR")
                     : "Toque para selecionar a data"}
                 </Text>
               </TouchableOpacity>
@@ -512,20 +570,24 @@ export function ReportModal({
                 />
                 <Text style={styles.sectionTitle}>Contato e Recompensa</Text>
               </View>
-              <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
-              <View style={styles.rewardField}>
-                <Text style={styles.rewardPrefix}>R$</Text>
-                <TextInput
-                  style={styles.rewardInput}
-                  placeholder="0,00"
-                  placeholderTextColor="#8E8E93"
-                  value={reward ? Number(reward).toLocaleString("pt-BR") : ""}
-                  onChangeText={(t) => setReward(t.replace(/\D/g, ""))}
-                  keyboardType="number-pad"
-                  returnKeyType="next"
-                  onSubmitEditing={() => contactRef.current?.focus()}
-                />
-              </View>
+              {postType === 'lost' && (
+                <>
+                  <Text style={styles.fieldLabel}>Recompensa (opcional)</Text>
+                  <View style={styles.rewardField}>
+                    <Text style={styles.rewardPrefix}>R$</Text>
+                    <TextInput
+                      style={styles.rewardInput}
+                      placeholder="0,00"
+                      placeholderTextColor="#8E8E93"
+                      value={reward ? Number(reward).toLocaleString("pt-BR") : ""}
+                      onChangeText={(t) => setReward(t.replace(/\D/g, ""))}
+                      keyboardType="number-pad"
+                      returnKeyType="next"
+                      onSubmitEditing={() => contactRef.current?.focus()}
+                    />
+                  </View>
+                </>
+              )}
               <Text style={styles.fieldLabel}>Contato (WhatsApp) *</Text>
               <TextInput
                 ref={contactRef}
@@ -555,7 +617,9 @@ export function ReportModal({
               style={styles.submitButton}
               onPress={handleAddPet}
             >
-              <Text style={styles.submitButtonText}>Publicar Alerta</Text>
+              <Text style={styles.submitButtonText}>
+                {postType === 'found' ? 'Publicar Achado' : 'Publicar Alerta'}
+              </Text>
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>

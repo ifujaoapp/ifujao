@@ -73,6 +73,10 @@ export function useReportForm(params: UseReportFormParams) {
   const [contact, setContact] = useState("");
   const [contactError, setContactError] = useState("");
   const [lostDate, setLostDate] = useState<Date | null>(null);
+  // Tipo de post: 'lost' (dono perdeu) ou 'found' (terceiro encontrou).
+  const [postType, setPostType] = useState<'lost' | 'found'>('lost');
+  // Data do achado (usada quando postType === 'found').
+  const [foundDate, setFoundDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [speciesPickerOpen, setSpeciesPickerOpen] = useState(false);
   const [breedPickerOpen, setBreedPickerOpen] = useState(false);
@@ -116,7 +120,7 @@ export function useReportForm(params: UseReportFormParams) {
       !breed ||
       !location ||
       !contact ||
-      !lostDate
+      (postType === 'lost' ? !lostDate : !foundDate)
     ) {
       showAlert(
         "warning",
@@ -187,8 +191,13 @@ export function useReportForm(params: UseReportFormParams) {
       latitude,
       longitude,
       city: cityName || getCityForLocation(petLocation)?.name,
-      lostDate: lostDate ? lostDate.toISOString() : undefined,
-      reward: reward.trim() ? Number(reward.replace(/\D/g, "")) : undefined,
+      lostDate: postType === 'lost' ? (lostDate ? lostDate.toISOString() : undefined) : undefined,
+      foundDate: postType === 'found' ? (foundDate ? foundDate.toISOString() : undefined) : undefined,
+      postType,
+      reward:
+        postType === 'lost' && reward.trim()
+          ? Number(reward.replace(/\D/g, ""))
+          : undefined,
       dirty: true,
     };
     commitPets([newPet, ...pets]);
@@ -204,6 +213,8 @@ export function useReportForm(params: UseReportFormParams) {
     setSearchAddress("");
     setImages([]);
     setLostDate(null);
+    setFoundDate(null);
+    setPostType('lost');
     setIsCameraOpen(false);
     setReportModalVisible(false);
     showAlert("success", "Sucesso!", "Alerta publicado!");
@@ -211,6 +222,10 @@ export function useReportForm(params: UseReportFormParams) {
 
   const openReport = async () => {
     if (!canReport) return;
+    // Reseta o tipo de post e as datas a cada abertura (evita resíduo de rascunho).
+    setPostType('lost');
+    setLostDate(null);
+    setFoundDate(null);
     if (!location) {
       const coords = userLocation ?? {
         latitude: mapRegion.latitude,
@@ -394,6 +409,10 @@ export function useReportForm(params: UseReportFormParams) {
     setLostDate,
     showDatePicker,
     setShowDatePicker,
+    postType,
+    setPostType,
+    foundDate,
+    setFoundDate,
     speciesPickerOpen,
     setSpeciesPickerOpen,
     breedPickerOpen,

@@ -1,7 +1,7 @@
 import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder, useWindowDimensions } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Ionicons } from "@expo/vector-icons";
-import { type RefObject, useRef } from "react";
+import { type RefObject, useRef, useState } from "react";
 import { type EdgeInsets } from "react-native-safe-area-context";
 import { HelpFindBanner } from "./HelpFindBanner";
 import { ImageCarousel } from "./ImageCarousel";
@@ -63,6 +63,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
   const sheetY = useRef(new Animated.Value(0)).current;
   const { height: windowHeight } = useWindowDimensions();
   const isSmall = windowHeight < 720;
+  const [showMore, setShowMore] = useState(false);
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -119,6 +120,11 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
                 />
+                <ScrollView
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ paddingBottom: 8 }}
+                  keyboardShouldPersistTaps="handled"
+                >
                 {selectedPet.foundAt ? null : <HelpFindBanner styles={styles} />}
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
@@ -435,14 +441,31 @@ export function PetDetailModal(props: PetDetailModalProps) {
                           <View style={styles.demoActionRowTop}>{renderBtn(topFound)}</View>
                         ) : null}
                         {secondary.length > 0 ? (
-                          <View style={styles.demoActionRow}>
-                            {secondary.map((item) => renderBtn(item))}
-                          </View>
+                          <>
+                            <TouchableOpacity
+                              style={styles.demoMoreToggle}
+                              onPress={() => setShowMore((v) => !v)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.demoMoreToggleText}>Mais opções</Text>
+                              <Ionicons
+                                name={showMore ? "chevron-up" : "chevron-down"}
+                                size={16}
+                                color="#8E8E93"
+                              />
+                            </TouchableOpacity>
+                            {showMore ? (
+                              <View style={[styles.demoActionRow, { marginTop: 8 }]}>
+                                {secondary.map((item) => renderBtn(item))}
+                              </View>
+                            ) : null}
+                          </>
                         ) : null}
                       </View>
                     );
                   })()}
                 </View>
+              </ScrollView>
               </Animated.View>
             </View>
           </Modal>

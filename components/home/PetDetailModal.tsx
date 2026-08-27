@@ -538,7 +538,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                       );
                     };
                     return (
-                      <View>
+                      <View style={{ width: "100%" }}>
                         {claimantsSection}
                         {contact ? (
                           <View style={styles.demoActionRowTop}>{renderBtn(contact)}</View>

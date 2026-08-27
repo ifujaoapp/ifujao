@@ -40,6 +40,22 @@ const setLastSync = async (iso: string): Promise<void> => {
   await SecureStore.setItemAsync(LAST_SYNC_KEY, iso).catch(() => {});
 };
 
+// Cursor SEPARADO para soft-deletes. Ver comentário no passo 3: usar um único
+// cursor para updated_at e deleted_at fazia deletes "fantasma" escaparem.
+const LAST_SYNC_DEL_KEY = 'ifujao_last_sync_del';
+
+const getLastDeletedSync = async (): Promise<string | null> => {
+  try {
+    return await SecureStore.getItemAsync(LAST_SYNC_DEL_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setLastDeletedSync = async (iso: string): Promise<void> => {
+  await SecureStore.setItemAsync(LAST_SYNC_DEL_KEY, iso).catch(() => {});
+};
+
 // Converte um registro remoto (linha da tabela) num PetRecord local.
 // Usa as URLs remotas diretamente nas imagens (viewer suporta https).
 const toLocalPet = (row: any): PetRecord => {
@@ -96,8 +112,9 @@ export const fetchPetRemote = async (id: string): Promise<PetRecord | null> => {
 
 // Sincroniza o estado local com o backend.
 // Estratégia local-first + INCREMENTAL: não relê a tabela inteira — só o delta
-// desde `lastSync` (updated_at ou deleted_at). Isso evita estourar o plano de
-// tráfego mesmo com milhares de pins.
+// desde os cursores de `updated_at` e `deleted_at` (cursores INDEPENDENTES).
+// Isso evita estourar o plano de tráfego mesmo com milhares de pins e garante
+// que um soft-delete não "escape" por causa de uma atualização alheia.
 export const runSync = async (
   localPets: PetRecord[],
   deviceId: string,
@@ -238,17 +255,26 @@ export const runSync = async (
     }
   }
 
-  // 3) Pull INCREMENTAL: só o delta desde lastSync (dois filtros .gt() simples)
-  const lastSync = await getLastSync();
+  // 3) Pull INCREMENTAL: só o delta desde os cursores de updated_at e deleted_at.
+  // IMPORTANTE: os dois cursores são INDEPENDENTES. Se usássemos um único
+  // cursor para ambos, uma atualização de OUTRO pet (ex.: alguém editando um
+  // post perdido) avançaria o cursor além de um soft-delete feito logo em
+  // seguida, e esse delete NUNCA seria puxado — o pin ficaria "fantasma" no
+  // mapa mesmo após o dono apagar no backend. Por isso puxamos os deletes com
+  // seu próprio cursor (lastDeletedSync), que só avança quando um delete é
+  // efetivamente visto.
+  const lastUpdatedSync = await getLastSync();
+  const lastDeletedSync = await getLastDeletedSync();
   // Pull completo (bootstrap): na 1ª sincronização da sessão, quando o local
   // está vazio, ou quando forçado. O incremental (delta) só puxa o que mudou
-  // desde `lastSync` e NUNCA recupera pets que sumiram do local com
-  // updated_at <= lastSync — por isso o bootstrap precisa ser full.
-  const doFull = options?.full === true || !lastSync || localPets.length === 0;
+  // desde os cursores e NUNCA recupera pets que sumiram do local — por isso o
+  // bootstrap precisa ser full.
+  const doFull = options?.full === true || !lastUpdatedSync || localPets.length === 0;
   const remoteMap: Record<string, PetRecord> = {};
   const remoteDeletedIds = new Set<string>();
   let pullOk = false;
-  let maxTs = '';
+  let maxUpdatedTs = '';
+  let maxDeletedTs = '';
   try {
     let rows: any[] = [];
     if (doFull) {
@@ -257,8 +283,8 @@ export const runSync = async (
       rows = data ?? [];
     } else {
       const [rU, rD] = await Promise.all([
-        sb.from('pets').select('*').gt('updated_at', lastSync),
-        sb.from('pets').select('*').gt('deleted_at', lastSync),
+        sb.from('pets').select('*').gt('updated_at', lastUpdatedSync),
+        sb.from('pets').select('*').gt('deleted_at', lastDeletedSync),
       ]);
       if (rU.error) console.warn('[sync] pull updated falhou:', rU.error.message);
       if (rD.error) console.warn('[sync] pull deleted falhou:', rD.error.message);
@@ -267,8 +293,8 @@ export const runSync = async (
     for (const row of rows) {
       const u = row.updated_at ?? '';
       const d = row.deleted_at ?? '';
-      if (u > maxTs) maxTs = u;
-      if (d > maxTs) maxTs = d;
+      if (u > maxUpdatedTs) maxUpdatedTs = u;
+      if (d > maxDeletedTs) maxDeletedTs = d;
       if (row.deleted_at) {
         remoteDeletedIds.add(row.id);
         continue;
@@ -306,11 +332,12 @@ export const runSync = async (
 
   // 4) Merge
   // No modo incremental (delta), `remoteMap` só traz as LINHAS QUE MUDARAM
-  // desde `lastSync` — NÃO o catálogo completo. Por isso um pet local já
+  // desde os cursores — NÃO o catálogo completo. Por isso um pet local já
   // sincronizado (dirty=false) e ausente do delta NÃO deve ser descartado:
   // ausência no delta significa "sem alteração remota", então mantemos o
   // estado local. Só cedemos à versão remota quando ela de fato existe no
-  // delta (foi alterada), e só removemos quando o remoto está soft-deletado.
+  // delta (foi alterada), e só removemos quando o remoto está soft-deletado
+  // (remoteDeletedIds, puxado pelo cursor de deleted_at).
   const merged: PetRecord[] = [];
   const seen = new Set<string>();
   for (const pet of working) {
@@ -349,8 +376,16 @@ export const runSync = async (
     console.warn('[sync] falha ao persistir:', e);
   }
 
-  // 5) Avança o cursor com o máximo updated_at/deleted_at do servidor (evita skew de relógio)
-  if (pullOk && maxTs) await setLastSync(maxTs);
+  // 5) Avança os cursores de forma INDEPENDENTE (evita skew de relógio e
+  // garante que um soft-delete nunca "escape" por causa de uma atualização
+  // alheia). No pull completo não recebemos deletes (só pets ativos), então
+  // alinhamos o cursor de deletes com o de updates para não re-puxar deletes
+  // históricos a cada sync.
+  if (pullOk) {
+    if (maxUpdatedTs) await setLastSync(maxUpdatedTs);
+    const newDeletedTs = doFull ? maxUpdatedTs : maxDeletedTs;
+    if (newDeletedTs) await setLastDeletedSync(newDeletedTs);
+  }
 
   return merged;
 };

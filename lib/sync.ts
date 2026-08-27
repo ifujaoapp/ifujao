@@ -340,6 +340,17 @@ export const runSync = async (
   // (remoteDeletedIds, puxado pelo cursor de deleted_at).
   const merged: PetRecord[] = [];
   const seen = new Set<string>();
+  const localIds = new Set(working.map((p) => p.id));
+  // Match "órfão": o pet apontado por `matchedPetId` sumiu (deletado no
+  // backend, ou — no full pull — ausente do catálogo ativo e também não é um
+  // pet local ainda não enviado). Nesses casos limpamos o vínculo local para o
+  // banner de "Em acordo" não contar um match fantasma cujo pin já não existe.
+  const isMatchDangling = (id?: string | null): boolean => {
+    if (!id) return false;
+    if (remoteDeletedIds.has(id)) return true;
+    if (doFull && !remoteMap[id] && !localIds.has(id)) return true;
+    return false;
+  };
   for (const pet of working) {
     if (failedIds.has(pet.id)) {
       merged.push(pet);
@@ -359,7 +370,17 @@ export const runSync = async (
       continue;
     }
     const remote = remoteMap[pet.id];
-    if (remote && !pet.dirty) {
+    const base = remote && !pet.dirty ? remote : pet;
+    if (isMatchDangling(base.matchedPetId)) {
+      // Contraparte do match foi apagada: zera o vínculo para não exibir um
+      // "Em acordo" fantasma no banner.
+      merged.push({
+        ...base,
+        matchedPetId: null,
+        matchStatus: null,
+        matchRequestedBy: null,
+      });
+    } else if (remote && !pet.dirty) {
       merged.push(remote); // versão remota (mais nova) prevalece, salvo se há mudança local pendente
     } else {
       merged.push(pet); // mantém local (inclui denúncia/report pendente) ou sem alteração remota
@@ -367,7 +388,15 @@ export const runSync = async (
     seen.add(pet.id);
   }
   for (const id of Object.keys(remoteMap)) {
-    if (!seen.has(id)) merged.push(remoteMap[id]);
+    if (!seen.has(id)) {
+      const rp = remoteMap[id];
+      // Também limpa vínculo de match órfão em pets que chegaram novos do backend.
+      merged.push(
+        isMatchDangling(rp.matchedPetId)
+          ? { ...rp, matchedPetId: null, matchStatus: null, matchRequestedBy: null }
+          : rp,
+      );
+    }
   }
 
   try {

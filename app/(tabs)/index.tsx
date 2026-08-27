@@ -1891,7 +1891,7 @@ const makeStyles = (c: typeof Colors.light) =>
       backgroundColor: "transparent",
     },
     demoActionBtnPrimary: {
-      width: "100%",
+      alignSelf: "stretch",
       alignItems: "center",
       justifyContent: "center",
       flexDirection: "row",

@@ -146,11 +146,6 @@ export function PetDetailModal(props: PetDetailModalProps) {
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
                 />
-                <ScrollView
-                  style={{ flex: 1 }}
-                  contentContainerStyle={{ paddingBottom: 8 }}
-                  keyboardShouldPersistTaps="handled"
-                >
                 {selectedPet.foundAt ? null : <HelpFindBanner styles={styles} />}
                 <View style={styles.reportImageWrap}>
                   <ImageCarousel
@@ -576,7 +571,6 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     );
                   })()}
                 </View>
-              </ScrollView>
               </Animated.View>
             </View>
           </Modal>

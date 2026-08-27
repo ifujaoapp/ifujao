@@ -1,7 +1,7 @@
 import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder, useWindowDimensions } from "react-native";
 import ViewShot from "react-native-view-shot";
 import { Ionicons } from "@expo/vector-icons";
-import { type RefObject, useRef, useState } from "react";
+import { type RefObject, useRef, useState, useEffect } from "react";
 import { type EdgeInsets } from "react-native-safe-area-context";
 import { HelpFindBanner } from "./HelpFindBanner";
 import { ImageCarousel } from "./ImageCarousel";
@@ -10,6 +10,7 @@ import { CloseCircle } from "@/components/CloseCircle";
 import { Colors } from "@/constants/theme";
 import { formatLostDate, isOwner } from "@/constants/breeds";
 import { type PetRecord } from "@/lib/storage";
+import { getMatchProof, setMatchProofDisputed, type MatchProof } from "@/lib/matchProofs";
 
 export interface PetDetailModalProps {
   selectedPet: PetRecord | null;
@@ -64,6 +65,31 @@ export function PetDetailModal(props: PetDetailModalProps) {
   const { height: windowHeight } = useWindowDimensions();
   const isSmall = windowHeight < 720;
   const [showMore, setShowMore] = useState(false);
+  const [claimantProofs, setClaimantProofs] = useState<Record<string, MatchProof>>({});
+
+  useEffect(() => {
+    if (!selectedPet || selectedPet.postType !== "found") return;
+    if (!isOwner(selectedPet, myDeviceId, myPhone)) return;
+    let cancelled = false;
+    (async () => {
+      const cs = pets.filter(
+        (p) => p.id !== selectedPet.id && p.matchedPetId === selectedPet.id,
+      );
+      const loaded = await Promise.all(
+        cs.map(async (c) => [c.id, await getMatchProof(c.id)] as const),
+      );
+      if (!cancelled) {
+        setClaimantProofs(
+          Object.fromEntries(
+            loaded.filter(([, v]) => v !== null) as [string, MatchProof][],
+          ),
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPet, isOwner, myDeviceId, myPhone, pets]);
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -232,6 +258,90 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     let contact: BarAction | null = null;
                     let topFound: BarAction | null = null;
                     const secondary: BarAction[] = [];
+
+                    // --- Reconhecimento de pets achados (claimants / match proofs) ---
+                    const claimantsOf = (pet: PetRecord): PetRecord[] =>
+                      pets.filter((p) => p.id !== pet.id && p.matchedPetId === pet.id);
+
+                    const resolveMatch = (claimant: PetRecord) => {
+                      commitPets(
+                        pets.map((p) =>
+                          p.id === claimant.id || p.id === selectedPet.id
+                            ? { ...p, matchStatus: "confirmed", dirty: true }
+                            : p,
+                        ),
+                      );
+                    };
+                    const confirmClaimant = (claimant: PetRecord) => {
+                      resolveMatch(claimant);
+                      setSelectedPet(null);
+                    };
+                    const disputeClaimant = (claimant: PetRecord) => {
+                      setMatchProofDisputed(claimant.id, true);
+                      setClaimantProofs((prev) => ({
+                        ...prev,
+                        [claimant.id]: {
+                          ...(prev[claimant.id] ?? ({ pet_id: claimant.id } as MatchProof)),
+                          disputed: true,
+                        },
+                      }));
+                    };
+
+                    const claimants =
+                      isOwn && selectedPet.postType === "found"
+                        ? claimantsOf(selectedPet)
+                        : [];
+                    const claimantsSection =
+                      claimants.length > 0 ? (
+                        <View style={styles.claimantsBox}>
+                          <Text style={styles.claimantsTitle}>
+                            {claimants.length === 1
+                              ? "1 tutor reconheceu este pet"
+                              : `${claimants.length} tutores reconheceram este pet`}
+                          </Text>
+                          {claimants.map((c) => {
+                            const proof = claimantProofs[c.id];
+                            return (
+                              <View key={c.id} style={styles.claimantRow}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.claimantName}>
+                                    {c.name || c.species}
+                                    {c.breed ? ` (${c.breed})` : ""}
+                                  </Text>
+                                  {proof?.proof ? (
+                                    <Text style={styles.claimantProof}>
+                                      Prova: {proof.proof}
+                                    </Text>
+                                  ) : null}
+                                  {proof?.disputed ? (
+                                    <Text style={styles.claimantDisputed}>
+                                      Em disputa
+                                    </Text>
+                                  ) : null}
+                                </View>
+                                <TouchableOpacity
+                                  style={styles.claimantConfirm}
+                                  onPress={() => confirmClaimant(c)}
+                                >
+                                  <Text style={styles.claimantConfirmText}>
+                                    Confirmar
+                                  </Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                  style={styles.claimantDispute}
+                                  onPress={() => disputeClaimant(c)}
+                                >
+                                  <Ionicons
+                                    name="alert-circle"
+                                    size={18}
+                                    color="#FF9500"
+                                  />
+                                </TouchableOpacity>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : null;
 
                     if (isFound) {
                       // Pet REENCONTRADO: nenhuma ação de busca faz sentido.
@@ -434,6 +544,7 @@ export function PetDetailModal(props: PetDetailModalProps) {
                     };
                     return (
                       <View>
+                        {claimantsSection}
                         {contact ? (
                           <View style={styles.demoActionRowTop}>{renderBtn(contact)}</View>
                         ) : null}

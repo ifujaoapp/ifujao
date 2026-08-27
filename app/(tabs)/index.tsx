@@ -1860,6 +1860,7 @@ const makeStyles = (c: typeof Colors.light) =>
       fontWeight: "bold",
     },
     demoActionBar: {
+      width: "100%",
       marginTop: 14,
       backgroundColor: c.card,
       borderRadius: 16,

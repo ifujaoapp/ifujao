@@ -146,7 +146,10 @@ export const runSync = async (
     // qualquer denunciante (inclusive dono), via `.update()` direto.
     if (pet.reporterDeviceId === deviceId) {
       try {
-        const now = new Date().toISOString();
+        // `updated_at` fica a cargo do trigger do banco (pets_set_updated_at),
+        // que usa now() do SERVIDOR — assim o cursor de sync não sofre com o
+        // relógio do cliente (dispositivos com hora errada deixavam deletes/
+        // pets novos passarem "atrás" do cursor e nunca serem puxados).
         // SÓ atualiza as COLUNAS DE TOPO (fonte autoritativa da denúncia).
         // NÃO reescreve o `payload` inteiro: o app já espelha a denúncia nas
         // colunas de topo (toLocalPet lê `reported`/`reporterDeviceId` delas),
@@ -158,7 +161,6 @@ export const runSync = async (
           .update({
             reported: !!pet.reported,
             reporter_device_id: deviceId,
-            updated_at: now,
           })
           .eq('id', pet.id);
         if (error) {
@@ -166,7 +168,9 @@ export const runSync = async (
           failedIds.add(pet.id);
         } else {
           pet.dirty = false;
-          pet.updatedAt = now;
+          // updated_at autoritativo (servidor) vem no próximo pull; aqui só
+          // marcamos localmente para não ficar vazio.
+          pet.updatedAt = new Date().toISOString();
         }
       } catch (e) {
         console.warn('[sync] erro no report update:', e);
@@ -202,7 +206,6 @@ export const runSync = async (
           owner_device_id: pet.ownerDeviceId ?? null,
           reporter_device_id: pet.reporterDeviceId ?? null,
           reported: !!pet.reported,
-          updated_at: now,
           deleted_at: pet.deletedAt ?? null,
           found_at: pet.foundAt ?? null,
           post_type: pet.postType ?? 'lost',

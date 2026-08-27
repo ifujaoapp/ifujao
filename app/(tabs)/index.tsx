@@ -321,15 +321,8 @@ export default function HomeScreen() {
   // volta ao comportamento normal (Todos / Somente meus).
   const [postTypeFilter, setPostTypeFilter] = useState<'all' | 'lost' | 'found'>('all');
   const visiblePets = (() => {
-    // "Achados" (postType 'found') são contribuições da comunidade e ficam
-    // VISÍVEIS PARA TODOS, independente do filtro meus/todos — assim o pin de
-    // "encontrei um pet" de outro dispositivo aparece mesmo em modo "meus".
     let base = showOnlyMine
-      ? pets.filter(
-          (p) =>
-            isOwner(p, myDeviceId, myPhone) ||
-            (p.postType ?? 'lost') === 'found',
-        )
+      ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
       : pets;
     if (aiResults) {
       const ids = new Set(aiResults.map((r) => r.id));

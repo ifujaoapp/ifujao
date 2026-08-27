@@ -60,7 +60,8 @@ export const MapLeaflet = ({
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { attributionControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
+        var map = L.map('map', { attributionControl: false, zoomControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19
         }).addTo(map);

@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { type RefObject, type ReactNode, useRef, useState, useEffect } from "react";
 import { type EdgeInsets } from "react-native-safe-area-context";
 import { CloseCircle } from "@/components/CloseCircle";
-import { ImageCarousel } from "./ImageCarousel";
 import type { HomeStyles } from "@/app/(tabs)/index";
 import { Colors } from "@/constants/theme";
 import { type PetRecord } from "@/lib/storage";
@@ -189,14 +188,30 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                 />
                 {headerExtra}
                 <View style={styles.reportImageWrap}>
-                  <ImageCarousel
-                    images={selectedPet.images}
-                    blurRadius={selectedPet.reported && !godMode ? 18 : 0}
-                    onPressImage={(imgs, idx) => {
-                      if (!selectedPet.reported || godMode) openInViewer(imgs, idx);
-                    }}
-                  />
-                  {selectedPet.reported && !godMode ? (
+                  <View style={{ alignItems: 'center' }}>
+                     <View style={{ backgroundColor: themeColors.card, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: themeColors.cardStroke, shadowColor: themeColors.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, alignSelf: 'center' }}>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
+                        {selectedPet.images.map((img, idx) => (
+                          <TouchableOpacity
+                            key={idx}
+                            activeOpacity={0.8}
+                            disabled={selectedPet.reported && !godMode}
+                            onPress={() => {
+                              if (!selectedPet.reported || godMode) openInViewer(selectedPet.images, idx);
+                            }}
+                          >
+                            <Image
+                              source={{ uri: img }}
+                              style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: themeColors.card }}
+                              resizeMode="cover"
+                              blurRadius={selectedPet.reported && !godMode ? 18 : 0}
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                     </View>
+                   </View>
+                   {selectedPet.reported && !godMode ? (
                     <View style={styles.reportedBanner}>
                       <Text style={styles.reportedBannerText}>DENÚNCIA</Text>
                     </View>

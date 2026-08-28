@@ -197,20 +197,22 @@ export function PetFoundModal(props: PetModalProps) {
               <Text style={styles.claimantsTitle}>Este pode ser o seu pet?</Text>
               {ownerClaimStep === "proof" ? (
                 <View>
-                  <TextInput
-                    style={{ borderWidth: 1, borderColor: "#C7C7CC", borderRadius: 10, padding: 10, minHeight: 44, textAlignVertical: "top", backgroundColor: "#fff" }}
-                    placeholder="Nº de microchip, foto com o pet ou marca única"
-                    placeholderTextColor="#8E8E93"
-                    value={ownerClaimProof}
-                    onChangeText={setOwnerClaimProof}
-                    multiline
-                  />
+                  <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card }}>
+                    <TextInput
+                      style={{ color: themeColors.text, minHeight: 44, textAlignVertical: "top" }}
+                      placeholder="Nº de microchip, foto com o pet ou marca única"
+                      placeholderTextColor={themeColors.icon}
+                      value={ownerClaimProof}
+                      onChangeText={setOwnerClaimProof}
+                      multiline
+                    />
+                  </View>
                   <TouchableOpacity
-                    style={{ backgroundColor: "#34C759", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
+                    style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
                     disabled={!ownerClaimProof.trim()}
                     onPress={submitOwnerClaim}
                   >
-                    <Text style={{ color: "#fff", fontWeight: "700" }}>Enviar comprovante</Text>
+                    <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Enviar comprovante</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ alignItems: "center", paddingVertical: 8 }}
@@ -220,7 +222,7 @@ export function PetFoundModal(props: PetModalProps) {
                       setOwnerClaimProof("");
                     }}
                   >
-                    <Text style={{ color: "#8E8E93" }}>Voltar</Text>
+                    <Text style={{ color: themeColors.icon }}>Voltar</Text>
                   </TouchableOpacity>
                 </View>
               ) : ownerClaimStep === "pick" ? (
@@ -244,7 +246,7 @@ export function PetFoundModal(props: PetModalProps) {
                 ))
               ) : (
                 <TouchableOpacity
-                  style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center" }}
+                  style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center" }}
                   onPress={() => {
                     if (myLostPets.length === 1) {
                       setOwnerClaimLostId(myLostPets[0].id);
@@ -254,16 +256,16 @@ export function PetFoundModal(props: PetModalProps) {
                     }
                   }}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "700" }}>É o seu pet?</Text>
+                  <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>É o seu pet?</Text>
                 </TouchableOpacity>
               )}
             </View>
           )
         : (
-            <View style={{ backgroundColor: '#FFCC00', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="alert-circle" size={20} color="#000" />
-              <Text style={{ color: '#000', fontWeight: '700', marginLeft: 8, fontSize: 13 }}>Registre um pet perdido para reivindicar este pet encontrado</Text>
-            </View>
+              <View style={{ backgroundColor: themeColors.card, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', borderLeftWidth: 4, borderLeftColor: '#FFCC00' }}>
+                <Ionicons name="alert-circle" size={20} color="#FFCC00" />
+                <Text style={{ color: themeColors.text, fontWeight: '700', marginLeft: 8, fontSize: 13 }}>Registre um pet perdido para reivindicar este pet encontrado</Text>
+              </View>
           )
       : null;
 

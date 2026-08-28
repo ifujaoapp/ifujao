@@ -1,50 +1,35 @@
-# STATUS — Sincronização de pins entre dispositivos (StudyFlow)
+# STATUS — StudyFlow
 
-## Princípio fundamental (decisão do produto)
-Todos os campos que alimentam o resync delta — `updated_at` (pull de alterações) e
-`deleted_at` (pull de exclusões/soft-delete) — DEVEM usar **horário de servidor**,
-nunca do cliente. O cursor incremental (`lastUpdatedSync` / `lastDeletedSync`) avança
-com esses valores. Se o app enviar o relógio do aparelho, dispositivos com hora
-errada fazem o cursor pular para o futuro e deletes/pets novos de outros dispositivos
-nunca são puxados ("pin fantasma").
+## Sessão atual (2026-08-27/28)
 
-## O que foi feito (sessão 2026-08-27)
+### Refatoração dos modais de pet
+- `PetDetailModal.tsx` foi separado em:
+  - `PetDetailBase.tsx` — chrome compartilhado (sheet, imagens, nome, local, descrição, ações comuns, modal de descrição, shareCard).
+  - `PetFoundModal.tsx` — lógica de achado (claimants, reivindicação com prova, WhatsApp pós-confirmação).
+  - `PetLostModal.tsx` — lógica de perdido (banner "ME AJUDE A VOLTAR PARA CASA!", ações de contato/denúncia/compartilhar).
+  - `petModalActions.ts` — helpers compartilhados para ações (contato, denunciar, apagar, desfazer denúncia, marcar/desmarcar encontrado).
+- O call site em `app/(tabs)/index.tsx` agora escolhe o modal conforme `postType`.
 
-### Backend (Supabase)
-- Trigger `pets_set_updated_at` (já existia): `updated_at = now()` do servidor em todo UPDATE.
-- Trigger `pets_set_deleted_at` (NOVO, migration `supabase/migrations/20260827214600_set_deleted_at_server_time.sql`,
-  aplicada via `supabase db push`): `deleted_at = now()` do servidor quando o pet passa de
-  ativo (nulo) para apagado.
+### Reivindicação de achado (match/claims)
+- Fluxo: "É o seu pet?" → escolhe pet perdido (se houver vários) → envia prova (texto) via `upsertMatchProof` → cria `matchedPetId`/`matchStatus:'pending'`/`matchRequestedBy:'owner'`.
+- Finder vê claimants com prova e pode Confirmar/Disputar. Confirmar marca `confirmed` em ambos os posts e **invalida os demais** claimants automaticamente.
+- WhatsApp do finder só aparece após `matchStatus === "confirmed"` (opção 2). Antes disso, contato direto fica oculto.
+- Se o viewer não tiver pet perdido, aparece banner amarelo: "Registre um pet perdido para reivindicar este pet encontrado".
 
-### App (`lib/sync.ts`)
-- Cursores de `updated_at` e `deleted_at` **independentes** (`getLastSync` / `getLastDeletedSync`).
-  Um delete não escapa por causa de um update alheio.
-- App parou de enviar `updated_at: now` no push (INSERT usa `default now()` do banco; UPDATE é
-  coberto pelo trigger). `deleted_at` continua sendo enviado, mas o trigger do banco sobrescreve
-  com horário de servidor.
-- Limpeza de **match fantasma**: se o `matchedPetId` de um pet aponta para pet apagado no backend
-  (no full pull, ausente do catálogo ativo e não é pet local), zera `matchedPetId`/`matchStatus`/
-  `matchRequestedBy` — evita o banner "Em acordo" contar um match sem pin.
+### Imagens no card
+- `ImageCarousel` removido do card.
+- Miniaturas horizontais centralizadas em um card compacto (`56x56`), com fundo/borda adaptáveis ao tema.
 
-### Modo deus (`lib/moderation.ts`)
-- `moderatorSoftDelete` faz soft-delete (`deleted_at`) e também zera o vínculo de match no próprio
-  pet e em todas as contrapartes que apontavam para ele (filtro no índice GIN do `payload`),
-  com bump de `updated_at` para propagar a todos via sync incremental.
+### HelpFindBanner
+- Texto alterado para "ME AJUDE A VOLTAR PARA CASA!" com cor vermelha e fonte ajustada para caber no modal.
 
-### Filtro meus/todos (`app/(tabs)/index.tsx`)
-- "meus": só pets do próprio device (perdidos + achados que **você** criou). Achado de OUTRO
-  dispositivo soma. ✅ (conforme regra do produto)
-- "todos": todos os pets.
+### Limpeza / qualidade
+- Lint limpo (0 erros, 0 warnings).
+- Type-check limpo.
+- `.gitignore` ganhou `bugreport-*.zip` (arquivo de diagnóstico Android/Expo não deve ser commitado).
+- `PetDetailModal.tsx` antigo removido.
 
-## Comportamento esperado (testado manualmente)
-No dispositivo B, ao clicar no botão meus/todos (dispara `triggerSync` incremental):
-- Achado criado no dispositivo A → **aparece**.
-- Achado apagado no dispositivo A → **some** (em "todos"; em "meus" já estaria oculto por ser de outro device).
-- Delete de moderador (modo deus) → remove o pin para todos e zera o "Em acordo" fantasma.
-
-## Pendências / observações
-- O `payload` dos pets é jsonb; campos de match vivem DENTRO do `payload` (não são colunas),
-  por isso o `moderatorSoftDelete` faz fetch-modify-PATCH do jsonb inteiro.
-- `lastDeletedSync` (SecureStore `ifujao_last_sync_del`) é nulo em dispositivos antigos → primeiro
-  sync incremental puxa todos os deletes históricos de uma vez (comportamento esperado).
-- Recomenda-se manter o sync incremental (não full) para o botão meus/todos; o full só roda no boot.
+### Backend/sincronização (mantido)
+- Cursor incremental usa `updated_at` e `deleted_at` do servidor.
+- Limpeza de match fantasma quando contraparte é apagada.
+- Modo deus zera vínculo de match no pet e contrapartes.

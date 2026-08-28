@@ -36,9 +36,8 @@ export function HelpFindBanner({ styles }: { styles: HomeStyles }) {
           <Ionicons name="heart" size={13} color="#FF3B30" />
         </Animated.View>
       </View>
-      <Text style={styles.helpFind}>
-        <Text style={styles.helpFindBold}>AJUDE </Text>
-        <Text style={styles.helpFindSmall}>A ENCONTRAR!</Text>
+      <Text style={[styles.helpFind, { color: '#FF3B30', fontWeight: 'bold', fontSize: 13 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+        ME AJUDE A VOLTAR PARA CASA!
       </Text>
     </View>
   );

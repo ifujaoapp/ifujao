@@ -56,7 +56,7 @@ export function MapPicker({
       </script>
     </body>
   </html>`;
-  }, [isDark, start.latitude, start.longitude, city.latitude, city.longitude]);
+  }, [isDark, start.latitude, start.longitude]);
 
   useEffect(() => {
     if (value && webRef.current) {
@@ -64,7 +64,7 @@ export function MapPicker({
         JSON.stringify({ move: { lat: value.latitude, lng: value.longitude } }),
       );
     }
-  }, [value?.latitude, value?.longitude]);
+  }, [value?.latitude, value?.longitude]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Força o recentramento no GPS a cada toque no botão, mesmo quando o
   // petLocation já é igual ao GPS (ex.: usuário só panorâmico o mapa).
@@ -76,7 +76,7 @@ export function MapPicker({
         }),
       );
     }
-  }, [gpsNonce]);
+  }, [gpsNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View

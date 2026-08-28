@@ -74,7 +74,6 @@ export function ReportModal({
     postType,
     setPostType,
     foundDate,
-    setFoundDate,
     speciesPickerOpen,
     setSpeciesPickerOpen,
     breedPickerOpen,

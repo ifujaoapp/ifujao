@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Modal, View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Dimensions, useColorScheme } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CloseCircle } from '@/components/CloseCircle';
@@ -7,7 +7,6 @@ import { showAlert } from '@/src/components/AppAlert';
 import { downloadAsync, cacheDirectory } from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
-import { useColorScheme } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Reanimated, {
   useSharedValue,

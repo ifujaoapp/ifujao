@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme';
 
 let LocalAuthentication: typeof import('expo-local-authentication') | null = null;
 try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   LocalAuthentication = require('expo-local-authentication');
 } catch {
   LocalAuthentication = null;

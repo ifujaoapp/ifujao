@@ -293,7 +293,7 @@ export const MapLeaflet = ({
       </script>
     </body>
   </html>`,
-    [initialCenter, city, center.latitude, center.longitude, mapFilter],
+    [center.latitude, center.longitude, mapFilter],
   );
 
   // Delta de separação (graus) para pets na mesma coordenada (~33m). Como esta
@@ -348,7 +348,7 @@ export const MapLeaflet = ({
   useEffect(() => {
     if (!mapReady || !webRef.current) return;
     webRef.current.injectJavaScript(renderSponsorsJs(sponsors));
-  }, [mapReady, sponsors, showSponsorText]);
+  }, [mapReady, sponsors, showSponsorText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
   // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a
@@ -376,7 +376,7 @@ export const MapLeaflet = ({
     lastPanRef.current = userLocation;
     const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 13)); } })();`;
     webRef.current.injectJavaScript(js);
-  }, [mapReady, userLocation]);
+  }, [mapReady, userLocation]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Força o recentramento quando o botão "Centralizar no meu GPS" é clicado
   // (recenterNonce muda), ignorando o limiar de ruído de GPS — o botão deve
@@ -385,7 +385,7 @@ export const MapLeaflet = ({
     if (!mapReady || !webRef.current || !userLocation) return;
     const js = `(function(){ if (window.__map) { window.__map.setView([${userLocation.latitude}, ${userLocation.longitude}], Math.max(window.__map.getZoom(), 13)); } })();`;
     webRef.current.injectJavaScript(js);
-  }, [recenterNonce]);
+  }, [recenterNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Desenha/atualiza o círculo do usuário via JS (sem recarregar o WebView a
   // cada mudança de GPS — antes o userLocation estava no html e forcava reload +

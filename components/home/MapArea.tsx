@@ -1,8 +1,7 @@
-import { Animated, Platform, Text, TouchableOpacity, View } from "react-native";
+import { Animated, BackHandler, Platform, Text, TouchableOpacity, View } from "react-native";
 import { type Dispatch, type SetStateAction } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
-import { BackHandler } from "react-native";
 import { showAlert } from "@/src/components/AppAlert";
 import { MapLeaflet } from "./MapLeaflet";
 import { SponsorInfoModal } from "./Modals";

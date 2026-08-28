@@ -49,7 +49,8 @@ import { useThemeMode } from "@/hooks/use-theme-mode";
 import { resolveContact, revealContact } from "@/lib/contacts";
 import { type PetRecord } from "@/lib/storage";
 import { MapArea } from "@/components/home/MapArea";
-import { PetDetailModal } from "@/components/home/PetDetailModal";
+import { PetLostModal } from "@/components/home/PetLostModal";
+import { PetFoundModal } from "@/components/home/PetFoundModal";
 import { GodLoginModal } from "@/components/home/GodLoginModal";
 
 export default function HomeScreen() {
@@ -551,28 +552,53 @@ export default function HomeScreen() {
         loginModerator={loginModerator}
       />
 
-      <PetDetailModal
-        selectedPet={selectedPet}
-        setSelectedPet={setSelectedPet}
-        insets={insets}
-        styles={styles}
-        themeColors={themeColors}
-        openInViewer={openInViewer}
-        formatLostDate={formatLostDate}
-        isOwner={isOwner}
-        myDeviceId={myDeviceId}
-        myPhone={myPhone}
-        handleContact={handleContact}
-        reportPet={reportPet}
-        sharePetCard={sharePetCard}
-        commitPets={commitPets}
-        pets={pets}
-        deletePet={deletePet}
-        godMode={godMode}
-        setShowDescriptionModal={setShowDescriptionModal}
-        showDescriptionModal={showDescriptionModal}
-        shareCardRef={shareCardRef}
-      />
+      {selectedPet?.postType === "found" ? (
+        <PetFoundModal
+          selectedPet={selectedPet}
+          setSelectedPet={setSelectedPet}
+          insets={insets}
+          styles={styles}
+          themeColors={themeColors}
+          openInViewer={openInViewer}
+          formatLostDate={formatLostDate}
+          isOwner={isOwner}
+          myDeviceId={myDeviceId}
+          myPhone={myPhone}
+          handleContact={handleContact}
+          reportPet={reportPet}
+          sharePetCard={sharePetCard}
+          commitPets={commitPets}
+          pets={pets}
+          deletePet={deletePet}
+          godMode={godMode}
+          setShowDescriptionModal={setShowDescriptionModal}
+          showDescriptionModal={showDescriptionModal}
+          shareCardRef={shareCardRef}
+        />
+      ) : selectedPet?.postType === "lost" ? (
+        <PetLostModal
+          selectedPet={selectedPet}
+          setSelectedPet={setSelectedPet}
+          insets={insets}
+          styles={styles}
+          themeColors={themeColors}
+          openInViewer={openInViewer}
+          formatLostDate={formatLostDate}
+          isOwner={isOwner}
+          myDeviceId={myDeviceId}
+          myPhone={myPhone}
+          handleContact={handleContact}
+          reportPet={reportPet}
+          sharePetCard={sharePetCard}
+          commitPets={commitPets}
+          pets={pets}
+          deletePet={deletePet}
+          godMode={godMode}
+          setShowDescriptionModal={setShowDescriptionModal}
+          showDescriptionModal={showDescriptionModal}
+          shareCardRef={shareCardRef}
+        />
+      ) : null}
 
       <ReportReasonModal
         target={reportTarget}

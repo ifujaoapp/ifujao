@@ -160,11 +160,9 @@ export function PetFoundModal(props: PetModalProps) {
   const myLostPets = pets.filter(
     (p) =>
       p.postType === "lost" &&
-      !p.foundAt &&
-      !p.matchedPetId &&
-      p.matchStatus !== "confirmed" &&
       isOwner(p, myDeviceId, myPhone),
   );
+
   const submitOwnerClaim = async () => {
     const lostId = ownerClaimLostId;
     if (!lostId || !ownerClaimProof.trim()) return;
@@ -192,75 +190,81 @@ export function PetFoundModal(props: PetModalProps) {
   const ownerClaimSection =
     !isFound &&
     selectedPet.postType === "found" &&
-    !isOwn &&
-    myLostPets.length > 0
-      ? (
-        <View style={styles.claimantsBox}>
-          <Text style={styles.claimantsTitle}>Este pode ser o seu pet?</Text>
-          {ownerClaimStep === "proof" ? (
-            <View>
-              <TextInput
-                style={{ borderWidth: 1, borderColor: "#C7C7CC", borderRadius: 10, padding: 10, minHeight: 44, textAlignVertical: "top", backgroundColor: "#fff" }}
-                placeholder="Nº de microchip, foto com o pet ou marca única"
-                placeholderTextColor="#8E8E93"
-                value={ownerClaimProof}
-                onChangeText={setOwnerClaimProof}
-                multiline
-              />
-              <TouchableOpacity
-                style={{ backgroundColor: "#34C759", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
-                disabled={!ownerClaimProof.trim()}
-                onPress={submitOwnerClaim}
-              >
-                <Text style={{ color: "#fff", fontWeight: "700" }}>Enviar comprovante</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ alignItems: "center", paddingVertical: 8 }}
-                onPress={() => {
-                  setOwnerClaimStep(null);
-                  setOwnerClaimLostId(null);
-                  setOwnerClaimProof("");
-                }}
-              >
-                <Text style={{ color: "#8E8E93" }}>Voltar</Text>
-              </TouchableOpacity>
-            </View>
-          ) : ownerClaimStep === "pick" ? (
-            myLostPets.map((lp) => (
-              <TouchableOpacity
-                key={lp.id}
-                style={styles.claimantRow}
-                onPress={() => {
-                  setOwnerClaimLostId(lp.id);
-                  setOwnerClaimStep("proof");
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.claimantName}>
-                    {lp.name || lp.species}
-                    {lp.breed ? ` (${lp.breed})` : ""}
-                  </Text>
+    !isOwn
+      ? myLostPets.length > 0
+        ? (
+            <View style={styles.claimantsBox}>
+              <Text style={styles.claimantsTitle}>Este pode ser o seu pet?</Text>
+              {ownerClaimStep === "proof" ? (
+                <View>
+                  <TextInput
+                    style={{ borderWidth: 1, borderColor: "#C7C7CC", borderRadius: 10, padding: 10, minHeight: 44, textAlignVertical: "top", backgroundColor: "#fff" }}
+                    placeholder="Nº de microchip, foto com o pet ou marca única"
+                    placeholderTextColor="#8E8E93"
+                    value={ownerClaimProof}
+                    onChangeText={setOwnerClaimProof}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={{ backgroundColor: "#34C759", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
+                    disabled={!ownerClaimProof.trim()}
+                    onPress={submitOwnerClaim}
+                  >
+                    <Text style={{ color: "#fff", fontWeight: "700" }}>Enviar comprovante</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={{ alignItems: "center", paddingVertical: 8 }}
+                    onPress={() => {
+                      setOwnerClaimStep(null);
+                      setOwnerClaimLostId(null);
+                      setOwnerClaimProof("");
+                    }}
+                  >
+                    <Text style={{ color: "#8E8E93" }}>Voltar</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.claimantConfirmText}>Este</Text>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <TouchableOpacity
-              style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center" }}
-              onPress={() => {
-                if (myLostPets.length === 1) {
-                  setOwnerClaimLostId(myLostPets[0].id);
-                  setOwnerClaimStep("proof");
-                } else {
-                  setOwnerClaimStep("pick");
-                }
-              }}
-            >
-              <Text style={{ color: "#fff", fontWeight: "700" }}>É o seu pet?</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      )
+              ) : ownerClaimStep === "pick" ? (
+                myLostPets.map((lp) => (
+                  <TouchableOpacity
+                    key={lp.id}
+                    style={styles.claimantRow}
+                    onPress={() => {
+                      setOwnerClaimLostId(lp.id);
+                      setOwnerClaimStep("proof");
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.claimantName}>
+                        {lp.name || lp.species}
+                        {lp.breed ? ` (${lp.breed})` : ""}
+                      </Text>
+                    </View>
+                    <Text style={styles.claimantConfirmText}>Este</Text>
+                  </TouchableOpacity>
+                ))
+              ) : (
+                <TouchableOpacity
+                  style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center" }}
+                  onPress={() => {
+                    if (myLostPets.length === 1) {
+                      setOwnerClaimLostId(myLostPets[0].id);
+                      setOwnerClaimStep("proof");
+                    } else {
+                      setOwnerClaimStep("pick");
+                    }
+                  }}
+                >
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>É o seu pet?</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )
+        : (
+            <View style={{ backgroundColor: '#FFCC00', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="alert-circle" size={20} color="#000" />
+              <Text style={{ color: '#000', fontWeight: '700', marginLeft: 8, fontSize: 13 }}>Registre um pet perdido para reivindicar este pet encontrado</Text>
+            </View>
+          )
       : null;
 
   const ownerClaimStatusSection =

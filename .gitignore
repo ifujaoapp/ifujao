@@ -43,6 +43,9 @@ app-example
 /ios
 /android
 
+# debug / diagnostics
+bugreport-*.zip
+
 # build logs
 build-*.log
 build-local*.log

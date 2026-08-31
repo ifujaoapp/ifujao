@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useEffect, useRef } from "react";
@@ -536,11 +536,12 @@ export function PetFoundModal(props: PetModalProps) {
       }
     />
     {claimSheetVisible && showClaimUI && (
-      <TouchableOpacity
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 50, justifyContent: "flex-end" }}
-        activeOpacity={1}
-        onPress={closeClaimSheet}
-      >
+      <Modal transparent animationType="fade" visible={claimSheetVisible} onRequestClose={closeClaimSheet}>
+        <TouchableOpacity
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+          activeOpacity={1}
+          onPress={closeClaimSheet}
+        >
         <Animated.View
           style={{
             backgroundColor: themeColors.card,
@@ -563,6 +564,7 @@ export function PetFoundModal(props: PetModalProps) {
           {claimSheetInner}
         </Animated.View>
       </TouchableOpacity>
+      </Modal>
     )}
     </>
   );

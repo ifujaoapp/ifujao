@@ -306,7 +306,7 @@ export function PetFoundModal(props: PetModalProps) {
                   <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card, marginTop: 8 }}>
                     <TextInput
                       style={{ color: themeColors.text, minHeight: 40 }}
-                      placeholder="Nº de microchip (9 a 15 dígitos)"
+                      placeholder="Microchip (opcional, 9 a 15 dígitos)"
                       placeholderTextColor={themeColors.icon}
                       keyboardType="numeric"
                       value={ownerClaimMicrochip}

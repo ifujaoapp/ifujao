@@ -75,6 +75,9 @@ export function useReportForm(params: UseReportFormParams) {
   const [lostDate, setLostDate] = useState<Date | null>(null);
   // Tipo de post: 'lost' (dono perdeu) ou 'found' (terceiro encontrou).
   const [postType, setPostType] = useState<'lost' | 'found'>('lost');
+  // Trava o tipo quando o usuário já escolheu Perdido/Encontrado no seletor do FAB:
+  // o toggle interno do ReportModal desabilita a opção que não foi escolhida.
+  const [postTypeLocked, setPostTypeLocked] = useState(false);
   // Data do achado (usada quando postType === 'found').
   const [foundDate, setFoundDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -224,6 +227,8 @@ export function useReportForm(params: UseReportFormParams) {
     if (!canReport) return;
     // Reseta o tipo de post e as datas a cada abertura (evita resíduo de rascunho).
     setPostType(type ?? 'lost');
+    // Trava o tipo se veio de uma escolha explícita no seletor (Perdido/Encontrado).
+    setPostTypeLocked(!!type);
     setLostDate(null);
     setFoundDate(null);
     if (!location) {
@@ -411,6 +416,7 @@ export function useReportForm(params: UseReportFormParams) {
     setShowDatePicker,
     postType,
     setPostType,
+    postTypeLocked,
     foundDate,
     setFoundDate,
     speciesPickerOpen,

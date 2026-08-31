@@ -400,7 +400,7 @@ export function MapArea(props: MapAreaProps) {
                   setTypeChooserVisible(false);
                 }}
               >
-                <Text style={{ fontSize: 18, marginRight: 8 }}>😿</Text>
+                <Text style={{ fontSize: 18, marginRight: 8 }}>😢</Text>
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Perdi um pet</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -410,7 +410,7 @@ export function MapArea(props: MapAreaProps) {
                   setTypeChooserVisible(false);
                 }}
               >
-                <Text style={{ fontSize: 18, marginRight: 8 }}>😺</Text>
+                <Text style={{ fontSize: 18, marginRight: 8 }}>😊</Text>
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Encontrei um pet</Text>
               </TouchableOpacity>
             </Animated.View>

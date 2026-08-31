@@ -73,6 +73,7 @@ export function ReportModal({
     setShowDatePicker,
     postType,
     setPostType,
+    postTypeLocked,
     foundDate,
     speciesPickerOpen,
     setSpeciesPickerOpen,
@@ -149,46 +150,50 @@ export function ReportModal({
               marginBottom: 12,
             }}
           >
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                paddingVertical: 9,
-                borderRadius: 8,
-                backgroundColor: postType === 'lost' ? '#FFFFFF' : 'transparent',
-              }}
-              onPress={() => setPostType('lost')}
-            >
-              <Text
+              <TouchableOpacity
                 style={{
-                  textAlign: 'center',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  color: postType === 'lost' ? themeColors.primaryButton : '#3C3C43',
+                  flex: 1,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  opacity: postTypeLocked && postType === 'found' ? 0.4 : 1,
+                  backgroundColor: postType === 'lost' ? '#FFFFFF' : 'transparent',
                 }}
+                disabled={postTypeLocked && postType === 'found'}
+                onPress={() => setPostType('lost')}
               >
-                Perdi um pet
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                paddingVertical: 9,
-                borderRadius: 8,
-                backgroundColor: postType === 'found' ? '#FFFFFF' : 'transparent',
-              }}
-              onPress={() => setPostType('found')}
-            >
-              <Text
+                <Text
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: postType === 'lost' ? themeColors.primaryButton : '#3C3C43',
+                  }}
+                >
+                  Perdi um pet
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={{
-                  textAlign: 'center',
-                  fontSize: 14,
-                  fontWeight: '600',
-                  color: postType === 'found' ? themeColors.primaryButton : '#3C3C43',
+                  flex: 1,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  opacity: postTypeLocked && postType === 'lost' ? 0.4 : 1,
+                  backgroundColor: postType === 'found' ? '#FFFFFF' : 'transparent',
                 }}
+                disabled={postTypeLocked && postType === 'lost'}
+                onPress={() => setPostType('found')}
               >
-                Encontrei um pet
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    textAlign: 'center',
+                    fontSize: 14,
+                    fontWeight: '600',
+                    color: postType === 'found' ? themeColors.primaryButton : '#3C3C43',
+                  }}
+                >
+                  Encontrei um pet
+                </Text>
+              </TouchableOpacity>
           </View>
           <ScrollView
             style={{ flex: 1 }}

@@ -1,5 +1,12 @@
 # STATUS — StudyFlow
 
+## Diretrizes gerais (sempre aplicar)
+- **Tema claro/escuro em TODAS as telas:** qualquer tela/componente novo ou modificado
+  deve usar as variáveis de tema (`themeColors` / `c.*` de `constants/theme`) em vez de
+  cores hardcoded. Nunca usar hex fixo para fundo, texto, borda ou ícone — senão some no
+  tema escuro. Falha recorrente já corrigida: estilos de `claimants*` (PetFoundModal/
+  index.tsx) estavam com `#1C1C1E`/`#F2F2F7` hardcoded e os nomes dos pets sumiam no escuro.
+
 ## Sessão (2026-08-31) — Verificação de posse (Tier 1 + Tier 2)
 
 ### Tier 1 — Prova de posse estruturada
@@ -60,3 +67,31 @@
 - Cursor incremental usa `updated_at` e `deleted_at` do servidor.
 - Limpeza de match fantasma quando contraparte é apagada.
 - Modo deus zera vínculo de match no pet e contrapartes.
+
+---
+
+## Sessão atual (2026-08-31) — Termo de Uso e Política de Privacidade
+
+### Substituição do conteúdo do modal
+- Criado `components/home/TermsContent.tsx` com o conteúdo do termo de uso/política de privacidade convertido para componentes React Native (sem markdown).
+- Atualizado `PrivacyModal` em `components/home/Modals.tsx` para utilizar `<TermsContent />`.
+- Editado o termo (`termo-de-uso-privacidade.md`):
+  - Clausula 1.1 ajustada (removido "sem fins lucrativos e").
+  - Adicionada cláusula 1.4: Exibição de Publicidade e Monetização.
+  - Reforço em 7.3/7.4 sobre recebimento de mensagens via WhatsApp.
+
+### Ajustes de UI
+- Título do modal alterado de "Política de Privacidade" para "Termo de Uso e Política de Privacidade".
+- Reduzido `aboutCard.padding` de 24 para 16.
+- Reduzido `privacyScroll.maxHeight` de 70% para 65%.
+- Removido `textAlign: "justify"` de `privacyText` (texto alinhado à esquerda).
+- Ajustado `privacyText.fontSize` de 14 para 12 (mais compacto).
+- Tamanhos de fonte reduzidos em `TermsContent.tsx` (títulos: 18→15, 16→13).
+- Botão "Fechar" centralizado verticalmente usando wrapper `<View style={{ flex: 1, justifyContent: "center" }}>`.
+- Adicionado `alignSelf: "center"` em `aboutClose` para centralização horizontal.
+
+### Arquivos criados
+- `components/home/TermsContent.tsx` — componente com o texto do termo formatado.
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.

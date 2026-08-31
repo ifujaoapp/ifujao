@@ -1445,7 +1445,7 @@ const makeStyles = (c: typeof Colors.light) =>
       width: "100%",
       backgroundColor: c.card,
       borderRadius: 18,
-      padding: 24,
+      padding: 16,
       alignItems: "center",
     },
     aboutTitle: {
@@ -1471,6 +1471,7 @@ const makeStyles = (c: typeof Colors.light) =>
       borderRadius: 12,
       paddingVertical: 12,
       paddingHorizontal: 32,
+      alignSelf: "center",
     },
     aboutCloseText: {
       color: "#FFFFFF",
@@ -1479,14 +1480,13 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     privacyScroll: {
       width: "100%",
-      maxHeight: "70%",
+      maxHeight: "65%",
       marginBottom: 16,
     },
     privacyText: {
-      fontSize: 14,
+      fontSize: 12,
       color: c.text,
-      textAlign: "justify",
-      lineHeight: 20,
+      lineHeight: 18,
     },
     demoOverlay: {
       flex: 1,

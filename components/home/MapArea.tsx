@@ -8,6 +8,7 @@ import { SponsorInfoModal } from "./Modals";
 import { CloseCircle } from "@/components/CloseCircle";
 import type { HomeStyles } from "@/app/(tabs)/index";
 import { type City } from "@/constants/cities";
+import { Colors } from "@/constants/theme";
 import { type SponsorPin } from "@/lib/sponsors";
 import { type PetRecord } from "@/lib/storage";
 import { type Region } from "react-native-maps";
@@ -98,6 +99,7 @@ export function MapArea(props: MapAreaProps) {
     bubbleOpacity,
     openReport,
   } = props;
+  const themeColors = Colors[theme];
   const [typeChooserVisible, setTypeChooserVisible] = useState(false);
   const sheetY = useRef(new Animated.Value(0)).current;
   const panResponder = useRef(
@@ -371,7 +373,7 @@ export function MapArea(props: MapAreaProps) {
           >
             <Animated.View
               style={{
-                backgroundColor: "#FFFFFF",
+                backgroundColor: themeColors.card,
                 padding: 16,
                 paddingBottom: insets.bottom + 16,
                 borderTopLeftRadius: 16,
@@ -382,33 +384,33 @@ export function MapArea(props: MapAreaProps) {
               onTouchStart={(e) => e.stopPropagation()}
             >
               <View {...panResponder.panHandlers} style={{ width: "100%", alignItems: "center", paddingVertical: 6 }}>
-                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: "#C7C7CC" }} />
+                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: themeColors.icon }} />
               </View>
               <CloseCircle
-                style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
+                style={{ position: "absolute", top: 14, right: 14, zIndex: 2, backgroundColor: theme === "dark" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.5)" }}
                 onPress={() => setTypeChooserVisible(false)}
               />
-              <Text style={{ fontSize: 16, fontWeight: "700", color: "#111111", marginBottom: 12, marginTop: 4, textAlign: "center" }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: themeColors.text, marginBottom: 12, marginTop: 4, textAlign: "center" }}>
                 O que você quer reportar?
               </Text>
               <TouchableOpacity
-                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 10 }}
+                style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 10 }}
                 onPress={() => {
                   openReport("lost");
                   setTypeChooserVisible(false);
                 }}
               >
-                <Ionicons name="sad-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 18, marginRight: 8 }}>😿</Text>
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Perdi um pet</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center" }}
+                style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center" }}
                 onPress={() => {
                   openReport("found");
                   setTypeChooserVisible(false);
                 }}
               >
-                <Ionicons name="happy-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 18, marginRight: 8 }}>😺</Text>
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Encontrei um pet</Text>
               </TouchableOpacity>
             </Animated.View>

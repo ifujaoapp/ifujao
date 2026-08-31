@@ -572,7 +572,9 @@ export function ReportModal({
                   size={16}
                   color={themeColors.primaryButton}
                 />
-                <Text style={styles.sectionTitle}>Contato e Recompensa</Text>
+                <Text style={styles.sectionTitle}>
+                  {postType === 'found' ? 'Contato' : 'Contato e Recompensa'}
+                </Text>
               </View>
               {postType === 'lost' && (
                 <>

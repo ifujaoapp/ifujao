@@ -1,10 +1,11 @@
-import { Animated, BackHandler, Platform, Text, TouchableOpacity, View } from "react-native";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { Animated, BackHandler, PanResponder, Platform, Text, TouchableOpacity, View } from "react-native";
+import { useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { showAlert } from "@/src/components/AppAlert";
 import { MapLeaflet } from "./MapLeaflet";
 import { SponsorInfoModal } from "./Modals";
+import { CloseCircle } from "@/components/CloseCircle";
 import type { HomeStyles } from "@/app/(tabs)/index";
 import { type City } from "@/constants/cities";
 import { type SponsorPin } from "@/lib/sponsors";
@@ -98,6 +99,23 @@ export function MapArea(props: MapAreaProps) {
     openReport,
   } = props;
   const [typeChooserVisible, setTypeChooserVisible] = useState(false);
+  const sheetY = useRef(new Animated.Value(0)).current;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_evt, g) => Math.abs(g.dy) > 4,
+      onPanResponderMove: (_evt, g) => {
+        if (g.dy > 0) sheetY.setValue(g.dy);
+      },
+      onPanResponderRelease: (_evt, g) => {
+        if (g.dy > 100) {
+          setTypeChooserVisible(false);
+        } else {
+          Animated.spring(sheetY, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+    }),
+  ).current;
   return (
       <View style={styles.mapArea}>
         <View
@@ -351,8 +369,26 @@ export function MapArea(props: MapAreaProps) {
             activeOpacity={1}
             onPress={() => setTypeChooserVisible(false)}
           >
-            <View style={{ backgroundColor: "#FFFFFF", padding: 16, paddingBottom: insets.bottom + 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: "700", color: "#111111", marginBottom: 12, textAlign: "center" }}>
+            <Animated.View
+              style={{
+                backgroundColor: "#FFFFFF",
+                padding: 16,
+                paddingBottom: insets.bottom + 16,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                transform: [{ translateY: sheetY }],
+              }}
+              onStartShouldSetResponder={() => true}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
+              <View {...panResponder.panHandlers} style={{ width: "100%", alignItems: "center", paddingVertical: 6 }}>
+                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: "#C7C7CC" }} />
+              </View>
+              <CloseCircle
+                style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
+                onPress={() => setTypeChooserVisible(false)}
+              />
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#111111", marginBottom: 12, marginTop: 4, textAlign: "center" }}>
                 O que você quer reportar?
               </Text>
               <TouchableOpacity
@@ -375,13 +411,7 @@ export function MapArea(props: MapAreaProps) {
                 <Ionicons name="happy-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Encontrei um pet</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={{ alignItems: "center", paddingVertical: 12 }}
-                onPress={() => setTypeChooserVisible(false)}
-              >
-                <Text style={{ color: "#8E8E93", fontSize: 14 }}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
+            </Animated.View>
           </TouchableOpacity>
         )}
       </View>

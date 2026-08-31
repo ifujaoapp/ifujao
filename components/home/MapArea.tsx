@@ -295,7 +295,7 @@ export function MapArea(props: MapAreaProps) {
             style={[styles.speechBubble, { opacity: bubbleOpacity }]}
           >
             <Text style={styles.speechBubbleText}>
-              Toque para{"\n"}reportar um pet perdido/encontrado
+              Toque para reportar um pet{"\n"}perdido/encontrado
             </Text>
             <View style={styles.speechBubbleArrow} />
           </Animated.View>

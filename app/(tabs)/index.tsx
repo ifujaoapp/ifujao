@@ -9,6 +9,7 @@ import {
 } from "@/components/home/Modals";
 import { ImageViewerModal } from "@/src/components/ImageViewerModal";
 import { Ionicons } from "@expo/vector-icons";
+import { setTermsAccepted } from "@/lib/terms";
 import React, {
   useEffect,
   useRef,
@@ -64,6 +65,7 @@ export default function HomeScreen() {
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
+  const [isTermsAcceptVisible, setIsTermsVisible] = useState(false);
   const [isGodLoginVisible, setIsGodLoginVisible] = useState(false);
   const godTapCount = useRef(0);
   const godTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,6 +187,7 @@ export default function HomeScreen() {
     canReport: mapLocation.canReport,
     setReportModalVisible,
     setIsCameraOpen: camera.setIsCameraOpen,
+    onNeedAcceptTerms: () => setIsTermsVisible(true),
   });
   const {
     openReport,
@@ -517,6 +520,7 @@ export default function HomeScreen() {
           insets={insets}
           styles={styles}
           onClose={fecharModal}
+          onNeedAcceptTerms={() => setIsTermsVisible(true)}
         />
       )}
 
@@ -539,6 +543,16 @@ export default function HomeScreen() {
       <PrivacyModal
         visible={isPrivacyVisible}
         onClose={() => setIsPrivacyVisible(false)}
+        styles={styles}
+      />
+
+      <PrivacyModal
+        visible={isTermsAcceptVisible}
+        onClose={() => setIsTermsVisible(false)}
+        onAccept={async () => {
+          await setTermsAccepted(true);
+          setIsTermsVisible(false);
+        }}
         styles={styles}
       />
 
@@ -1443,6 +1457,7 @@ const makeStyles = (c: typeof Colors.light) =>
     },
     aboutCard: {
       width: "100%",
+      maxHeight: "85%",
       backgroundColor: c.card,
       borderRadius: 18,
       padding: 16,
@@ -1472,6 +1487,8 @@ const makeStyles = (c: typeof Colors.light) =>
       paddingVertical: 12,
       paddingHorizontal: 32,
       alignSelf: "center",
+      alignItems: "center",
+      justifyContent: "center",
     },
     aboutCloseText: {
       color: "#FFFFFF",

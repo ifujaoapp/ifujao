@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
@@ -67,12 +68,21 @@ export function AboutModal({
 export function PrivacyModal({
   visible,
   onClose,
+  onAccept,
   styles,
 }: {
   visible: boolean;
   onClose: () => void;
+  onAccept?: () => void;
   styles: HomeStyles;
 }) {
+  const [checked, setChecked] = useState(false);
+
+  const handleAccept = () => {
+    if (!checked) return;
+    onAccept?.();
+  };
+
   return (
     <Modal
       animationType="fade"
@@ -90,11 +100,56 @@ export function PrivacyModal({
           >
             <TermsContent styles={styles} />
           </ScrollView>
-          <View style={{ flex: 1, justifyContent: "center" }}>
-            <TouchableOpacity style={styles.aboutClose} onPress={onClose}>
-              <Text style={styles.aboutCloseText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
+          {onAccept ? (
+            <View style={{ width: "100%", marginTop: 12 }}>
+              <TouchableOpacity
+                style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 12, paddingHorizontal: 4 }}
+                onPress={() => setChecked(!checked)}
+                activeOpacity={0.7}
+              >
+                <View style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 4,
+                  borderWidth: 2,
+                  borderColor: checked ? "#007AFF" : "#8E8E93",
+                  backgroundColor: checked ? "#007AFF" : "transparent",
+                  marginRight: 10,
+                  marginTop: 2,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                  {checked && (
+                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  )}
+                </View>
+                <Text style={{ flex: 1, fontSize: 11, color: "#333", lineHeight: 16 }}>
+                  Li e concordo com os Termos de Uso e Política de Privacidade (especialmente ciente quanto à segurança em encontros presenciais e alertas de golpes de recompensa).
+                </Text>
+              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity
+                  style={[styles.aboutClose, { flex: 1, paddingHorizontal: 12 }]}
+                  onPress={onClose}
+                >
+                  <Text style={styles.aboutCloseText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.aboutClose, { flex: 1, paddingHorizontal: 12, backgroundColor: checked ? "#007AFF" : "#C7C7CC" }]}
+                  onPress={handleAccept}
+                  disabled={!checked}
+                >
+                  <Text style={styles.aboutCloseText}>Continuar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={{ marginTop: 12 }}>
+              <TouchableOpacity style={styles.aboutClose} onPress={onClose}>
+                <Text style={styles.aboutCloseText}>Fechar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>

@@ -48,6 +48,7 @@ export function ReportModal({
   insets: EdgeInsets;
   styles: HomeStyles;
   onClose: () => void;
+  onNeedAcceptTerms: () => void;
 }) {
   const {
     species,

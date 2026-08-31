@@ -4,12 +4,7 @@ import type { HomeStyles } from "@/app/(tabs)/index";
 export function TermsContent({ styles }: { styles: HomeStyles }) {
   return (
     <Text style={styles.privacyText}>
-      <Text style={{ fontWeight: "bold" }}>Aplicativo:</Text> iFujao – Plataforma
-      Comunitaria de Ajuda a Pets Perdidos e Encontrados{"\n"}
-      <Text style={{ fontWeight: "bold" }}>Responsavel:</Text> MARCIO ROGERIO
-      FERREIRA ROLLO, CPF 177.231.948-11 (&quot;Plataforma&quot;){"\n"}
-      <Text style={{ fontWeight: "bold" }}>Ultima atualizacao:</Text> 08/2026
-      {"\n\n"}
+      iFujao | Versao vigente a partir de Agosto/2026{"\n\n"}
       Este documento reune o <Text style={{ fontWeight: "bold" }}>Termo de Uso</Text>{" "}
       e a <Text style={{ fontWeight: "bold" }}>Política de Privacidade</Text> do
       Aplicativo e é regido pelas leis brasileiras, em especial a{" "}
@@ -298,13 +293,16 @@ export function TermsContent({ styles }: { styles: HomeStyles }) {
       <Text style={{ fontWeight: "bold", fontSize: 13 }}>
         11. LEI APLICÁVEL E FORO{"\n\n"}
       </Text>
-      <Text style={{ fontWeight: "bold" }}>11.1.</Text> Este Termo é regido pelas
-      leis brasileiras (Marco Civil da Internet, LGPD e Código Civil).{"\n\n"}
-      <Text style={{ fontWeight: "bold" }}>11.2.</Text> Fica eleito o foro da comarca
-      da sede da responsavel pela Plataforma para dirimir eventuais controvérsias,
-      ressalvada a proteção do consumidor ou outras normas de ordem publica.
-      {"\n\n"}
-      <Text style={{ fontWeight: "bold" }}>Contato:</Text> ifujaoapp@gmail.com
+      <Text style={{ fontWeight: "bold", fontSize: 13 }}>
+        11. IDENTIFICAÇÃO DO CONTROLADOR E CONTATO{"\n\n"}
+      </Text>
+      <Text style={{ fontWeight: "bold" }}>11.1. Controlador e Responsavel Legal:</Text> O aplicativo iFujao – Plataforma Comunitaria de Ajuda a Pets Perdidos e Encontrados e gerido por MARCIO ROGERIO FERREIRA ROLLO, inscrito no CPF sob o nº 177.231.948-11.{"\n\n"}
+      <Text style={{ fontWeight: "bold" }}>11.2. Canais de Atendimento e Encarregado de Dados (DPO):</Text> Para duvidas, sugestoes ou exercicio de direitos de privacidade (LGPD), o usuario pode entrar em contato atraves dos e-mails: ifujaoapp@gmail.com ou marciorollo@gmail.com.{"\n\n"}
+      <Text style={{ fontWeight: "bold", fontSize: 13 }}>
+        12. LEI APLICÁVEL E FORO{"\n\n"}
+      </Text>
+      <Text style={{ fontWeight: "bold" }}>12.1.</Text> Este Termo e regido pelas leis brasileiras (Marco Civil da Internet, LGPD e Codigo Civil).{"\n\n"}
+      <Text style={{ fontWeight: "bold" }}>12.2.</Text> Fica eleito o foro da comarca da sede da responsavel pela Plataforma para dirimir eventuais controversias, ressalvada a proteção do consumidor ou outras normas de ordem publica.
     </Text>
   );
 }

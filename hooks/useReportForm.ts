@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import * as Location from "expo-location";
 import * as SecureStore from "expo-secure-store";
 import { showAlert } from "@/src/components/AppAlert";
+import { getTermsAccepted, setTermsAccepted } from "@/lib/terms";
 import {
   NO_BREEDS,
   SPECIES_BREEDS,
@@ -37,6 +38,7 @@ export type UseReportFormParams = {
   canReport: boolean;
   setReportModalVisible: (value: boolean) => void;
   setIsCameraOpen: (value: boolean) => void;
+  onNeedAcceptTerms?: () => void;
 };
 
 export function useReportForm(params: UseReportFormParams) {
@@ -60,6 +62,7 @@ export function useReportForm(params: UseReportFormParams) {
     canReport,
     setReportModalVisible,
     setIsCameraOpen,
+    onNeedAcceptTerms,
   } = params;
 
   const [species, setSpecies] = useState("");
@@ -117,6 +120,11 @@ export function useReportForm(params: UseReportFormParams) {
   };
 
   const handleAddPet = async () => {
+    const terms = await getTermsAccepted();
+    if (!terms.accepted) {
+      onNeedAcceptTerms?.();
+      return;
+    }
     if (
       images.length === 0 ||
       !species ||

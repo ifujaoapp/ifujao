@@ -202,7 +202,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                           >
                             <Image
                               source={{ uri: img }}
-                              style={{ width: 56, height: 56, borderRadius: 10, backgroundColor: themeColors.card }}
+                              style={{ width: 80, height: 80, borderRadius: 10, backgroundColor: themeColors.card }}
                               resizeMode="cover"
                               blurRadius={selectedPet.reported && !godMode ? 18 : 0}
                             />

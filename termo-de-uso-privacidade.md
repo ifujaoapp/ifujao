@@ -1,8 +1,6 @@
 # TERMO DE USO E POLÍTICA DE PRIVACIDADE
 
-**Aplicativo:** iFujão – Plataforma Comunitária de Ajuda a Pets Perdidos e Encontrados
-**Responsável:** MARCIO ROGERIO FERREIRA ROLLO, inscrito no CPF sob o nº 177.231.948-11 ("Plataforma")
-**Última atualização:** 08/2026
+iFujão | Versão vigente a partir de Agosto/2026
 
 Este documento reúne o **Termo de Uso** e a **Política de Privacidade** do Aplicativo e é regido pelas leis brasileiras, em especial a **Lei nº 12.965/2014 (Marco Civil da Internet)**, a **Lei nº 13.709/2018 (Lei Geral de Proteção de Dados – LGPD)** e a **Lei nº 10.406/2002 (Código Civil)**.
 
@@ -167,12 +165,16 @@ Eventuais dúvidas ou exercício de direitos podem ser encaminhados ao Encarrega
 
 ---
 
-## 11. LEI APLICÁVEL E FORO
+## 11. IDENTIFICAÇÃO DO CONTROLADOR E CONTATO
 
-11.1. Este Termo é regido pelas leis brasileiras (Marco Civil da Internet, LGPD e Código Civil).
+11.1. **Controlador e Responsável Legal:** O aplicativo iFujão – Plataforma Comunitária de Ajuda a Pets Perdidos e Encontrados é gerido por MARCIO ROGERIO FERREIRA ROLLO, inscrito no CPF sob o nº 177.231.948-11.
 
-11.2. Fica eleito o foro da comarca da sede da responsável pela Plataforma para dirimir eventuais controvérsias, ressalvada a proteção do consumidor ou outras normas de ordem pública.
+11.2. **Canais de Atendimento e Encarregado de Dados (DPO):** Para dúvidas, sugestões ou exercício de direitos de privacidade (LGPD), o usuário pode entrar em contato através dos e-mails: ifujaoapp@gmail.com ou marciorollo@gmail.com.
 
 ---
 
-**Contato:** ifujaoapp@gmail.com
+## 12. LEI APLICÁVEL E FORO
+
+12.1. Este Termo é regido pelas leis brasileiras (Marco Civil da Internet, LGPD e Código Civil).
+
+12.2. Fica eleito o foro da comarca da sede da responsável pela Plataforma para dirimir eventuais controvérsias, ressalvada a proteção do consumidor ou outras normas de ordem pública.

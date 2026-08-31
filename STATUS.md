@@ -95,3 +95,34 @@
 
 ### Pendências
 - Nenhuma. Lint e type-check limpos.
+
+---
+
+## Sessão atual (2026-08-31) — Fluxo de Reivindicação (Claim) e Melhorias
+
+### Validação de reivindicação (PetFoundModal)
+- Adicionada verificação de **espécie diferente** entre pet perdido e pet encontrado no passo "pick" (aviso laranja).
+- Adicionada verificação de **data inconsistente** (pet sumiu depois de ter sido encontrado) no passo "pick" (aviso laranja).
+- Adicionado **emoji da espécie** (🐶 Cachorro, 🐱 Gato, etc.) antes do nome do pet na lista de seleção.
+- Adicionada informação **"Desapareceu em DD/MM/YYYY"** abaixo do nome do pet.
+
+### Ajustes de UI
+- Miniaturas dos pets nos modais aumentadas de 56x56 para 80x80 (`PetDetailBase.tsx`).
+- `aboutCard` recebeu `maxHeight: "85%"` para evitar overflow.
+- Texto do termo de uso ajustado: identificação do controlador movida para seção 11, lei aplicável para seção 12.
+
+### Arquivos criados
+- `lib/terms.ts` — helper para aceite dos termos (SecureStore).
+
+### Arquivos modificados
+- `components/home/PetFoundModal.tsx` — validações de claim + emoji + data.
+- `components/home/PetDetailBase.tsx` — miniaturas 80x80.
+- `components/home/Modals.tsx` — `PrivacyModal` com checkbox + 2 botões (Continuar/Cancelar).
+- `components/home/TermsContent.tsx` — texto do termo atualizado.
+- `components/home/ReportModal.tsx` — recebe prop `onNeedAcceptTerms`.
+- `hooks/useReportForm.ts` — verifica aceite dos termos antes de publicar.
+- `app/(tabs)/index.tsx` — gerencia modal de aceite + import `setTermsAccepted`.
+- `termo-de-uso-privacidade.md` — texto do termo atualizado.
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.

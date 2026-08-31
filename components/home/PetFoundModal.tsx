@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder, Modal } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder, Modal, Keyboard } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useEffect, useRef } from "react";
@@ -59,6 +59,28 @@ export function PetFoundModal(props: PetModalProps) {
   const [ownerClaimMicrochip, setOwnerClaimMicrochip] = useState("");
   const [ownerClaimImage, setOwnerClaimImage] = useState<string | null>(null);
   const [ownerClaimUploading, setOwnerClaimUploading] = useState(false);
+  const keyboardOffset = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
+      Animated.timing(keyboardOffset, {
+        toValue: -e.endCoordinates.height,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
+      Animated.timing(keyboardOffset, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [keyboardOffset]);
   const [claimantProofs, setClaimantProofs] = useState<Record<string, MatchProof>>({});
   const [claimantProofImages, setClaimantProofImages] = useState<Record<string, string>>({});
   const [expandedClaimantId, setExpandedClaimantId] = useState<string | null>(null);
@@ -336,6 +358,55 @@ export function PetFoundModal(props: PetModalProps) {
     setClaimSheetVisible(true);
   };
 
+  const speciesEmoji: Record<string, string> = {
+  Cachorro: "🐶",
+  Gato: "🐱",
+  Calopsita: "🐦",
+  Passaro: "🐦",
+  Coelho: "🐰",
+  Hamster: "🐹",
+  Peixe: "🐠",
+  Tartaruga: "🐢",
+  Cobra: "🐍",
+  Lagarto: "🦎",
+  Cavalo: "🐴",
+  Cabra: "🐐",
+  Ovelha: "🐑",
+  Porco: "🐷",
+  Galinha: "🐔",
+  Pato: "🦆",
+  Coala: "🐨",
+  Panda: "🐼",
+  Urso: "🐻",
+  Leão: "🦁",
+  Tigre: "🐯",
+  Elefante: "🐘",
+  Macaco: "🐵",
+  Sapo: "🐸",
+};
+
+const getSpeciesEmoji = (species: string): string => {
+  return speciesEmoji[species] || "🐾";
+};
+
+const isDateInconsistent = (lostDate?: string, foundDate?: string): boolean => {
+  if (!lostDate || !foundDate) return false;
+  const lost = new Date(lostDate).getTime();
+  const found = new Date(foundDate).getTime();
+  if (isNaN(lost) || isNaN(found)) return false;
+  return lost > found;
+};
+
+const formatDisappearedWhen = (date?: string): string => {
+  if (!date) return "";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "";
+  const day = d.getDate().toString().padStart(2, "0");
+  const month = (d.getMonth() + 1).toString().padStart(2, "0");
+  const year = d.getFullYear();
+  return ` • ${day}/${month}/${year}`;
+};
+
   const showClaimUI = !isFound && selectedPet.postType === "found" && !isOwn;
 
   // Gatilho compacto dentro do card de pet (abre a sheet dedicada).
@@ -416,7 +487,10 @@ export function PetFoundModal(props: PetModalProps) {
           </TouchableOpacity>
         </View>
       ) : ownerClaimStep === "pick" ? (
-        myLostPets.map((lp) => (
+        myLostPets.map((lp) => {
+          const dateConflict = isDateInconsistent(lp.lostDate, selectedPet.foundDate);
+          const speciesMismatch = lp.species && selectedPet.species && lp.species !== selectedPet.species;
+          return (
           <TouchableOpacity
             key={lp.id}
             style={[styles.claimantRow, { marginBottom: 8 }]}
@@ -427,13 +501,26 @@ export function PetFoundModal(props: PetModalProps) {
           >
             <View style={{ flex: 1 }}>
               <Text style={styles.claimantName}>
-                {lp.name || lp.species}
-                {lp.breed ? ` (${lp.breed})` : ""}
+                {getSpeciesEmoji(lp.species)} {lp.name || lp.species}{lp.breed ? ` (${lp.breed})` : ""}
               </Text>
+              <Text style={{ color: themeColors.icon, fontSize: 12, marginTop: 2 }}>
+                Desapareceu em{formatDisappearedWhen(lp.lostDate)}
+              </Text>
+              {speciesMismatch && (
+                <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
+                  ⚠️ Espécie diferente: seu pet é {lp.species} e o pet encontrado é {selectedPet.species}.
+                </Text>
+              )}
+              {dateConflict && (
+                <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
+                  ⚠️ A data que este pet sumiu é posterior à data que o pet encontrado foi visto.
+                </Text>
+              )}
             </View>
             <Text style={styles.claimantConfirmText}>Este</Text>
           </TouchableOpacity>
-        ))
+          );
+        })
       ) : (
         <TouchableOpacity
           style={{ backgroundColor: themeColors.primaryButton, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
@@ -553,7 +640,7 @@ export function PetFoundModal(props: PetModalProps) {
             borderTopRightRadius: 16,
             borderTopWidth: 1,
             borderColor: themeColors.cardStroke,
-            transform: [{ translateY: claimSheetY }],
+            transform: [{ translateY: Animated.add(claimSheetY, keyboardOffset) }],
           }}
           onStartShouldSetResponder={() => true}
           onTouchStart={(e) => e.stopPropagation()}

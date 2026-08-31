@@ -1,6 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useState, useEffect } from "react";
+import { showAlert } from "@/src/components/AppAlert";
 import { PetDetailModalBase, type BarAction, type PetModalProps } from "./PetDetailBase";
 import {
   buildShareAction,
@@ -12,7 +14,15 @@ import {
   buildUnfoundAction,
   type PetActionCtx,
 } from "./petModalActions";
-import { getMatchProof, setMatchProofDisputed, upsertMatchProof, type MatchProof } from "@/lib/matchProofs";
+import {
+  getMatchProof,
+  setMatchProofDisputed,
+  upsertMatchProof,
+  uploadMatchProofImage,
+  getProofImageSignedUrl,
+  type MatchProof,
+} from "@/lib/matchProofs";
+import { computeMatchCompat } from "@/lib/matchScore";
 import { type PetRecord } from "@/lib/storage";
 
 export function PetFoundModal(props: PetModalProps) {
@@ -45,7 +55,11 @@ export function PetFoundModal(props: PetModalProps) {
   const [ownerClaimStep, setOwnerClaimStep] = useState<null | "pick" | "proof">(null);
   const [ownerClaimLostId, setOwnerClaimLostId] = useState<string | null>(null);
   const [ownerClaimProof, setOwnerClaimProof] = useState("");
+  const [ownerClaimMicrochip, setOwnerClaimMicrochip] = useState("");
+  const [ownerClaimImage, setOwnerClaimImage] = useState<string | null>(null);
+  const [ownerClaimUploading, setOwnerClaimUploading] = useState(false);
   const [claimantProofs, setClaimantProofs] = useState<Record<string, MatchProof>>({});
+  const [claimantProofImages, setClaimantProofImages] = useState<Record<string, string>>({});
 
   const isOwn = !!selectedPet && isOwner(selectedPet, myDeviceId, myPhone);
   const isFound = !!selectedPet?.foundAt;
@@ -61,11 +75,20 @@ export function PetFoundModal(props: PetModalProps) {
       const loaded = await Promise.all(
         cs.map(async (c) => [c.id, await getMatchProof(c.id)] as const),
       );
+      if (cancelled) return;
+      const proofs = Object.fromEntries(
+        loaded.filter(([, v]) => v !== null) as [string, MatchProof][],
+      );
+      setClaimantProofs(proofs);
+      const urls = await Promise.all(
+        Object.entries(proofs).map(
+          async ([id, p]) =>
+            [id, p.proof_image ? await getProofImageSignedUrl(p.proof_image) : null] as const,
+        ),
+      );
       if (!cancelled) {
-        setClaimantProofs(
-          Object.fromEntries(
-            loaded.filter(([, v]) => v !== null) as [string, MatchProof][],
-          ),
+        setClaimantProofImages(
+          Object.fromEntries(urls.filter(([, v]) => v !== null) as [string, string][]),
         );
       }
     })();
@@ -124,32 +147,53 @@ export function PetFoundModal(props: PetModalProps) {
         </Text>
         {claimants.map((c) => {
           const proof = claimantProofs[c.id];
+          const proofImg = claimantProofImages[c.id];
+          const compat = computeMatchCompat(c, selectedPet);
+          const levelColor =
+            compat.level === "alta" ? "#34C759" : compat.level === "media" ? "#FF9500" : "#FF3B30";
           return (
-            <View key={c.id} style={styles.claimantRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.claimantName}>
-                  {c.name || c.species}
-                  {c.breed ? ` (${c.breed})` : ""}
-                </Text>
-                {proof?.proof ? (
-                  <Text style={styles.claimantProof}>Prova: {proof.proof}</Text>
-                ) : null}
-                {proof?.disputed ? (
-                  <Text style={styles.claimantDisputed}>Em disputa</Text>
-                ) : null}
+            <View key={c.id} style={[styles.claimantRow, { flexDirection: "column", alignItems: "stretch" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {proofImg ? (
+                  <Image source={{ uri: proofImg }} style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10 }} />
+                ) : (
+                  <View style={{ width: 44, height: 44, borderRadius: 8, marginRight: 10, backgroundColor: themeColors.card, alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="image-outline" size={20} color={themeColors.icon} />
+                  </View>
+                )}
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.claimantName}>
+                    {c.name || c.species}
+                    {c.breed ? ` (${c.breed})` : ""}
+                  </Text>
+                  {proof?.microchip ? (
+                    <Text style={styles.claimantProof}>Microchip: {proof.microchip}</Text>
+                  ) : null}
+                  {proof?.proof ? (
+                    <Text style={styles.claimantProof}>Obs: {proof.proof}</Text>
+                  ) : null}
+                  {proof?.disputed ? (
+                    <Text style={styles.claimantDisputed}>Em disputa</Text>
+                  ) : null}
+                </View>
               </View>
-              <TouchableOpacity
-                style={styles.claimantConfirm}
-                onPress={() => confirmClaimant(c)}
-              >
-                <Text style={styles.claimantConfirmText}>Confirmar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.claimantDispute}
-                onPress={() => disputeClaimant(c)}
-              >
-                <Ionicons name="alert-circle" size={18} color="#FF9500" />
-              </TouchableOpacity>
+              <View style={{ marginTop: 8, padding: 8, borderRadius: 8, backgroundColor: themeColors.card, borderLeftWidth: 4, borderLeftColor: levelColor }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                  <Text style={{ color: themeColors.text, fontWeight: "700" }}>Compatibilidade</Text>
+                  <Text style={{ color: levelColor, fontWeight: "700" }}>{compat.score}% · {compat.level.toUpperCase()}</Text>
+                </View>
+                {compat.notes.map((n, i) => (
+                  <Text key={i} style={{ color: themeColors.icon, fontSize: 12, marginTop: 2 }}>• {n}</Text>
+                ))}
+              </View>
+              <View style={{ flexDirection: "row", marginTop: 8, justifyContent: "flex-end" }}>
+                <TouchableOpacity style={styles.claimantDispute} onPress={() => disputeClaimant(c)}>
+                  <Ionicons name="alert-circle" size={18} color="#FF9500" />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.claimantConfirm, { marginLeft: 8 }]} onPress={() => confirmClaimant(c)}>
+                  <Text style={styles.claimantConfirmText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           );
         })}
@@ -163,11 +207,54 @@ export function PetFoundModal(props: PetModalProps) {
       isOwner(p, myDeviceId, myPhone),
   );
 
+  const pickProofImage = async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) {
+      showAlert(
+        "permission",
+        "Permissão Negada",
+        "Precisamos de permissão para acessar sua galeria.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsMultipleSelection: false,
+    });
+    if (!result.canceled && result.assets.length) {
+      setOwnerClaimImage(result.assets[0].uri);
+    }
+  };
+
   const submitOwnerClaim = async () => {
     const lostId = ownerClaimLostId;
-    if (!lostId || !ownerClaimProof.trim()) return;
+    const notes = ownerClaimProof.trim();
+    const micro = ownerClaimMicrochip.replace(/\D/g, "");
+    if (!lostId) return;
+    if (!ownerClaimImage && !micro && !notes) {
+      showAlert(
+        "warning",
+        "Atenção",
+        "Anexe uma foto de comprovação ou informe o microchip/observações.",
+      );
+      return;
+    }
+    if (micro && (micro.length < 9 || micro.length > 15)) {
+      showAlert(
+        "warning",
+        "Atenção",
+        "O nº de microchip deve ter entre 9 e 15 dígitos.",
+      );
+      return;
+    }
     const lostPet = pets.find((p) => p.id === lostId);
     if (!lostPet) return;
+    setOwnerClaimUploading(true);
+    let proofImage: string | null = null;
+    if (ownerClaimImage) {
+      proofImage = await uploadMatchProofImage(ownerClaimImage, myDeviceId ?? "");
+    }
     commitPets(
       pets.map((p) =>
         p.id === lostId
@@ -181,10 +268,18 @@ export function PetFoundModal(props: PetModalProps) {
           : p,
       ),
     );
-    await upsertMatchProof(lostPet, selectedPet, ownerClaimProof.trim(), myDeviceId ?? "");
+    await upsertMatchProof(
+      lostPet,
+      selectedPet,
+      { microchip: micro, proofImage, notes },
+      myDeviceId ?? "",
+    );
+    setOwnerClaimUploading(false);
     setOwnerClaimStep(null);
     setOwnerClaimLostId(null);
     setOwnerClaimProof("");
+    setOwnerClaimMicrochip("");
+    setOwnerClaimImage(null);
     setSelectedPet(null);
   };
   const ownerClaimSection =
@@ -195,12 +290,33 @@ export function PetFoundModal(props: PetModalProps) {
         ? (
             <View style={styles.claimantsBox}>
               <Text style={styles.claimantsTitle}>Este pode ser o seu pet?</Text>
-              {ownerClaimStep === "proof" ? (
+              {                ownerClaimStep === "proof" ? (
                 <View>
-                  <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card }}
+                    onPress={pickProofImage}
+                  >
+                    {ownerClaimImage ? (
+                      <Image source={{ uri: ownerClaimImage }} style={{ width: 48, height: 48, borderRadius: 8, marginRight: 10 }} />
+                    ) : (
+                      <Ionicons name="camera" size={22} color={themeColors.icon} style={{ marginRight: 10 }} />
+                    )}
+                    <Text style={{ color: themeColors.text, flex: 1 }}>Foto de comprovação (opcional)</Text>
+                  </TouchableOpacity>
+                  <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card, marginTop: 8 }}>
+                    <TextInput
+                      style={{ color: themeColors.text, minHeight: 40 }}
+                      placeholder="Nº de microchip (9 a 15 dígitos)"
+                      placeholderTextColor={themeColors.icon}
+                      keyboardType="numeric"
+                      value={ownerClaimMicrochip}
+                      onChangeText={setOwnerClaimMicrochip}
+                    />
+                  </View>
+                  <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card, marginTop: 8 }}>
                     <TextInput
                       style={{ color: themeColors.text, minHeight: 44, textAlignVertical: "top" }}
-                      placeholder="Nº de microchip, foto com o pet ou marca única"
+                      placeholder="Observações (marca única, cor, etc.)"
                       placeholderTextColor={themeColors.icon}
                       value={ownerClaimProof}
                       onChangeText={setOwnerClaimProof}
@@ -209,10 +325,12 @@ export function PetFoundModal(props: PetModalProps) {
                   </View>
                   <TouchableOpacity
                     style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
-                    disabled={!ownerClaimProof.trim()}
+                    disabled={ownerClaimUploading}
                     onPress={submitOwnerClaim}
                   >
-                    <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>Enviar comprovante</Text>
+                    <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                      {ownerClaimUploading ? "Enviando..." : "Enviar comprovante"}
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={{ alignItems: "center", paddingVertical: 8 }}
@@ -220,6 +338,8 @@ export function PetFoundModal(props: PetModalProps) {
                       setOwnerClaimStep(null);
                       setOwnerClaimLostId(null);
                       setOwnerClaimProof("");
+                      setOwnerClaimMicrochip("");
+                      setOwnerClaimImage(null);
                     }}
                   >
                     <Text style={{ color: themeColors.icon }}>Voltar</Text>

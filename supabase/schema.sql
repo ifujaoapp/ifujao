@@ -395,6 +395,13 @@ create table if not exists public.pet_match_proofs (
   found_pet_id         text not null,
   claimer_device_id    text not null,
   found_owner_device_id text not null,
+  -- Prova de posse estruturada (anti-fraude):
+  --  * proof_image: caminho do objeto no bucket RESTRITO 'match-proofs'
+  --    (ex.: "<device_id>/<arquivo>.jpg"). Lido via URL assinada pelas partes.
+  --  * microchip: nº de microchip informado pelo reclamante (validado no app).
+  --  * proof: observações livres (texto/foto descritiva) — opcional.
+  proof_image          text,
+  microchip            text,
   proof                text,
   disputed             boolean default false,
   created_at           timestamptz default now()
@@ -418,6 +425,52 @@ create policy "match_proofs claimer write"
 
 grant select, insert, update, delete on table public.pet_match_proofs to authenticated;
 grant all on table public.pet_match_proofs to service_role;
+
+-- ============================================================================
+-- Storage: bucket RESTRITO de provas de posse (anti-fraude).
+-- Diferente de 'pet-photos' (público), aqui o objeto NÃO é servido por URL
+-- pública: só as duas partes da match (reclamante e dono do achado) e a
+-- moderação (service_role) conseguem ler, via URL assinada. A policy de read
+-- cruza o path do objeto com a linha de pet_match_proofs cujo proof_image aponta
+-- para ele, liberando apenas quando o device é uma das partes.
+-- Os uploads ficam em "<claimer_device_id>/<arquivo>", então o dono da prova
+-- (reclamante) sempre pode ler/apagar as próprias fotos.
+-- ============================================================================
+insert into storage.buckets (id, name, public)
+values ('match-proofs', 'match-proofs', false)
+on conflict (id) do nothing;
+
+drop policy if exists "match-proofs claimer insert" on storage.objects;
+create policy "match-proofs claimer insert"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'match-proofs'
+    and (storage.foldername(name))[1] = public.current_device_id()
+  );
+
+drop policy if exists "match-proofs parties read" on storage.objects;
+create policy "match-proofs parties read"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'match-proofs'
+    and (
+      (storage.foldername(name))[1] = public.current_device_id()
+      or exists (
+        select 1 from public.pet_match_proofs m
+        where m.proof_image = storage.objects.name
+          and (m.claimer_device_id = public.current_device_id()
+               or m.found_owner_device_id = public.current_device_id())
+      )
+    )
+  );
+
+drop policy if exists "match-proofs owner delete" on storage.objects;
+create policy "match-proofs owner delete"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'match-proofs'
+    and (storage.foldername(name))[1] = public.current_device_id()
+  );
 
 -- ============================================================================
 -- IMPORTANTE: ative o "Anonymous Sign-ins" em

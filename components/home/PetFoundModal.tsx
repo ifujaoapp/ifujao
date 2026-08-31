@@ -363,11 +363,15 @@ export function PetFoundModal(props: PetModalProps) {
   // Fluxo pesado de reclamação — exibido numa sheet própria (fora do card).
   const claimSheetInner = showClaimUI ? (
     <View>
-      <Text style={[styles.claimantsTitle, { marginBottom: 12 }]}>Este pode ser o seu pet?</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 14 }}>
+        <Ionicons name="paw" size={18} color={themeColors.primaryButton} style={{ marginRight: 8 }} />
+        <Text style={[styles.sectionTitle, { textAlign: "center" }]}>Este pode ser o seu pet?</Text>
+      </View>
       {ownerClaimStep === "proof" ? (
         <View>
+          <Text style={styles.fieldLabel}>Foto de comprovação (opcional)</Text>
           <TouchableOpacity
-            style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card }}
+            style={[styles.input, { flexDirection: "row", alignItems: "center", marginBottom: 15 }]}
             onPress={pickProofImage}
           >
             {ownerClaimImage ? (
@@ -375,30 +379,28 @@ export function PetFoundModal(props: PetModalProps) {
             ) : (
               <Ionicons name="camera" size={22} color={themeColors.icon} style={{ marginRight: 10 }} />
             )}
-            <Text style={{ color: themeColors.text, flex: 1 }}>Foto de comprovação (opcional)</Text>
+            <Text style={{ color: themeColors.text, flex: 1 }}>Anexar foto</Text>
           </TouchableOpacity>
-          <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card, marginTop: 8 }}>
-            <TextInput
-              style={{ color: themeColors.text, minHeight: 40 }}
-              placeholder="Microchip (opcional, 9 a 15 dígitos)"
-              placeholderTextColor={themeColors.icon}
-              keyboardType="numeric"
-              value={ownerClaimMicrochip}
-              onChangeText={setOwnerClaimMicrochip}
-            />
-          </View>
-          <View style={{ borderWidth: 1, borderColor: themeColors.cardStroke, borderRadius: 10, padding: 10, backgroundColor: themeColors.card, marginTop: 8 }}>
-            <TextInput
-              style={{ color: themeColors.text, minHeight: 44, textAlignVertical: "top" }}
-              placeholder="Observações (marca única, cor, etc.)"
-              placeholderTextColor={themeColors.icon}
-              value={ownerClaimProof}
-              onChangeText={setOwnerClaimProof}
-              multiline
-            />
-          </View>
+          <Text style={styles.fieldLabel}>Microchip (opcional, 9 a 15 dígitos)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Ex.: 123456789012345"
+            placeholderTextColor={themeColors.icon}
+            keyboardType="numeric"
+            value={ownerClaimMicrochip}
+            onChangeText={setOwnerClaimMicrochip}
+          />
+          <Text style={styles.fieldLabel}>Observações</Text>
+          <TextInput
+            style={[styles.input, { height: 90, textAlignVertical: "top" }]}
+            placeholder="Marca única, cor, local, etc."
+            placeholderTextColor={themeColors.icon}
+            value={ownerClaimProof}
+            onChangeText={setOwnerClaimProof}
+            multiline
+          />
           <TouchableOpacity
-            style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center", marginTop: 8 }}
+            style={{ backgroundColor: themeColors.primaryButton, borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 4 }}
             disabled={ownerClaimUploading}
             onPress={submitOwnerClaim}
           >
@@ -407,7 +409,7 @@ export function PetFoundModal(props: PetModalProps) {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ alignItems: "center", paddingVertical: 8 }}
+            style={{ alignItems: "center", paddingVertical: 10 }}
             onPress={closeClaimSheet}
           >
             <Text style={{ color: themeColors.icon }}>Voltar</Text>
@@ -417,7 +419,7 @@ export function PetFoundModal(props: PetModalProps) {
         myLostPets.map((lp) => (
           <TouchableOpacity
             key={lp.id}
-            style={styles.claimantRow}
+            style={[styles.claimantRow, { marginBottom: 8 }]}
             onPress={() => {
               setOwnerClaimLostId(lp.id);
               setOwnerClaimStep("proof");
@@ -434,7 +436,7 @@ export function PetFoundModal(props: PetModalProps) {
         ))
       ) : (
         <TouchableOpacity
-          style={{ backgroundColor: themeColors.primaryButton, borderRadius: 10, paddingVertical: 12, paddingHorizontal: 14, alignItems: "center" }}
+          style={{ backgroundColor: themeColors.primaryButton, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
           onPress={openClaimSheet}
         >
           <Text style={{ color: "#FFFFFF", fontWeight: "700" }}>É o seu pet?</Text>
@@ -549,6 +551,8 @@ export function PetFoundModal(props: PetModalProps) {
             paddingBottom: insets.bottom + 16,
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
+            borderTopWidth: 1,
+            borderColor: themeColors.cardStroke,
             transform: [{ translateY: claimSheetY }],
           }}
           onStartShouldSetResponder={() => true}

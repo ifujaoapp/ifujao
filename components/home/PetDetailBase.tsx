@@ -1,4 +1,5 @@
-import { Modal, ScrollView, Text, TouchableOpacity, View, Image, Animated, PanResponder, useWindowDimensions } from "react-native";
+import { Modal, Text, TouchableOpacity, View, Image, Animated, PanResponder, useWindowDimensions } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import ViewShot from "react-native-view-shot";
 import { Ionicons } from "@expo/vector-icons";
 import { type RefObject, type ReactNode, useRef, useState, useEffect } from "react";
@@ -63,6 +64,7 @@ export interface PetDetailBaseProps {
   topActions?: BarAction[];
   secondaryActions?: BarAction[];
   extraSections?: ReactNode;
+  claimSheet?: ReactNode;
 }
 
 export function PetDetailModalBase(props: PetDetailBaseProps) {
@@ -83,6 +85,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
     topActions,
     secondaryActions,
     extraSections,
+    claimSheet,
   } = props;
 
   const { height: windowHeight } = useWindowDimensions();
@@ -165,9 +168,12 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
           >
             <View
               style={[styles.demoOverlay, { justifyContent: isSmall ? "flex-start" : "flex-end" }]}
-              onStartShouldSetResponder={() => true}
-              onTouchStart={() => setSelectedPet(null)}
             >
+              <TouchableOpacity
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }}
+                activeOpacity={1}
+                onPress={() => setSelectedPet(null)}
+              />
               <Animated.View
                 style={[
                   styles.demoSheet,
@@ -178,8 +184,6 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                     ...(isSmall ? { marginTop: insets.top + 6 } : {}),
                   },
                 ]}
-                onStartShouldSetResponder={() => true}
-                onTouchStart={(e) => e.stopPropagation()}
               >
                 <View {...panResponder.panHandlers} style={styles.demoSheetHandle}>
                   <View style={styles.demoSheetHandleBar} />
@@ -192,6 +196,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                   nestedScrollEnabled
                   showsVerticalScrollIndicator={true}
                   keyboardShouldPersistTaps="handled"
+                  automaticallyAdjustContentInsets={false}
                 >
                 {headerExtra}
                  <View style={styles.reportImageWrap}>
@@ -209,7 +214,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                           >
                             <Image
                               source={{ uri: img }}
-                              style={{ width: 80, height: 80, borderRadius: 10, backgroundColor: themeColors.card }}
+                              style={{ width: 72, height: 72, borderRadius: 10, backgroundColor: themeColors.card }}
                               resizeMode="cover"
                               blurRadius={selectedPet.reported && !godMode ? 18 : 0}
                             />
@@ -235,20 +240,22 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                     </View>
                   ) : null}
                 </View>
-                <Text style={[styles.demoName, isSmall && { marginTop: -8, marginBottom: 0 }]}>
+                <Text style={[styles.demoName, isSmall && { marginTop: -8, marginBottom: 0 }]} pointerEvents="none">
                   {selectedPet.name ? selectedPet.name : selectedPet.species}
                   {!selectedPet.name && selectedPet.breed ? ` - ${selectedPet.breed}` : ""}
                 </Text>
-                <View style={styles.demoRow}>
+                <View style={styles.demoRow} pointerEvents="none">
                   <Ionicons name="location" size={16} color={themeColors.primaryButton} />
                   <Text style={styles.demoLocation}>
                     {selectedPet.location}
                     {selectedPet.city ? ` — ${selectedPet.city}` : ""}
                   </Text>
                 </View>
-                {dateNode}
+                <View pointerEvents="none">
+                  {dateNode}
+                </View>
                 {typeof selectedPet.reward === "number" && Number.isFinite(selectedPet.reward) ? (
-                  <View style={[styles.demoRewardBadge, isSmall && { marginTop: 2, marginBottom: 4 }]}>
+                  <View style={[styles.demoRewardBadge, isSmall && { marginTop: 2, marginBottom: 4 }]} pointerEvents="none">
                     <Ionicons name="cash" size={16} color="#B8860B" />
                     <Text style={styles.demoRewardBadgeText}>
                       Recompensa:{" "}
@@ -311,6 +318,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
               </ScrollView>
               </Animated.View>
             </View>
+            {claimSheet}
           </Modal>
           <ViewShot
             ref={shareCardRef}

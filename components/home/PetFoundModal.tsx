@@ -1,4 +1,5 @@
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder, Modal, Keyboard } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -59,54 +60,10 @@ export function PetFoundModal(props: PetModalProps) {
   const [ownerClaimMicrochip, setOwnerClaimMicrochip] = useState("");
   const [ownerClaimImage, setOwnerClaimImage] = useState<string | null>(null);
   const [ownerClaimUploading, setOwnerClaimUploading] = useState(false);
-  const keyboardOffset = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardDidShow", (e) => {
-      Animated.timing(keyboardOffset, {
-        toValue: -e.endCoordinates.height,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    });
-    const hideSub = Keyboard.addListener("keyboardDidHide", () => {
-      Animated.timing(keyboardOffset, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, [keyboardOffset]);
   const [claimantProofs, setClaimantProofs] = useState<Record<string, MatchProof>>({});
   const [claimantProofImages, setClaimantProofImages] = useState<Record<string, string>>({});
   const [expandedClaimantId, setExpandedClaimantId] = useState<string | null>(null);
   const [claimSheetVisible, setClaimSheetVisible] = useState(false);
-  const claimSheetY = useRef(new Animated.Value(0)).current;
-  const claimPan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_evt, g) => Math.abs(g.dy) > 4,
-      onPanResponderMove: (_evt, g) => {
-        if (g.dy > 0) claimSheetY.setValue(g.dy);
-      },
-      onPanResponderRelease: (_evt, g) => {
-        if (g.dy > 100) {
-          setClaimSheetVisible(false);
-          setOwnerClaimStep(null);
-          setOwnerClaimLostId(null);
-          setOwnerClaimProof("");
-          setOwnerClaimMicrochip("");
-          setOwnerClaimImage(null);
-        } else {
-          Animated.spring(claimSheetY, { toValue: 0, useNativeDriver: true }).start();
-        }
-      },
-    }),
-  ).current;
 
   const isOwn = !!selectedPet && isOwner(selectedPet, myDeviceId, myPhone);
   const isFound = !!selectedPet?.foundAt;
@@ -657,40 +614,55 @@ const formatDisappearedWhen = (date?: string): string => {
           {claimantsSection}
         </>
       }
-    />
-    {claimSheetVisible && showClaimUI && (
-      <Modal transparent animationType="fade" visible={claimSheetVisible} onRequestClose={closeClaimSheet}>
-        <TouchableOpacity
-          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
-          activeOpacity={1}
-          onPress={closeClaimSheet}
-        >
-        <Animated.View
-          style={{
-            backgroundColor: themeColors.card,
-            padding: 16,
-            paddingBottom: insets.bottom + 16,
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-            borderTopWidth: 1,
-            borderColor: themeColors.cardStroke,
-            transform: [{ translateY: Animated.add(claimSheetY, keyboardOffset) }],
-          }}
-          onStartShouldSetResponder={() => true}
-          onTouchStart={(e) => e.stopPropagation()}
-        >
-          <View {...claimPan.panHandlers} style={{ width: "100%", alignItems: "center", paddingVertical: 6 }}>
-            <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: themeColors.icon }} />
+      claimSheet={
+        claimSheetVisible && showClaimUI ? (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            onTouchStart={(e) => e.stopPropagation()}
+          >
+            <TouchableOpacity
+              style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
+              activeOpacity={1}
+              onPress={closeClaimSheet}
+            />
+            <View
+              style={{
+                backgroundColor: themeColors.card,
+                padding: 16,
+                paddingBottom: insets.bottom + 16,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+                borderTopWidth: 1,
+                borderColor: themeColors.cardStroke,
+                height: "80%",
+              }}
+            >
+              <View style={{ width: "100%", alignItems: "center", paddingVertical: 6 }}>
+                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: themeColors.icon }} />
+              </View>
+              <CloseCircle
+                style={{ position: "absolute", top: 14, right: 14, zIndex: 2, backgroundColor: themeColors.text === "#FFFFFF" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.5)" }}
+                onPress={closeClaimSheet}
+              />
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
+                automaticallyAdjustContentInsets={false}
+                style={{ flex: 1 }}
+              >
+                {claimSheetInner}
+              </ScrollView>
+            </View>
           </View>
-          <CloseCircle
-            style={{ position: "absolute", top: 14, right: 14, zIndex: 2, backgroundColor: themeColors.text === "#FFFFFF" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.5)" }}
-            onPress={closeClaimSheet}
-          />
-          {claimSheetInner}
-        </Animated.View>
-      </TouchableOpacity>
-      </Modal>
-    )}
+        ) : null
+      }
+    />
     </>
   );
 }

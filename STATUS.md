@@ -129,6 +129,29 @@
 
 ---
 
+## Sessão atual (2026-08-31) — Correção da rolagem do modal pet
+
+### Problema
+A rolagem do modal pet não funcionava corretamente. Algumas áreas rolavam (imagens, botões) mas outras não (nome do pet, local, data).
+
+### Causa raiz
+O `Animated.View` do sheet tinha `onStartShouldSetResponder={() => true}` e `onTouchStart={(e) => e.stopPropagation()}`, que capturavam **todos os toques** e impediam o `ScrollView` interno de se tornar o responder para rolar.
+
+### Solução
+Separar o backdrop (área escura que fecha o modal) do sheet (conteúdo) como **irmãos** em vez de pai-filho:
+- `TouchableOpacity` (backdrop) → fecha o modal ao toque
+- `Animated.View` (sheet) → contém o ScrollView, não propaga toques para o backdrop
+- `ScrollView` → recebe toques normalmente e rola
+
+### Arquivos modificados
+- `components/home/PetDetailBase.tsx` — estrutura do modal pet
+- `components/home/PetFoundModal.tsx` — claim sheet com mesma correção
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.
+
+---
+
 ## Sessão atual (2026-08-31) — UX do Fluxo de Reivindicação e Correções
 
 ### Melhorias no PetFoundModal (Claim)

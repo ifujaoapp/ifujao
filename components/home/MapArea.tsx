@@ -351,26 +351,28 @@ export function MapArea(props: MapAreaProps) {
             activeOpacity={1}
             onPress={() => setTypeChooserVisible(false)}
           >
-            <View style={{ backgroundColor: "#FFFFFF", padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+            <View style={{ backgroundColor: "#FFFFFF", padding: 16, paddingBottom: insets.bottom + 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
               <Text style={{ fontSize: 16, fontWeight: "700", color: "#111111", marginBottom: 12, textAlign: "center" }}>
                 O que você quer reportar?
               </Text>
               <TouchableOpacity
-                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
+                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 10 }}
                 onPress={() => {
                   openReport("lost");
                   setTypeChooserVisible(false);
                 }}
               >
+                <Ionicons name="sad-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Perdi um pet</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, alignItems: "center" }}
+                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "center" }}
                 onPress={() => {
                   openReport("found");
                   setTypeChooserVisible(false);
                 }}
               >
+                <Ionicons name="happy-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
                 <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Encontrei um pet</Text>
               </TouchableOpacity>
               <TouchableOpacity

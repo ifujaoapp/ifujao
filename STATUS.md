@@ -126,3 +126,22 @@
 
 ### Pendências
 - Nenhuma. Lint e type-check limpos.
+
+---
+
+## Sessão atual (2026-08-31) — UX do Fluxo de Reivindicação e Correções
+
+### Melhorias no PetFoundModal (Claim)
+- **Banner de alerta**: Quando há reivindicações pendentes, aparece banner laranja "🔔 Você tem 1 reivindicação pendente. Confirme se é o pet correto."
+- **Auto-expansão**: A seção de claimants abre automaticamente na primeira montagem para mostrar os detalhes.
+- **Ocultar "Marcar como encontrado"**: Quando há claims pendentes, o botão é substituído por "Confirme as reivindicações pendentes" (desabilitado).
+- **Validação de espécie**: Mostra aviso "⚠️ Espécie diferente: seu pet é X e o pet encontrado é Y" quando as espécies não batem.
+- **Validação de data**: Mostra aviso "⚠️ A data que este pet sumiu é posterior à data que o pet encontrado foi visto" quando há inconsistência temporal.
+- **Correção do toggle**: A expansão/colapso dos detalhes do claimant agora funciona corrigidamente (usando `useRef` para controlar auto-expansão apenas na montagem).
+
+### Melhorias no PetDetailBase
+- **ScrollView no modal**: Adicionado `ScrollView` no conteúdo do modal (`maxHeight: "90%"` no `Animated.View`) para evitar overflow quando há muitos claimants.
+- **Correção de fechamento**: O `Animated.View` agora tem `maxHeight: "90%"` para limitar o tamanho do modal.
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.

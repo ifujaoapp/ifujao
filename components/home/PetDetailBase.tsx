@@ -18,6 +18,7 @@ export interface BarAction {
   textColor?: string;
   bgColor?: string;
   reportedDisabled?: boolean;
+  disabled?: boolean;
   onPress: () => void;
 }
 
@@ -114,7 +115,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
   ).current;
 
   const renderBtn = (item: BarAction) => {
-    const disabled = item.reportedDisabled && !!selectedPet?.reported;
+    const disabled = item.disabled || (item.reportedDisabled && !!selectedPet?.reported);
     const base = item.primary ? styles.demoActionBtnPrimary : styles.demoActionBtnNeutral;
     return (
       <TouchableOpacity
@@ -173,7 +174,8 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                   {
                     transform: [{ translateY: sheetY }],
                     paddingBottom: insets.bottom + (isSmall ? 6 : 16),
-                    ...(isSmall ? { marginTop: insets.top + 6, maxHeight: "96%" } : {}),
+                    maxHeight: "90%",
+                    ...(isSmall ? { marginTop: insets.top + 6 } : {}),
                   },
                 ]}
                 onStartShouldSetResponder={() => true}
@@ -186,8 +188,13 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                   style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
                   onPress={() => setSelectedPet(null)}
                 />
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={true}
+                  keyboardShouldPersistTaps="handled"
+                >
                 {headerExtra}
-                <View style={styles.reportImageWrap}>
+                 <View style={styles.reportImageWrap}>
                   <View style={{ alignItems: 'center' }}>
                      <View style={{ backgroundColor: themeColors.card, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: themeColors.cardStroke, shadowColor: themeColors.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, alignSelf: 'center' }}>
                       <View style={{ flexDirection: "row", gap: 8 }}>
@@ -301,6 +308,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                     ) : null}
                   </View>
                 </View>
+              </ScrollView>
               </Animated.View>
             </View>
           </Modal>

@@ -1,7 +1,7 @@
 import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Animated, PanResponder, Modal, Keyboard } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { showAlert } from "@/src/components/AppAlert";
 import { PetDetailModalBase, type BarAction, type PetModalProps } from "./PetDetailBase";
 import { CloseCircle } from "@/components/CloseCircle";
@@ -144,6 +144,24 @@ export function PetFoundModal(props: PetModalProps) {
     };
   }, [selectedPet, isOwn, myDeviceId, myPhone, pets]);
 
+  // claimants / match proofs (finder)
+  const claimantsOf = (pet: PetRecord): PetRecord[] =>
+    pets.filter((p) => p.id !== pet.id && p.matchedPetId === pet.id);
+
+  const claimants = useMemo(
+    () => (isOwn && selectedPet?.postType === "found" ? pets.filter((p) => p.id !== selectedPet.id && p.matchedPetId === selectedPet.id) : []),
+    [isOwn, selectedPet, pets],
+  );
+
+  const hasAutoExpanded = useRef(false);
+
+  useEffect(() => {
+    if (!hasAutoExpanded.current && claimants.length > 0) {
+      hasAutoExpanded.current = true;
+      setExpandedClaimantId(claimants[0].id);
+    }
+  }, [claimants]);
+
   if (!selectedPet) return null;
 
   const myLinkedClaim = pets.find(
@@ -154,9 +172,6 @@ export function PetFoundModal(props: PetModalProps) {
   );
   const myClaimConfirmed = myLinkedClaim?.matchStatus === "confirmed";
 
-  // claimants / match proofs (finder)
-  const claimantsOf = (pet: PetRecord): PetRecord[] =>
-    pets.filter((p) => p.id !== pet.id && p.matchedPetId === pet.id);
   const resolveMatch = (claimant: PetRecord) => {
     commitPets(
       pets.map((p) =>
@@ -183,10 +198,15 @@ export function PetFoundModal(props: PetModalProps) {
       .forEach((c) => disputeClaimant(c));
     setSelectedPet(null);
   };
-  const claimants = isOwn && selectedPet.postType === "found" ? claimantsOf(selectedPet) : [];
+
   const claimantsSection =
     claimants.length > 0 ? (
       <View style={styles.claimantsBox}>
+        <View style={{ backgroundColor: "#FF9500", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10 }}>
+          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+            🔔 Você tem {claimants.length === 1 ? "1 reivindicação pendente" : `${claimants.length} reivindicações pendentes`}. Confirme se é o pet correto.
+          </Text>
+        </View>
         <Text style={styles.claimantsTitle}>
           {claimants.length === 1
             ? "1 tutor reconheceu este pet"
@@ -541,8 +561,8 @@ const formatDisappearedWhen = (date?: string): string => {
         <View style={styles.claimantsBox}>
           <Text style={styles.claimantsTitle}>
             {myClaimConfirmed
-              ? "Reivindicação confirmada pelo finder"
-              : "Reivindicação enviada — aguarde confirmação do finder"}
+              ? "Reivindicação confirmada por quem encontrou"
+              : "Reivindicação enviada — aguarde confirmação de quem encontrou"}
           </Text>
         </View>
       )
@@ -578,8 +598,22 @@ const formatDisappearedWhen = (date?: string): string => {
     }
   } else {
     if (contact) topActions.push(contact);
-    const fm = buildFoundMarkAction(ctx);
-    if (fm.top) topActions.push(fm.top);
+    if (claimants.length > 0) {
+      topActions.push({
+        key: "pendingClaims",
+        icon: "alert-circle",
+        label: "Confirme as reivindicações pendentes",
+        color: "#FF9500",
+        iconColor: "#FF9500",
+        textColor: "#FF9500",
+        reportedDisabled: true,
+        onPress: () => {},
+        disabled: true,
+      });
+    } else {
+      const fm = buildFoundMarkAction(ctx);
+      if (fm.top) topActions.push(fm.top);
+    }
     const r = buildReportAction(ctx);
     if (r) secondary.push(r);
     secondary.push(buildShareAction(ctx));

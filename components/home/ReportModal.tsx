@@ -594,7 +594,7 @@ export function ReportModal({
                   </View>
                 </>
               )}
-              <Text style={styles.fieldLabel}>Contato (WhatsApp) *</Text>
+              <Text style={styles.fieldLabel}>Cel (WhatsApp) *</Text>
               <TextInput
                 ref={contactRef}
                 style={[styles.input, contactError ? styles.inputError : null]}

@@ -1,5 +1,5 @@
 import { Animated, BackHandler, Platform, Text, TouchableOpacity, View } from "react-native";
-import { type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { showAlert } from "@/src/components/AppAlert";
@@ -52,7 +52,7 @@ export interface MapAreaProps {
   canReport: boolean;
   pawPulse: Animated.Value;
   bubbleOpacity: Animated.Value;
-  openReport: () => void;
+  openReport: (type?: 'lost' | 'found') => void;
 }
 
 export function MapArea(props: MapAreaProps) {
@@ -97,6 +97,7 @@ export function MapArea(props: MapAreaProps) {
     bubbleOpacity,
     openReport,
   } = props;
+  const [typeChooserVisible, setTypeChooserVisible] = useState(false);
   return (
       <View style={styles.mapArea}>
         <View
@@ -294,7 +295,7 @@ export function MapArea(props: MapAreaProps) {
             style={[styles.speechBubble, { opacity: bubbleOpacity }]}
           >
             <Text style={styles.speechBubbleText}>
-              Toque para{"\n"}reportar um pet perdido
+              Toque para{"\n"}reportar um pet perdido/encontrado
             </Text>
             <View style={styles.speechBubbleArrow} />
           </Animated.View>
@@ -328,7 +329,7 @@ export function MapArea(props: MapAreaProps) {
               ]}
               disabled={!canReport}
               activeOpacity={0.8}
-              onPress={() => openReport()}
+              onPress={() => setTypeChooserVisible(true)}
             >
               <MaterialCommunityIcons name="paw" size={42} color="#FFFFFF" />
             </TouchableOpacity>
@@ -343,6 +344,44 @@ export function MapArea(props: MapAreaProps) {
             <Text style={styles.cityButtonText}>{gpsCity}</Text>
           </View>
         </SafeAreaView>
+
+        {typeChooserVisible && (
+          <TouchableOpacity
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 50, justifyContent: "flex-end" }}
+            activeOpacity={1}
+            onPress={() => setTypeChooserVisible(false)}
+          >
+            <View style={{ backgroundColor: "#FFFFFF", padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: "#111111", marginBottom: 12, textAlign: "center" }}>
+                O que você quer reportar?
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 10 }}
+                onPress={() => {
+                  openReport("lost");
+                  setTypeChooserVisible(false);
+                }}
+              >
+                <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Perdi um pet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor: "#0A84FF", borderRadius: 10, paddingVertical: 14, alignItems: "center" }}
+                onPress={() => {
+                  openReport("found");
+                  setTypeChooserVisible(false);
+                }}
+              >
+                <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15 }}>Encontrei um pet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ alignItems: "center", paddingVertical: 12 }}
+                onPress={() => setTypeChooserVisible(false)}
+              >
+                <Text style={{ color: "#8E8E93", fontSize: 14 }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
   );
 }

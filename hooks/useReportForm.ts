@@ -220,10 +220,10 @@ export function useReportForm(params: UseReportFormParams) {
     showAlert("success", "Sucesso!", "Alerta publicado!");
   };
 
-  const openReport = async () => {
+  const openReport = async (type?: 'lost' | 'found') => {
     if (!canReport) return;
     // Reseta o tipo de post e as datas a cada abertura (evita resíduo de rascunho).
-    setPostType('lost');
+    setPostType(type ?? 'lost');
     setLostDate(null);
     setFoundDate(null);
     if (!location) {

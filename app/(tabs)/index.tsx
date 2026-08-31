@@ -2084,13 +2084,13 @@ const makeStyles = (c: typeof Colors.light) =>
     claimantsBox: {
       marginTop: 10,
       padding: 12,
-      backgroundColor: "#F2F2F7",
+      backgroundColor: c.background,
       borderRadius: 12,
     },
     claimantsTitle: {
       fontSize: 13,
       fontWeight: "700",
-      color: "#1C1C1E",
+      color: c.text,
       marginBottom: 8,
     },
     claimantRow: {
@@ -2099,16 +2099,16 @@ const makeStyles = (c: typeof Colors.light) =>
       gap: 8,
       paddingVertical: 8,
       borderTopWidth: 1,
-      borderTopColor: "#E5E5EA",
+      borderTopColor: c.cardStroke,
     },
     claimantName: {
       fontSize: 13,
       fontWeight: "600",
-      color: "#1C1C1E",
+      color: c.text,
     },
     claimantProof: {
       fontSize: 12,
-      color: "#636366",
+      color: c.icon,
       marginTop: 2,
     },
     claimantDisputed: {

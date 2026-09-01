@@ -192,8 +192,12 @@ export function PetFoundModal(props: PetModalProps) {
           return (
             <View key={c.id} style={[styles.claimantRow, { flexDirection: "column", alignItems: "stretch" }]}>
               <TouchableOpacity
-                style={{ flexDirection: "row", alignItems: "center" }}
-                onPress={() => setExpandedClaimantId(expanded ? null : c.id)}
+                style={{ flexDirection: "row", alignItems: "center", opacity: selectedPet.reported ? 0.5 : 1 }}
+                onPress={() => {
+                  if (selectedPet.reported) return;
+                  setExpandedClaimantId(expanded ? null : c.id);
+                }}
+                disabled={!!selectedPet.reported}
               >
                 {proofImg ? (
                   <Image source={{ uri: proofImg }} style={{ width: 36, height: 36, borderRadius: 8, marginRight: 10 }} />
@@ -237,10 +241,18 @@ export function PetFoundModal(props: PetModalProps) {
                     </Text>
                   ))}
                   <View style={{ flexDirection: "row", marginTop: 8, justifyContent: "flex-end" }}>
-                    <TouchableOpacity style={styles.claimantDispute} onPress={() => disputeClaimant(c)}>
+                    <TouchableOpacity
+                      style={[styles.claimantDispute, { opacity: selectedPet.reported ? 0.5 : 1 }]}
+                      onPress={() => { if (!selectedPet.reported) disputeClaimant(c); }}
+                      disabled={!!selectedPet.reported}
+                    >
                       <Ionicons name="alert-circle" size={18} color="#FF9500" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.claimantConfirm, { marginLeft: 8 }]} onPress={() => confirmClaimant(c)}>
+                    <TouchableOpacity
+                      style={[styles.claimantConfirm, { marginLeft: 8, opacity: selectedPet.reported ? 0.5 : 1 }]}
+                      onPress={() => { if (!selectedPet.reported) confirmClaimant(c); }}
+                      disabled={!!selectedPet.reported}
+                    >
                       <Text style={styles.claimantConfirmText}>Confirmar</Text>
                     </TouchableOpacity>
                   </View>
@@ -584,6 +596,9 @@ const formatDisappearedWhen = (date?: string): string => {
 
   const topActions: BarAction[] = [];
   const secondary: BarAction[] = [];
+  const isReporter = selectedPet.reporterDeviceId === myDeviceId;
+  const isReported = !!selectedPet.reported;
+
   if (isFound) {
     if (isOwn || godMode) {
       topActions.push(buildUnfoundAction(ctx));
@@ -591,34 +606,32 @@ const formatDisappearedWhen = (date?: string): string => {
       if (d) secondary.push(d);
     }
   } else {
-    if (contact) topActions.push(contact);
-    if (claimants.length > 0) {
-      topActions.push({
-        key: "pendingClaims",
-        icon: "alert-circle",
-        label: "Confirme as reivindicações pendentes",
-        color: "#FFFFFF",
-        iconColor: "#FFFFFF",
-        textColor: "#FFFFFF",
-        bgColor: "#FF9500",
-        reportedDisabled: false,
-        onPress: () => {},
-        disabled: false,
-        primary: true,
-      });
+    // Se está denunciado: só quem denunciou pode apagar a denúncia
+    if (isReported && !isReporter) {
+      // Todos os botões desabilitados para quem não é o reporter
+    } else if (isReported && isReporter) {
+      // Só botão de apagar denúncia habilitado
+      const u = buildUndoReportAction(ctx);
+      if (u) secondary.push(u);
     } else {
-      const fm = buildFoundMarkAction(ctx);
-      if (fm.top) topActions.push(fm.top);
+      // Pet não denunciado: ações normais
+      if (contact) topActions.push(contact);
+      if (claimants.length > 0) {
+        // Mensagem informativa (não é botão)
+      } else {
+        const fm = buildFoundMarkAction(ctx);
+        if (fm.top) topActions.push(fm.top);
+      }
+      const r = buildReportAction(ctx);
+      if (r) secondary.push(r);
+      secondary.push(buildShareAction(ctx));
+      const d = buildDeleteAction(ctx);
+      if (d) secondary.push(d);
+      const u = buildUndoReportAction(ctx);
+      if (u) secondary.push(u);
+      const fm2 = buildFoundMarkAction(ctx);
+      if (fm2.secondary) secondary.push(fm2.secondary);
     }
-    const r = buildReportAction(ctx);
-    if (r) secondary.push(r);
-    secondary.push(buildShareAction(ctx));
-    const d = buildDeleteAction(ctx);
-    if (d) secondary.push(d);
-    const u = buildUndoReportAction(ctx);
-    if (u) secondary.push(u);
-    const fm2 = buildFoundMarkAction(ctx);
-    if (fm2.secondary) secondary.push(fm2.secondary);
   }
 
   const dateNode = formatLostDate(selectedPet.foundDate) ? (

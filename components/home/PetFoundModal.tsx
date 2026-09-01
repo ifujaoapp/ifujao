@@ -25,6 +25,7 @@ import {
   type MatchProof,
 } from "@/lib/matchProofs";
 import { computeMatchCompat } from "@/lib/matchScore";
+import { confirmMatch } from "@/lib/confirmMatch";
 import { type PetRecord } from "@/lib/storage";
 
 export function PetFoundModal(props: PetModalProps) {
@@ -130,12 +131,23 @@ export function PetFoundModal(props: PetModalProps) {
   const myClaimConfirmed = myLinkedClaim?.matchStatus === "confirmed";
 
   const resolveMatch = (claimant: PetRecord) => {
+    // Atualiza localmente (UI imediata)
+    // O pet encontrado (selectedPet) é do finder → marca dirty para o sync pushar
+    // O pet perdido (claimant) é do dono → dirty=false (o sync não pode pushar,
+    // a Edge Function cuida do servidor)
     commitPets(
       pets.map((p) =>
-        p.id === claimant.id || p.id === selectedPet.id
+        p.id === selectedPet.id
           ? { ...p, matchStatus: "confirmed", dirty: true }
-          : p,
+          : p.id === claimant.id
+            ? { ...p, matchStatus: "confirmed", dirty: false }
+            : p,
       ),
+    );
+    // Chama Edge Function para confirmar ambos os pets no servidor
+    // (bypassa RLS com service_role)
+    confirmMatch(selectedPet.id, claimant.id).catch((e) =>
+      console.warn("[confirmMatch] falhou:", e),
     );
   };
   const disputeClaimant = (claimant: PetRecord) => {

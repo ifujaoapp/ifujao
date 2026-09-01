@@ -132,9 +132,18 @@ export const runSync = async (
     if (!p.updatedAt) p.dirty = true;
   }
 
-  // 1) Push dos pets alterados
+    // Push dos pets alterados
   for (const pet of working) {
     if (!pet.dirty) continue;
+
+    // Se o pet NÃO pertence ao dispositivo atual, não tenta pushar.
+    // A política RLS bloqueia UPDATE/INSERT de pets de terceiros.
+    // A Edge Function (confirm-match) cuida da confirmação entre partes.
+    if (pet.ownerDeviceId && pet.ownerDeviceId !== deviceId) {
+      console.log(`[sync] skip push pet ${pet.id} (owner ${pet.ownerDeviceId} != device ${deviceId})`);
+      pet.dirty = false;
+      continue;
+    }
 
     // Quem está DENUNCIANDO (reporter_device_id === deviceId) — seja um finder
     // comum ou o próprio dono de OUTRO alerta — só pode DENUNCIAR
@@ -223,7 +232,7 @@ export const runSync = async (
         if (cErr) console.warn('[sync] pet_contacts delete falhou:', cErr.message);
       }
       if (error) {
-        console.warn('[sync] upsert falhou:', error.message);
+        console.warn('[sync] upsert falhou:', error.message, 'pet:', pet.id, 'owner:', pet.ownerDeviceId, 'device:', deviceId);
         failedIds.add(pet.id);
       } else {
         pet.remoteImageUrls = remoteUrls;

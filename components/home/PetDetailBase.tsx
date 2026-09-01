@@ -127,6 +127,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
           base,
           item.bgColor ? { backgroundColor: item.bgColor, borderWidth: 0 } : null,
           disabled && styles.demoActionBtnDisabled,
+          { paddingHorizontal: item.primary ? 16 : 12 },
         ]}
         disabled={disabled}
         activeOpacity={0.7}
@@ -136,16 +137,17 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
           name={item.icon as any}
           size={item.primary ? 26 : 16}
           color={disabled ? "#C7C7CC" : item.primary ? "#FFFFFF" : item.iconColor ?? item.color}
+          style={{ marginRight: 8 }}
         />
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit={true}
-          minimumFontScale={0.8}
+          minimumFontScale={0.7}
           style={[
             styles.demoActionLabel,
             {
               color: disabled ? "#C7C7CC" : item.primary ? "#FFFFFF" : item.textColor ?? item.color,
-              fontSize: item.primary ? 15 : 11,
+              fontSize: item.primary ? 17 : 14,
               fontWeight: "600",
             },
           ]}

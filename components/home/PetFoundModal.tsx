@@ -107,7 +107,7 @@ export function PetFoundModal(props: PetModalProps) {
     pets.filter((p) => p.id !== pet.id && p.matchedPetId === pet.id);
 
   const claimants = useMemo(
-    () => (isOwn && selectedPet?.postType === "found" ? pets.filter((p) => p.id !== selectedPet.id && p.matchedPetId === selectedPet.id) : []),
+    () => (isOwn && selectedPet?.postType === "found" ? pets.filter((p) => p.id !== selectedPet.id && p.matchedPetId === selectedPet.id && p.matchStatus === "pending") : []),
     [isOwn, selectedPet, pets],
   );
 
@@ -171,8 +171,9 @@ export function PetFoundModal(props: PetModalProps) {
   const claimantsSection =
     claimants.length > 0 ? (
       <View style={styles.claimantsBox}>
-        <View style={{ backgroundColor: "#FF9500", borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10 }}>
-          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13 }}>
+        <View style={{ backgroundColor: themeColors.primaryButton, borderRadius: 12, padding: 16, marginBottom: 16, flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Ionicons name="alert-circle" size={24} color="#FFFFFF" />
+          <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 15, flex: 1 }}>
             🔔 Você tem {claimants.length === 1 ? "1 reivindicação pendente" : `${claimants.length} reivindicações pendentes`}. Confirme se é o pet correto.
           </Text>
         </View>
@@ -527,14 +528,34 @@ const formatDisappearedWhen = (date?: string): string => {
     !isOwn &&
     !!myLinkedClaim
       ? (
-        <View style={styles.claimantsBox}>
-          <Text style={styles.claimantsTitle}>
-            {myClaimConfirmed
-              ? "Reivindicação confirmada por quem encontrou"
-              : "Reivindicação enviada — aguarde confirmação de quem encontrou"}
-          </Text>
-        </View>
-      )
+          <View style={styles.claimantsBox}>
+            <View
+              style={{
+                backgroundColor: myClaimConfirmed ? "#34C759" : "#FF9500",
+                borderRadius: 12,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <Ionicons
+                name={myClaimConfirmed ? "checkmark-circle" : "time-outline"}
+                size={20}
+                color="#FFFFFF"
+              />
+              <Text
+                style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13, flex: 1 }}
+                numberOfLines={2}
+              >
+                {myClaimConfirmed
+                  ? "✓ Reivindicação confirmada por quem encontrou!"
+                  : "Reivindicação enviada — aguarde confirmação de quem encontrou"}
+              </Text>
+            </View>
+          </View>
+        )
       : null;
 
   const ctx: PetActionCtx = {

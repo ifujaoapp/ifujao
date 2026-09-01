@@ -102,6 +102,8 @@ export const buildFoundMarkAction = (
   ctx: PetActionCtx,
 ): { top?: BarAction; secondary?: BarAction } => {
   if (!(ctx.isOwn || ctx.godMode)) return {};
+  // Não mostra "Marcar como encontrado" se o pet já está encontrado ou é um post de achado
+  if (ctx.selectedPet.foundAt || ctx.selectedPet.postType === 'found') return {};
   const foundAction: BarAction = {
     key: "found",
     icon: "checkmark-circle",

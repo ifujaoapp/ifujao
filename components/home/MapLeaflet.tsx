@@ -147,9 +147,27 @@ export const MapLeaflet = ({
           if (!fa) return false;
           var t = new Date(fa).getTime();
           if (isNaN(t)) return false;
-          return (Date.now() - t) <= FOUND_WINDOW_HOURS * 3600 * 1000;
+          return (_serverNow - t) <= FOUND_WINDOW_HOURS * 3600 * 1000;
         }
         function buildPetIcon(reported, label, lostDate, foundAt, postType, foundDate, claims) {
+          // Pet DENUNCIADO: sempre mostra ícone vermelho, independente do status
+          if (reported) {
+            return L.divIcon({
+              className: 'paw-pin',
+              html: '<div style="position:relative;width:64px;height:58px;">' +
+                '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                '<div class="paw-pulse paw-pulse-reported"></div>' +
+                '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
+                '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#FF3B30" stroke="#FFFFFF" stroke-width="2"/>' +
+                '</svg>' +
+                '<div class="paw-emoji" style="color:#FF3B30;">⚠️</div>' +
+                '</div>' +
+                '</div>',
+              iconSize: [64, 58],
+              iconAnchor: [32, 40],
+              popupAnchor: [0, -44],
+            });
+          }
           // Pet REENCONTRADO (dono marcou o próprio caso): gota verde + ✓.
           if (foundAt && withinFoundWindow(foundAt)) {
             var fEmoji = speciesEmoji(__esc(label)) || '🐾';
@@ -198,11 +216,9 @@ export const MapLeaflet = ({
           }
           var species = __esc(label) || 'Pet';
           var relText = __esc(formatRelDays(lostDate));
-          var pulseCls = reported ? 'paw-pulse paw-pulse-reported' : 'paw-pulse';
-          var stroke = reported ? '#FF3B30' : recencyColor(relDays(lostDate));
-          var emoji = reported
-            ? '<div class="paw-emoji" style="color:#FF3B30;">⚑</div>'
-            : '<div class="paw-emoji">' + speciesEmoji(species) + '</div>';
+          var pulseCls = 'paw-pulse';
+          var stroke = recencyColor(relDays(lostDate));
+          var emoji = '<div class="paw-emoji">' + speciesEmoji(species) + '</div>';
           return L.divIcon({
             className: 'paw-pin',
             html: '<div style="position:relative;width:64px;height:58px;">' +
@@ -302,6 +318,7 @@ export const MapLeaflet = ({
   const SPIDER_DELTA = 0.0003;
   const renderPetsJs = (list: PetRecord[]) =>
     `(function(){
+      var _serverNow = ${Date.now()};
       window.__renderPets = function(pets){
         if (!window.__petMarkers) window.__petMarkers = [];
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
@@ -312,8 +329,8 @@ export const MapLeaflet = ({
            // Achado já resolvido (match confirmado): some do mapa.
            // achados confirmados permanecem visíveis (anti-fraude)
            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus)c++;}return c;})()), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
-          m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
-          window.__petMarkers.push(m);
+           m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+           window.__petMarkers.push(m);
         }
         var groups = {};
         pets.forEach(function(p){

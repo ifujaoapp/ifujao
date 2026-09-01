@@ -136,15 +136,6 @@ export const runSync = async (
   for (const pet of working) {
     if (!pet.dirty) continue;
 
-    // Se o pet NÃO pertence ao dispositivo atual, não tenta pushar.
-    // A política RLS bloqueia UPDATE/INSERT de pets de terceiros.
-    // A Edge Function (confirm-match) cuida da confirmação entre partes.
-    if (pet.ownerDeviceId && pet.ownerDeviceId !== deviceId) {
-      console.log(`[sync] skip push pet ${pet.id} (owner ${pet.ownerDeviceId} != device ${deviceId})`);
-      pet.dirty = false;
-      continue;
-    }
-
     // Quem está DENUNCIANDO (reporter_device_id === deviceId) — seja um finder
     // comum ou o próprio dono de OUTRO alerta — só pode DENUNCIAR
     // (reported=true) ou APAGAR a própria denúncia (reported=false). Em nenhum
@@ -153,6 +144,8 @@ export const runSync = async (
     // denúncia de outra pessoa — isso é travado na policy "pets update own".
     // Não usa upsert (bateria na policy "pets insert own"). O branch cobre
     // qualquer denunciante (inclusive dono), via `.update()` direto.
+    // NOTa: este check ANTES do owner permite que denunciantes atualizem
+    // pets que não são deles (apenas colunas de denúncia).
     if (pet.reporterDeviceId === deviceId) {
       try {
         // `updated_at` fica a cargo do trigger do banco (pets_set_updated_at),
@@ -177,14 +170,22 @@ export const runSync = async (
           failedIds.add(pet.id);
         } else {
           pet.dirty = false;
-          // updated_at autoritativo (servidor) vem no próximo pull; aqui só
-          // marcamos localmente para não ficar vazio.
-          pet.updatedAt = new Date().toISOString();
+          // Não sobresve updatedAt com relógio do cliente — o valor
+          // autoritativo vem do servidor no próximo pull (cursor lastUpdatedSync).
         }
       } catch (e) {
         console.warn('[sync] erro no report update:', e);
         failedIds.add(pet.id);
       }
+      continue;
+    }
+
+    // Se o pet NÃO pertence ao dispositivo atual, não tenta pushar.
+    // A política RLS bloqueia UPDATE/INSERT de pets de terceiros.
+    // A Edge Function (confirm-match) cuida da confirmação entre partes.
+    if (pet.ownerDeviceId && pet.ownerDeviceId !== deviceId) {
+      console.log(`[sync] skip push pet ${pet.id} (owner ${pet.ownerDeviceId} != device ${deviceId})`);
+      pet.dirty = false;
       continue;
     }
 
@@ -208,6 +209,9 @@ export const runSync = async (
       const remotePayload: Record<string, unknown> = { ...payload };
       delete (remotePayload as Record<string, unknown>).contact;
       delete (remotePayload as Record<string, unknown>).ownerPhone;
+      if (!pet.foundAt) {
+        delete (remotePayload as Record<string, unknown>).foundAt;
+      }
       const { error } = await sb.from('pets').upsert(
         {
           id: pet.id,

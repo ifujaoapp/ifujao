@@ -356,7 +356,9 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                   {selectedPet.city ? ` — ${selectedPet.city}` : ""}
                 </Text>
                 <Text style={styles.shareCardCoords}>
-                  {selectedPet.latitude.toFixed(4)}, {selectedPet.longitude.toFixed(4)}
+                  {typeof selectedPet.latitude === "number" && typeof selectedPet.longitude === "number"
+                    ? `${selectedPet.latitude.toFixed(4)}, ${selectedPet.longitude.toFixed(4)}`
+                    : "Coordenadas não disponíveis"}
                 </Text>
               </View>
               <View style={styles.shareCardFooter}>

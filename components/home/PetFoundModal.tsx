@@ -298,6 +298,7 @@ export function PetFoundModal(props: PetModalProps) {
         "Atenção",
         "O nº de microchip deve ter entre 9 e 15 dígitos.",
       );
+      setOwnerClaimMicrochip("");
       return;
     }
     const lostPet = pets.find((p) => p.id === lostId);
@@ -540,7 +541,7 @@ const formatDisappearedWhen = (date?: string): string => {
                 color="#FFFFFF"
               />
               <Text
-                style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13, flex: 1 }}
+                style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 11, flex: 1 }}
                 numberOfLines={2}
               >
                 {myClaimConfirmed

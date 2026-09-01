@@ -116,7 +116,7 @@ export function useReportForm(params: UseReportFormParams) {
     const national = digits.startsWith("55") ? digits.slice(2) : digits;
     if (!/^\d{10,11}$/.test(national)) return false;
     const ddd = national.slice(0, 2);
-    if (Number(ddd) < 11) return false;
+    if (Number(ddd) < 11 || Number(ddd) > 99) return false;
     if (national.length === 11 && national[2] !== "9") return false;
     return true;
   };

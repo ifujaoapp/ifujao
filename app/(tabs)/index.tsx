@@ -2044,6 +2044,12 @@ const makeStyles = (c: typeof Colors.light) =>
       fontWeight: "bold",
       letterSpacing: 1,
     },
+    reportedBannerReason: {
+      color: "#FF3B30",
+      fontSize: 12,
+      fontWeight: "600",
+      letterSpacing: 0.5,
+    },
     foundBanner: {
       position: "absolute",
       top: 10,

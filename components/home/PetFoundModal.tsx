@@ -340,6 +340,8 @@ export function PetFoundModal(props: PetModalProps) {
     setOwnerClaimImage(null);
   };
   const openClaimSheet = () => {
+    console.log('[PetFoundModal] openClaimSheet - myLostPets:', myLostPets.map(lp => ({ id: lp.id, name: lp.name, lostDate: lp.lostDate })));
+    console.log('[PetFoundModal] selectedPet.foundDate:', selectedPet.foundDate);
     if (myLostPets.length === 1) {
       setOwnerClaimLostId(myLostPets[0].id);
       setOwnerClaimStep("proof");
@@ -382,10 +384,11 @@ const getSpeciesEmoji = (species: string): string => {
 
 const isDateInconsistent = (lostDate?: string, foundDate?: string): boolean => {
   if (!lostDate || !foundDate) return false;
-  const lost = new Date(lostDate).getTime();
-  const found = new Date(foundDate).getTime();
-  if (isNaN(lost) || isNaN(found)) return false;
-  return lost > found;
+  const lostDay = lostDate.split('T')[0];
+  const foundDay = foundDate.split('T')[0];
+  showAlert('debug', 'Datas', `lostDate: ${lostDate}\nlostDay: ${lostDay}\nfoundDate: ${foundDate}\nfoundDay: ${foundDay}\nconflito: ${lostDay > foundDay}`);
+  if (!lostDay || !foundDay) return false;
+  return lostDay > foundDay;
 };
 
 const formatDisappearedWhen = (date?: string): string => {
@@ -472,7 +475,13 @@ const formatDisappearedWhen = (date?: string): string => {
           </TouchableOpacity>
         </View>
         ) : ownerClaimStep === "pick" ? (
-        myLostPets.map((lp) => {
+        (() => {
+          console.log('[PetFoundModal] === PICK STEP ===');
+          console.log('[PetFoundModal] selectedPet.foundDate:', selectedPet.foundDate);
+          console.log('[PetFoundModal] myLostPets:', myLostPets.map(lp => ({ id: lp.id, lostDate: lp.lostDate })));
+          return myLostPets;
+        })().map((lp) => {
+          console.log('[PetFoundModal] lp.lostDate:', lp.lostDate, '-> selectedPet.foundDate:', selectedPet.foundDate);
           const dateConflict = isDateInconsistent(lp.lostDate, selectedPet.foundDate);
           const speciesMismatch = lp.species && selectedPet.species && lp.species !== selectedPet.species;
           return (
@@ -588,12 +597,14 @@ const formatDisappearedWhen = (date?: string): string => {
         key: "pendingClaims",
         icon: "alert-circle",
         label: "Confirme as reivindicações pendentes",
-        color: "#FF9500",
-        iconColor: "#FF9500",
-        textColor: "#FF9500",
-        reportedDisabled: true,
+        color: "#FFFFFF",
+        iconColor: "#FFFFFF",
+        textColor: "#FFFFFF",
+        bgColor: "#FF9500",
+        reportedDisabled: false,
         onPress: () => {},
-        disabled: true,
+        disabled: false,
+        primary: true,
       });
     } else {
       const fm = buildFoundMarkAction(ctx);

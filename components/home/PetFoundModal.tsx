@@ -120,6 +120,17 @@ export function PetFoundModal(props: PetModalProps) {
     }
   }, [claimants]);
 
+  // Calcula se o pet foi confirmado como devolvido ao dono
+  // (hook chamado incondicionalmente; retorna null se selectedPet for null)
+  const confirmedPet = useMemo(() => {
+    if (!selectedPet) return null;
+    if (selectedPet.postType !== 'found') return selectedPet;
+    const isConfirmed = pets.some(
+      (p) => p.postType !== 'found' && p.matchedPetId === selectedPet.id && p.matchStatus === 'confirmed',
+    );
+    return { ...selectedPet, confirmed: isConfirmed };
+  }, [selectedPet, pets]);
+
   if (!selectedPet) return null;
 
   const myLinkedClaim = pets.find(
@@ -130,26 +141,6 @@ export function PetFoundModal(props: PetModalProps) {
   );
   const myClaimConfirmed = myLinkedClaim?.matchStatus === "confirmed";
 
-  const resolveMatch = (claimant: PetRecord) => {
-    // Atualiza localmente (UI imediata)
-    // O pet encontrado (selectedPet) é do finder → marca dirty para o sync pushar
-    // O pet perdido (claimant) é do dono → dirty=false (o sync não pode pushar,
-    // a Edge Function cuida do servidor)
-    commitPets(
-      pets.map((p) =>
-        p.id === selectedPet.id
-          ? { ...p, matchStatus: "confirmed", dirty: true }
-          : p.id === claimant.id
-            ? { ...p, matchStatus: "confirmed", dirty: false }
-            : p,
-      ),
-    );
-    // Chama Edge Function para confirmar ambos os pets no servidor
-    // (bypassa RLS com service_role)
-    confirmMatch(selectedPet.id, claimant.id).catch((e) =>
-      console.warn("[confirmMatch] falhou:", e),
-    );
-  };
   const disputeClaimant = (claimant: PetRecord) => {
     setMatchProofDisputed(claimant.id, true);
     setClaimantProofs((prev) => ({
@@ -161,11 +152,23 @@ export function PetFoundModal(props: PetModalProps) {
     }));
   };
   const confirmClaimant = (claimant: PetRecord) => {
-    resolveMatch(claimant);
-    claimantsOf(selectedPet)
-      .filter((c) => c.id !== claimant.id)
-      .forEach((c) => disputeClaimant(c));
-    setSelectedPet(null);
+    // Atualiza todos os pets em uma única chamada para evitar sobrescrever
+    // o estado com closure stale
+    const otherClaimants = claimantsOf(selectedPet).filter((c) => c.id !== claimant.id);
+    commitPets(
+      pets.map((p) => {
+        if (p.id === selectedPet.id) return { ...p, matchStatus: "confirmed", dirty: true };
+        if (p.id === claimant.id) return { ...p, matchStatus: "confirmed", dirty: false };
+        if (otherClaimants.some((c) => c.id === p.id)) return { ...p, matchStatus: null, dirty: false };
+        return p;
+      }),
+    );
+    // Disputa os outros claimants (proof)
+    otherClaimants.forEach((c) => disputeClaimant(c));
+    // Chama Edge Function para confirmar ambos os pets no servidor
+    confirmMatch(selectedPet.id, claimant.id).catch((e) =>
+      console.warn("[confirmMatch] falhou:", e),
+    );
   };
 
   const claimantsSection =
@@ -575,7 +578,7 @@ const formatDisappearedWhen = (date?: string): string => {
       : null;
 
   const ctx: PetActionCtx = {
-    selectedPet,
+    selectedPet: confirmedPet!,
     setSelectedPet,
     pets,
     commitPets,
@@ -644,7 +647,7 @@ const formatDisappearedWhen = (date?: string): string => {
   return (
     <>
       <PetDetailModalBase
-      selectedPet={selectedPet}
+      selectedPet={confirmedPet}
       setSelectedPet={setSelectedPet}
       insets={insets}
       styles={styles}

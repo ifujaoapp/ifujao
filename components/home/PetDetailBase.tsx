@@ -19,6 +19,7 @@ export interface BarAction {
   textColor?: string;
   bgColor?: string;
   reportedDisabled?: boolean;
+  confirmedDisabled?: boolean;
   disabled?: boolean;
   onPress: () => void;
 }
@@ -118,7 +119,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
   ).current;
 
   const renderBtn = (item: BarAction) => {
-    const disabled = item.disabled || (item.reportedDisabled && !!selectedPet?.reported);
+    const disabled = item.disabled || (item.reportedDisabled && !!selectedPet?.reported) || (item.confirmedDisabled && !!selectedPet?.confirmed);
     const base = item.primary ? styles.demoActionBtnPrimary : styles.demoActionBtnNeutral;
     return (
       <TouchableOpacity

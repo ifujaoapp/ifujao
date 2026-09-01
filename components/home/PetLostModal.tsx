@@ -1,4 +1,5 @@
 import { View, Text, useWindowDimensions } from "react-native";
+import { useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { PetDetailModalBase, type BarAction, type PetModalProps } from "./PetDetailBase";
 import { HelpFindBanner } from "./HelpFindBanner";
@@ -43,10 +44,20 @@ export function PetLostModal(props: PetModalProps) {
   const isOwn = !!selectedPet && isOwner(selectedPet, myDeviceId, myPhone);
   const isFound = !!selectedPet?.foundAt;
 
+  // Calcula se o pet foi confirmado como devolvido ao dono
+  const confirmedPet = useMemo(() => {
+    if (!selectedPet) return selectedPet;
+    if (selectedPet.postType !== 'found') return selectedPet;
+    const isConfirmed = pets.some(
+      (p) => p.postType !== 'found' && p.matchedPetId === selectedPet.id && p.matchStatus === 'confirmed',
+    );
+    return { ...selectedPet, confirmed: isConfirmed };
+  }, [selectedPet, pets]);
+
   if (!selectedPet) return null;
 
   const ctx: PetActionCtx = {
-    selectedPet,
+    selectedPet: confirmedPet!,
     setSelectedPet,
     pets,
     commitPets,
@@ -98,7 +109,7 @@ export function PetLostModal(props: PetModalProps) {
 
   return (
     <PetDetailModalBase
-      selectedPet={selectedPet}
+      selectedPet={confirmedPet!}
       setSelectedPet={setSelectedPet}
       insets={insets}
       styles={styles}

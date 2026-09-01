@@ -38,6 +38,9 @@ export interface PetRecord {
   matchedPetId?: string | null;
   matchStatus?: 'pending' | 'confirmed' | null;
   matchRequestedBy?: 'owner' | 'finder' | null;
+  // Status calculado: true se o pet foi confirmado como devolvido ao dono
+  // (existe um perdido com matchedPetId === este pet e matchStatus === 'confirmed')
+  confirmed?: boolean;
   // Campos de sincronização (backend)
   dirty?: boolean;
   remoteImageUrls?: string[];

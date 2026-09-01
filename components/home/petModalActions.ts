@@ -23,6 +23,7 @@ export const buildShareAction = (ctx: PetActionCtx): BarAction => ({
   iconColor: "#6E6E73",
   textColor: "#48484A",
   reportedDisabled: true,
+  confirmedDisabled: true,
   onPress: () => ctx.sharePetCard(ctx.selectedPet),
 });
 
@@ -35,6 +36,7 @@ export const buildReportAction = (ctx: PetActionCtx): BarAction | null =>
         color: "#FF9500",
         iconColor: "#FF9500",
         textColor: "#48484A",
+        confirmedDisabled: true,
         onPress: () => ctx.reportPet(ctx.selectedPet),
       }
     : null;

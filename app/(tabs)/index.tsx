@@ -25,7 +25,7 @@ import { showAlert } from "@/src/components/AppAlert";
 import { DatePickerCalendar } from "@/src/components/DatePickerCalendar";
 import { ImageViewerModal } from "@/src/components/ImageViewerModal";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -309,15 +309,26 @@ export default function HomeScreen() {
   const [postTypeFilter, setPostTypeFilter] = useState<
     "all" | "lost" | "found"
   >("all");
+  // Calcula confirmed ANTES de filtrar para não perder o estado ao alternar
+  // entre "meus/todos" (o pet confirmado pode pertencer a outro usuário).
+  const enrichedPets = useMemo(() => {
+    return pets.map((p) => {
+      if (p.postType !== 'found') return p;
+      const isConfirmed = pets.some(
+        (x) => x.postType !== 'found' && x.matchedPetId === p.id && x.matchStatus === 'confirmed',
+      );
+      return { ...p, confirmed: isConfirmed };
+    });
+  }, [pets]);
   const visiblePets = (() => {
     let base = showOnlyMine
-      ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
-      : pets;
+      ? enrichedPets.filter((p) => isOwner(p, myDeviceId, myPhone))
+      : enrichedPets;
     if (aiResults) {
       const ids = new Set(aiResults.map((r) => r.id));
       base = base.filter((p) => ids.has(p.id));
     }
-    // Filtro perdido/achado (manual matching): 'all' mostra tudo; 'lost' só
+    // Filtro perdido/achado (manual matching): 'all' mostra tudo; 'loss' só
     // posts de perda; 'found' só posts de quem encontrou um pet.
     if (postTypeFilter !== "all") {
       base = base.filter((p) => (p.postType ?? "lost") === postTypeFilter);

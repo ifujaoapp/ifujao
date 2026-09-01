@@ -149,7 +149,7 @@ export const MapLeaflet = ({
           if (isNaN(t)) return false;
           return (_serverNow - t) <= FOUND_WINDOW_HOURS * 3600 * 1000;
         }
-        function buildPetIcon(reported, label, lostDate, foundAt, postType, foundDate, claims) {
+        function buildPetIcon(reported, label, lostDate, foundAt, postType, foundDate, claims, confirmed) {
           // Pet DENUNCIADO: sempre mostra ícone vermelho, independente do status
           if (reported) {
             return L.divIcon({
@@ -171,6 +171,9 @@ export const MapLeaflet = ({
           // Pet REENCONTRADO (dono marcou o próprio caso): gota verde + ✓.
           if (foundAt && withinFoundWindow(foundAt)) {
             var fEmoji = speciesEmoji(__esc(label)) || '🐾';
+            var badge = confirmed
+              ? '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>'
+              : '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>';
             return L.divIcon({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
@@ -180,8 +183,9 @@ export const MapLeaflet = ({
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
                 '</svg>' +
                 '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
-                '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
+                badge +
                 '</div>' +
+                (confirmed ? '<div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#34C759;color:#FFFFFF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:6;">🏠</div>' : '') +
                 '</div>',
               iconSize: [64, 58],
               iconAnchor: [32, 40],
@@ -195,6 +199,26 @@ export const MapLeaflet = ({
           if (postType === 'found') {
             var fEmoji = speciesEmoji(__esc(label)) || '🐾';
             var relText = __esc(formatRelDays(foundDate));
+            // Pet achado E confirmado como devolvido ao dono: mostra badge ✓ + label REUNIDO
+            if (confirmed) {
+              return L.divIcon({
+                className: 'paw-pin',
+                html: '<div style="position:relative;width:64px;height:58px;">' +
+                  '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                  '<div class="paw-pulse paw-pulse-found"></div>' +
+                  '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
+                  '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
+                  '</svg>' +
+                  '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
+                  '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
+                  '</div>' +
+                  '<div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#34C759;color:#FFFFFF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:6;">🏠</div>' +
+                  '</div>',
+                iconSize: [64, 58],
+                iconAnchor: [32, 40],
+                popupAnchor: [0, -44],
+              });
+            }
             return L.divIcon({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
@@ -290,7 +314,7 @@ export const MapLeaflet = ({
             if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
             // Achado já resolvido (match confirmado): some do mapa.
             // achados confirmados permanecem visíveis (anti-fraude)
-            var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus)c++;}return c;})()), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+             var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
             m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
             window.__petMarkers.push(m);
           }
@@ -328,7 +352,7 @@ export const MapLeaflet = ({
            if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
            // Achado já resolvido (match confirmado): some do mapa.
            // achados confirmados permanecem visíveis (anti-fraude)
-           var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus)c++;}return c;})()), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+             var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
            window.__petMarkers.push(m);
         }

@@ -152,6 +152,39 @@ Separar o backdrop (área escura que fecha o modal) do sheet (conteúdo) como **
 
 ---
 
+## Sessão atual (2026-09-01) — Correção de RLS no match e UI do banner
+
+### Correção de RLS ao confirmar match
+- **Problema:** Ao confirmar um pet, o sync tentava pushar ambos os pets (perdido + encontrado), mas o finder não era dono do pet perdido → erro RLS.
+- **Solução:** 
+  - Criada Edge Function `confirm-match` que atualiza ambos os pets com `service_role` (bypassa RLS)
+  - Sync agora pula pets que não pertencem ao dispositivo atual
+  - `resolveMatch` atualiza UI localmente + chama Edge Function para o servidor
+
+### Melhorias na UI do banner de reivindicação
+- **Banner "Reivindicação confirmada":** Fundo verde (`#34C759`), ícone `checkmark-circle`, texto branco destacado
+- **Banner pendente:** Fundo laranja (`#FF9500`), ícone `time-outline`
+- **Banner de claimants:** Usa `themeColors.primaryButton` em vez de cor fixa, com ícone de alerta
+
+### Ajustes no botão "Entrar em contato"
+- Padding interno corrigido (`paddingHorizontal: 16`)
+- Espaçamento entre ícone e texto (`marginRight: 8`)
+- Fonte ajustada (17px para botão primário) com `adjustsFontSizeToFit` para evitar overflow
+
+### Arquivos criados
+- `supabase/functions/confirm-match/index.ts` — Edge Function para confirmar match
+- `lib/confirmMatch.ts` — helper para chamar a Edge Function
+
+### Arquivos modificados
+- `components/home/PetFoundModal.tsx` — banner de reivindicação + filtro de claimants pendentes
+- `components/home/PetDetailBase.tsx` — estilo dos botões de ação
+- `lib/sync.ts` — sync não pusha pets de terceiros
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.
+
+---
+
 ## Sessão atual (2026-08-31) — UX do Fluxo de Reivindicação e Correções
 
 ### Melhorias no PetFoundModal (Claim)

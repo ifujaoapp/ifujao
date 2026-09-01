@@ -317,11 +317,11 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                     ) : null}
                   </View>
                 </View>
-              </ScrollView>
-              </Animated.View>
-            </View>
-            {claimSheet}
-          </Modal>
+               </ScrollView>
+               {claimSheet}
+               </Animated.View>
+             </View>
+           </Modal>
           <ViewShot
             ref={shareCardRef}
             options={{ format: "png", quality: 1 }}

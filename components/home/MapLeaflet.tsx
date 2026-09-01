@@ -113,15 +113,15 @@ export const MapLeaflet = ({
           if (!iso) return '';
           var d = new Date(iso);
           if (isNaN(d.getTime())) return '';
-          var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          var a = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
           var now = new Date();
-          var b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          var b = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
           var diff = Math.round((b - a) / 86400000);
           if (diff <= 0) return 'Hoje';
           if (diff === 1) return 'Ontem';
           if (diff <= 7) return 'Há ' + diff + 'd';
-          var dd = (d.getDate() < 10 ? '0' : '') + d.getDate();
-          var mm = (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1);
+          var dd = (d.getUTCDate() < 10 ? '0' : '') + d.getUTCDate();
+          var mm = (d.getUTCMonth() + 1 < 10 ? '0' : '') + (d.getUTCMonth() + 1);
           return 'Desde ' + dd + '/' + mm;
         }
         // Dias desde o desaparecimento (null se sem data) — base para a cor da borda.
@@ -129,9 +129,9 @@ export const MapLeaflet = ({
           if (!iso) return null;
           var d = new Date(iso);
           if (isNaN(d.getTime())) return null;
-          var a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          var a = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
           var now = new Date();
-          var b = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          var b = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
           return Math.round((b - a) / 86400000);
         }
         // Cor da BORDA por recência: vermelho (hoje/ontem = urgente), laranja

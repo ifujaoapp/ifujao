@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, useWindowDimensions, Image, Modal, KeyboardAvoidingView, Platform } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -469,46 +469,40 @@ const formatDisappearedWhen = (date?: string): string => {
               {ownerClaimUploading ? "Enviando..." : "Enviar comprovante"}
             </Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={{ alignItems: "center", paddingVertical: 10 }}
-            onPress={closeClaimSheet}
-          >
-            <Text style={{ color: themeColors.icon }}>Voltar</Text>
-          </TouchableOpacity>
         </View>
-      ) : ownerClaimStep === "pick" ? (
+        ) : ownerClaimStep === "pick" ? (
         myLostPets.map((lp) => {
           const dateConflict = isDateInconsistent(lp.lostDate, selectedPet.foundDate);
           const speciesMismatch = lp.species && selectedPet.species && lp.species !== selectedPet.species;
           return (
-          <TouchableOpacity
-            key={lp.id}
-            style={[styles.claimantRow, { marginBottom: 8 }]}
-            onPress={() => {
-              setOwnerClaimLostId(lp.id);
-              setOwnerClaimStep("proof");
-            }}
-          >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.claimantName}>
-                {getSpeciesEmoji(lp.species)} {lp.name || lp.species}{lp.breed ? ` (${lp.breed})` : ""}
-              </Text>
-              <Text style={{ color: themeColors.icon, fontSize: 12, marginTop: 2 }}>
-                Desapareceu em{formatDisappearedWhen(lp.lostDate)}
-              </Text>
-              {speciesMismatch && (
-                <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
-                  ⚠️ Espécie diferente: seu pet é {lp.species} e o pet encontrado é {selectedPet.species}.
+            <TouchableOpacity
+              key={lp.id}
+              style={[styles.claimantRow, { marginBottom: 8 }]}
+              onPress={() => {
+                setOwnerClaimLostId(lp.id);
+                setOwnerClaimStep("proof");
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.claimantName}>
+                  {getSpeciesEmoji(lp.species)} {lp.name || lp.species}{lp.breed ? ` (${lp.breed})` : ""}
                 </Text>
-              )}
-              {dateConflict && (
-                <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
-                  ⚠️ A data que este pet sumiu é posterior à data que o pet encontrado foi visto.
+                <Text style={{ color: themeColors.icon, fontSize: 12, marginTop: 2 }}>
+                  Desapareceu em{formatDisappearedWhen(lp.lostDate)}
                 </Text>
-              )}
-            </View>
-            <Text style={styles.claimantConfirmText}>Este</Text>
-          </TouchableOpacity>
+                {speciesMismatch && (
+                  <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
+                    ⚠️ Espécie diferente: seu pet é {lp.species} e o pet encontrado é {selectedPet.species}.
+                  </Text>
+                )}
+                {dateConflict && (
+                  <Text style={{ color: "#FF9500", fontSize: 11, marginTop: 4, fontWeight: "600" }}>
+                    ⚠️ A data que este pet sumiu é posterior à data que o pet encontrado foi visto.
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.claimantConfirmText}>Este</Text>
+            </TouchableOpacity>
           );
         })
       ) : (
@@ -649,53 +643,51 @@ const formatDisappearedWhen = (date?: string): string => {
       }
       claimSheet={
         claimSheetVisible && showClaimUI ? (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
+          <Modal
+            visible={true}
+            transparent
+            animationType="slide"
+            onRequestClose={closeClaimSheet}
+            statusBarTranslucent
           >
-            <TouchableOpacity
-              style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)" }}
-              activeOpacity={1}
-              onPress={closeClaimSheet}
-            />
-            <View
-              style={{
-                backgroundColor: themeColors.card,
-                padding: 16,
-                paddingBottom: insets.bottom + 16,
-                borderTopLeftRadius: 16,
-                borderTopRightRadius: 16,
-                borderTopWidth: 1,
-                borderColor: themeColors.cardStroke,
-                height: "80%",
-              }}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={{ flex: 1, justifyContent: "flex-end" }}
             >
-              <View style={{ width: "100%", alignItems: "center", paddingVertical: 6 }}>
-                <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: themeColors.icon }} />
-              </View>
-              <CloseCircle
-                style={{ position: "absolute", top: 14, right: 14, zIndex: 2, backgroundColor: themeColors.text === "#FFFFFF" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.5)" }}
+              <TouchableOpacity
+                style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }}
+                activeOpacity={1}
                 onPress={closeClaimSheet}
               />
-              <ScrollView
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-                automaticallyAdjustContentInsets={false}
-                style={{ flex: 1 }}
+              <View
+                style={{
+                  backgroundColor: themeColors.card,
+                  padding: 16,
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  borderTopWidth: 1,
+                  borderColor: themeColors.cardStroke,
+                  maxHeight: "80%",
+                }}
               >
-                {claimSheetInner}
-              </ScrollView>
-            </View>
-          </View>
+                <CloseCircle
+                  style={{ position: "absolute", top: 14, right: 14, zIndex: 2, backgroundColor: themeColors.text === "#FFFFFF" ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.5)" }}
+                  onPress={closeClaimSheet}
+                />
+                <ScrollView
+                  keyboardShouldPersistTaps="handled"
+                  nestedScrollEnabled={true}
+                  automaticallyAdjustContentInsets={false}
+                  contentContainerStyle={{ paddingBottom: Platform.OS === "ios" ? 80 : 64 }}
+                >
+                  {claimSheetInner}
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         ) : null
       }
-    />
-    </>
-  );
-}
+     />
+     </>
+   );
+ }

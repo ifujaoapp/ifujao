@@ -195,9 +195,43 @@ Separar o backdrop (área escura que fecha o modal) do sheet (conteúdo) como **
 - **Validação de data**: Mostra aviso "⚠️ A data que este pet sumiu é posterior à data que o pet encontrado foi visto" quando há inconsistência temporal.
 - **Correção do toggle**: A expansão/colapso dos detalhes do claimant agora funciona corrigidamente (usando `useRef` para controlar auto-expansão apenas na montagem).
 
-### Melhorias no PetDetailBase
-- **ScrollView no modal**: Adicionado `ScrollView` no conteúdo do modal (`maxHeight: "90%"` no `Animated.View`) para evitar overflow quando há muitos claimants.
-- **Correção de fechamento**: O `Animated.View` agora tem `maxHeight: "90%"` para limitar o tamanho do modal.
+### Pendências
+- Nenhuma. Lint e type-check limpos.
+
+---
+
+## Sessão atual (2026-09-01) — Correção de Timezone e Modal de Claim
+
+### Correção de timezone nas datas
+- **Problema:** Datas de perdido/achado gravavam com dia anterior no emulador (fuso ahead of UTC).
+- **Causa:** `toISOString()` converte para UTC, podendo voltar 1 dia em fusos ahead of UTC.
+- **Solução:** Criada função `toLocalISOString()` em `hooks/useReportForm.ts` que ajusta o offset antes de converter.
+- **Exibição corrigida:** `formatLostDate` (breeds.ts) agora usa `{ timeZone: "UTC" }`.
+- **MapLeaflet.tsx:** Funções `formatRelDays` e `relDays` ajustadas para usar métodos UTC (`getUTCDate`, etc.).
+
+### Modal de Claim (É o seu pet?)
+- **Problema:** TextInput de microchip/observações cobertos pelo teclado, sem rolagem.
+- **Solução:** claimSheet agora é um **Modal separado** com `KeyboardAvoidingView` (behavior="padding").
+- **Estrutura:**
+  - `Modal` com `animationType="slide"` e `statusBarTranslucent`
+  - `KeyboardAvoidingView` empurra conteúdo para cima quando teclado abre
+  - `ScrollView` com `keyboardShouldPersistTaps="handled"` permite rolar tocando nos inputs
+  - Padding inferior no `contentContainerStyle` evita corte pelo menu do celular
+- **Botão "Voltar" removido** — usuário fecha no X ou tocando fora.
+
+### Ajustes de UI
+- **Banner "Confirme as reivindicações pendentes":** Agora com fundo laranja (#FF9500), texto branco, e `fontSize: 18`.
+- **Banner "Reivindicação enviada":** Fonte 14px com `adjustsFontSizeToFit` para não estourar.
+- **Botões desabilitados:** Cor de texto alterada de `#C7C7CC` para `#636366` (mais legível).
+- **Fonte dos botões:** Adicionada prop `fontSize` ao `BarAction` para customização.
+
+### Arquivos modificados
+- `hooks/useReportForm.ts` — `toLocalISOString()` para corrigir timezone
+- `constants/breeds.ts` — `formatLostDate` com `timeZone: "UTC"`
+- `components/home/MapLeaflet.tsx` — funções de data usando UTC
+- `components/home/PetFoundModal.tsx` — Modal separado para claim, banners melhorados
+- `components/home/PetDetailBase.tsx` — prop `fontSize` em `BarAction`
+- `app/(tabs)/index.tsx` — ajustes nos estilos de botões
 
 ### Pendências
 - Nenhuma. Lint e type-check limpos.

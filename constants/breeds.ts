@@ -292,5 +292,5 @@ export const formatLostDate = (iso?: string): string | null => {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("pt-BR");
+  return d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };

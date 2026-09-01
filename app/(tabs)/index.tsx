@@ -1,20 +1,31 @@
-import { showAlert } from "@/src/components/AppAlert";
-import { DatePickerCalendar } from "@/src/components/DatePickerCalendar";
-import { ReportModal } from "@/components/home/ReportModal";
+import { GodLoginModal } from "@/components/home/GodLoginModal";
+import { MapArea } from "@/components/home/MapArea";
 import {
   AboutModal,
-  PrivacyModal,
   PhotoSourceModal,
+  PrivacyModal,
   ReportReasonModal,
 } from "@/components/home/Modals";
+import { PetFoundModal } from "@/components/home/PetFoundModal";
+import { PetLostModal } from "@/components/home/PetLostModal";
+import { ReportModal } from "@/components/home/ReportModal";
+import { formatLostDate, isOwner } from "@/constants/breeds";
+import { Colors } from "@/constants/theme";
+import { useThemeMode } from "@/hooks/use-theme-mode";
+import { useAiSearch } from "@/hooks/useAiSearch";
+import { useImageViewer } from "@/hooks/useImageViewer";
+import { useMapLocation } from "@/hooks/useMapLocation";
+import { usePetCamera } from "@/hooks/usePetCamera";
+import { usePets } from "@/hooks/usePets";
+import { useReportForm } from "@/hooks/useReportForm";
+import { resolveContact, revealContact } from "@/lib/contacts";
+import { type PetRecord } from "@/lib/storage";
+import { setTermsAccepted } from "@/lib/terms";
+import { showAlert } from "@/src/components/AppAlert";
+import { DatePickerCalendar } from "@/src/components/DatePickerCalendar";
 import { ImageViewerModal } from "@/src/components/ImageViewerModal";
 import { Ionicons } from "@expo/vector-icons";
-import { setTermsAccepted } from "@/lib/terms";
-import React, {
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -32,27 +43,7 @@ import {
   withDelay,
   withTiming,
 } from "react-native-reanimated";
-import {
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import {
-  formatLostDate,
-  isOwner,
-} from "@/constants/breeds";
-import { usePetCamera } from "@/hooks/usePetCamera";
-import { useImageViewer } from "@/hooks/useImageViewer";
-import { useAiSearch } from "@/hooks/useAiSearch";
-import { usePets } from "@/hooks/usePets";
-import { useMapLocation } from "@/hooks/useMapLocation";
-import { useReportForm } from "@/hooks/useReportForm";
-import { Colors } from "@/constants/theme";
-import { useThemeMode } from "@/hooks/use-theme-mode";
-import { resolveContact, revealContact } from "@/lib/contacts";
-import { type PetRecord } from "@/lib/storage";
-import { MapArea } from "@/components/home/MapArea";
-import { PetLostModal } from "@/components/home/PetLostModal";
-import { PetFoundModal } from "@/components/home/PetFoundModal";
-import { GodLoginModal } from "@/components/home/GodLoginModal";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -264,14 +255,6 @@ export default function HomeScreen() {
     setCityName("");
   };
 
-
-
-
-
-
-
-
-
   const openWhatsApp = (contactNumber: string, pet?: PetRecord) => {
     let phoneNumber = contactNumber.replace(/\D/g, "");
     if (!isValidPhone(phoneNumber)) {
@@ -323,7 +306,9 @@ export default function HomeScreen() {
   // Busca semântica por IA (Gemini): ranqueia pets por linguagem natural e
   // filtra o mapa só para os resultados. Quando `aiResults` é null, o mapa
   // volta ao comportamento normal (Todos / Somente meus).
-  const [postTypeFilter, setPostTypeFilter] = useState<'all' | 'lost' | 'found'>('all');
+  const [postTypeFilter, setPostTypeFilter] = useState<
+    "all" | "lost" | "found"
+  >("all");
   const visiblePets = (() => {
     let base = showOnlyMine
       ? pets.filter((p) => isOwner(p, myDeviceId, myPhone))
@@ -334,8 +319,8 @@ export default function HomeScreen() {
     }
     // Filtro perdido/achado (manual matching): 'all' mostra tudo; 'lost' só
     // posts de perda; 'found' só posts de quem encontrou um pet.
-    if (postTypeFilter !== 'all') {
-      base = base.filter((p) => (p.postType ?? 'lost') === postTypeFilter);
+    if (postTypeFilter !== "all") {
+      base = base.filter((p) => (p.postType ?? "lost") === postTypeFilter);
     }
     // Achados NÃO são ocultados ao confirmar um match: um "reencontro" falso não
     // pode esconder o post (anti-fraude). O pin permanece visível (marcado como
@@ -348,10 +333,15 @@ export default function HomeScreen() {
   // a do outro lado) — usado no indicador in-app. Conta tanto o pet que eu
   // iniciei quanto o pet alheio que aponta para um meu pet como pendente.
   const pendingMatches = visiblePets.filter((p) => {
-    if (p.matchStatus === 'pending' && isOwner(p, myDeviceId, myPhone)) return true;
+    if (p.matchStatus === "pending" && isOwner(p, myDeviceId, myPhone))
+      return true;
     if (p.matchedPetId) {
       const mine = pets.find((x) => x.id === p.matchedPetId);
-      if (mine && isOwner(mine, myDeviceId, myPhone) && p.matchStatus === 'pending')
+      if (
+        mine &&
+        isOwner(mine, myDeviceId, myPhone) &&
+        p.matchStatus === "pending"
+      )
         return true;
     }
     return false;
@@ -493,16 +483,16 @@ export default function HomeScreen() {
         sponsorInfo={sponsorInfo}
         setSponsorInfo={setSponsorInfo}
         locationEnabled={locationEnabled}
-          centerOnUserGps={centerOnUserGps}
-          gpsCity={gpsCity}
-          showOnlyMine={showOnlyMine}
+        centerOnUserGps={centerOnUserGps}
+        gpsCity={gpsCity}
+        showOnlyMine={showOnlyMine}
         setShowOnlyMine={setShowOnlyMine}
         triggerSync={triggerSync}
         refreshSponsors={refreshSponsors}
         aiSearchVisible={aiSearchVisible}
-          setAiSearchVisible={setAiSearchVisible}
-          setAiResults={setAiResults}
-          setAiBarXY={setAiBarXY}
+        setAiSearchVisible={setAiSearchVisible}
+        setAiResults={setAiResults}
+        setAiBarXY={setAiBarXY}
         titleBarH={titleBarH}
         canReport={canReport}
         pawPulse={pawPulse}
@@ -510,7 +500,7 @@ export default function HomeScreen() {
         openReport={openReport}
       />
 
-            {isReportModalVisible && (
+      {isReportModalVisible && (
         <ReportModal
           form={form}
           camera={camera}
@@ -532,7 +522,6 @@ export default function HomeScreen() {
         styles={styles}
         themeColors={themeColors}
       />
-
 
       <AboutModal
         visible={isAboutVisible}
@@ -561,7 +550,11 @@ export default function HomeScreen() {
         onClose={() => setIsGodLoginVisible(false)}
         onSuccess={() => {
           setIsGodLoginVisible(false);
-          showAlert("info", "Modo deus", "Modo deus ativado. Você pode moderar posts de outros usuários.");
+          showAlert(
+            "info",
+            "Modo deus",
+            "Modo deus ativado. Você pode moderar posts de outros usuários.",
+          );
         }}
         loginModerator={loginModerator}
       />
@@ -636,23 +629,20 @@ export default function HomeScreen() {
 
       <DatePickerCalendar
         isVisible={showDatePicker}
-        initialDate={(postType === 'found' ? foundDate : lostDate) ?? new Date()}
+        initialDate={
+          (postType === "found" ? foundDate : lostDate) ?? new Date()
+        }
         maximumDate={new Date()}
         onCancel={() => setShowDatePicker(false)}
         onConfirm={(selected) => {
           setShowDatePicker(false);
-          if (postType === 'found') setFoundDate(selected);
+          if (postType === "found") setFoundDate(selected);
           else setLostDate(selected);
         }}
       />
     </View>
   );
 }
-
-
-
-
-
 
 const makeStyles = (c: typeof Colors.light) =>
   StyleSheet.create({
@@ -1969,8 +1959,8 @@ const makeStyles = (c: typeof Colors.light) =>
       marginBottom: 10,
     },
     demoActionBtnDisabled: {
-      borderColor: "#8E8E93",
-      opacity: 0.5,
+      borderColor: "#636366",
+      opacity: 0.7,
     },
     demoActionLabel: {
       fontSize: 12.5,
@@ -2306,8 +2296,3 @@ const makeStyles = (c: typeof Colors.light) =>
   });
 
 export type HomeStyles = ReturnType<typeof makeStyles>;
-
-
-
-
-

@@ -13,6 +13,8 @@ import {
 import { reverseGeocodeCity } from "@/lib/geocode";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { persistPhotos } from "@/lib/storage";
+
+const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 import { type Region } from "react-native-maps";
 import type { City } from "@/constants/cities";
 
@@ -202,8 +204,8 @@ export function useReportForm(params: UseReportFormParams) {
       latitude,
       longitude,
       city: cityName || getCityForLocation(petLocation)?.name,
-      lostDate: postType === 'lost' ? (lostDate ? lostDate.toISOString() : undefined) : undefined,
-      foundDate: postType === 'found' ? (foundDate ? foundDate.toISOString() : undefined) : undefined,
+      lostDate: postType === 'lost' ? (lostDate ? toLocalISOString(lostDate) : undefined) : undefined,
+      foundDate: postType === 'found' ? (foundDate ? toLocalISOString(foundDate) : undefined) : undefined,
       postType,
       reward:
         postType === 'lost' && reward.trim()

@@ -235,3 +235,41 @@ Separar o backdrop (área escura que fecha o modal) do sheet (conteúdo) como **
 
 ### Pendências
 - Nenhuma. Lint e type-check limpos.
+
+---
+
+## Sessão atual (2026-09-01) — Badge "Reunido" e Ações Confirmadas
+
+### Badge 🏠 Reunido no pin do mapa
+- **Problema:** Quando pet é confirmado como devolvido ao dono, o pin voltava ao estado "achado" normal, confundindo outros usuários.
+- **Solução:** Pin agora mostra badge ✓ verde + label "🏠" quando `confirmed === true`.
+- **Lógica:** Pet `found` é considerado `confirmed` se existe algum pet perdido com `matchedPetId === p.id` e `matchStatus === 'confirmed'`.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `buildPetIcon` agora aceita parâmetro `confirmed`.
+
+### Desabilitar Denunciar/Compartilhar quando confirmado
+- **Problema:** Ações de denunciar e compartilhar continuavam habilitadas após confirmação.
+- **Solução:** Adicionada propriedade `confirmedDisabled` em `BarAction` que desabilita o botão quando `selectedPet.confirmed === true`.
+- **Arquivos:**
+  - `components/home/PetDetailBase.tsx` — `renderBtn` verifica `confirmedDisabled`
+  - `components/home/petModalActions.ts` — `buildShareAction` e `buildReportAction` com `confirmedDisabled: true`
+  - `components/home/PetFoundModal.tsx` — calcula `confirmedPet` com `useMemo`
+  - `components/home/PetLostModal.tsx` — calcula `confirmedPet` com `useMemo`
+  - `lib/storage.ts` — adicionado campo `confirmed?: boolean` em `PetRecord`
+
+### Correção: confirmed persiste ao filtrar meus/todos
+- **Problema:** Ao clicar em "meus", o pin voltava a mostrar "achado" em vez de "reunido".
+- **Causa:** O filtro removia o pet perdido (do dono), perdendo a referência para calcular `confirmed`.
+- **Solução:** `confirmed` é calculado ANTES da filtragem via `useMemo` em `app/(tabs)/index.tsx` (`enrichedPets`).
+- **Arquivos:** `app/(tabs)/index.tsx` — `enrichedPets` com `confirmed` calculado antes do filtro.
+
+### Arquivos modificados
+- `app/(tabs)/index.tsx` — `enrichedPets` para calcular confirmed antes de filtrar
+- `components/home/MapLeaflet.tsx` — badge 🏠 e contador de claims corrigido
+- `components/home/PetDetailBase.tsx` — `confirmedDisabled` em BarAction
+- `components/home/PetFoundModal.tsx` — `confirmedPet` com useMemo
+- `components/home/PetLostModal.tsx` — `confirmedPet` com useMemo
+- `components/home/petModalActions.ts` — `confirmedDisabled` em share/report
+- `lib/storage.ts` — campo `confirmed` em PetRecord
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.

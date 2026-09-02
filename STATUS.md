@@ -1,6 +1,59 @@
 # STATUS — StudyFlow
 
-## Sessão atual (2026-09-02) — Pássaro Lottie e melhorias do patrocinador
+## Sessão atual (2026-09-02) — Performance do mapa (pulse + banner)
+
+### Pulse removido dos pins de pets
+- **O que:** Removida a animação `pawPulse` (3s ease-out infinite) que
+  pulsava atrás do ícone de pata dos pets perdidos, encontrados,
+  encontrados-confirmados e perdidos-denunciados.
+- **Por quê:** Cada pulse repinta uma camada a 3s infinitamente. Em
+  visão geral do mapa com muitos pets, isso sobrecarrega o compositor.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `.paw-pulse*` e
+  `@keyframes pawPulse` removidos do `<style>`; 4 `<div class="paw-pulse...">`
+  substituídas por `<div></div>`.
+
+### Pulse removido do pin de patrocinador
+- **O que:** Removida a animação `sponsorPulse` (2.8s) que pulsava o
+  box-shadow do `🛍️` (estrela) do patrocinador.
+- **Por quê:** Mesmo motivo do pulse dos pets — paint constante no
+  compositor. O `box-shadow:0 0 0 5px rgba(255,149,0,0.35)` estático
+  continua para dar a aura do pin.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `animation:sponsorPulse`
+  removido do `.sponsor-star`; `@keyframes sponsorPulse` removido.
+
+### Bug: banner do pássaro sumia antes de sair do mapa
+- **Sintoma:** Em zooms mais altos (>=14), o pássaro desaparecia antes
+  do banner (270px) sair completamente pela borda esquerda.
+- **Causa:** A folga extra era calculada como 60% da largura visível
+  **em graus** (`extraLng = totalLng * 0.6`). Em zoom 14, a largura
+  visível em graus é pequena (~0.005-0.01°), então 60% disso não
+  cobria os 270px do banner.
+- **Solução:** Converter a folga para pixels usando
+  `pxPerDeg = map.getSize().x / totalLng` e exigir 280+40=320px de
+  folga (banner + margem). Agora o pássaro continua voando até o
+  banner inteiro sair, independente do zoom.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `__setupBird`
+  calcula `extraLng` em pixels.
+
+### Tentativa de overlay HTML (revertida)
+- **O que foi tentado:** Substituir o `L.marker + setLatLng` por uma
+  div overlay HTML com `transform: translate3d` (animação GPU, sem
+  redraw do Leaflet). Objetivo: reduzir travadinhas no espelhamento
+  de tela W11.
+- **Resultado:** Performance no espelhamento não melhorou
+  perceptivelmente; o tap continuou funcionando.
+- **Decisão:** Revertido para a versão `L.marker` em `f09b980`. O
+  `pickNearestSponsors` (8 mais próximos) e o tempo aleatório (16-30s)
+  foram mantidos.
+
+### Pendências
+- Investigar otimização alternativa para o espelhamento W11 (ex.:
+  `L.canvas` em vez de `L.svg` para os tiles; ou reduzir a área do
+  WebView com `viewport`).
+
+---
+
+## Sessão 2026-09-02 (anterior) — Pássaro Lottie e melhorias do patrocinador
 
 ### Pássaro Lottie como sponsor animado dentro do mapa
 - **O que:** Pássaro animado em Lottie (`assets/sponsor-bird.json`) carregado
@@ -70,7 +123,7 @@
 
 ---
 
-## Sessão 2026-09-02 (anterior) — Filtro "Todos" e pets reencontrados
+## Sessão 2026-09-02 (anterior-2) — Filtro "Todos" e pets reencontrados
 
 ### Bug crítico: pets reencontrados somiam do mapa
 - **Sintoma:** Ao alternar para o filtro "Todos" (`showOnlyMine: false`),

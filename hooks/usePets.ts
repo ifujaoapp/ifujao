@@ -44,7 +44,9 @@ export function usePets() {
       try {
         const t = await SecureStore.getItemAsync("ifujao_god_token");
         if (t) setGodMode(true);
-      } catch {}
+      } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
     })();
   }, []);
 
@@ -63,7 +65,9 @@ export function usePets() {
         const orphans = [...prevUris].filter((u) => !nextUris.has(u));
         if (orphans.length > 0) await clearPhotos(orphans);
         await savePets(next as PetRecord[]);
-      } catch {}
+      } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
       triggerSyncRef.current();
     },
     [pets],
@@ -82,7 +86,9 @@ export function usePets() {
         try {
           deviceId = await getOrCreateDeviceId();
           if (deviceId) setMyDeviceId(deviceId);
-        } catch {}
+        } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
       }
       if (!deviceId) {
         console.warn("[index] SYNC IGNORADO: myDeviceId ainda vazio.");
@@ -162,7 +168,9 @@ export function usePets() {
         });
       }
       lastSponsorSyncRef.current = now;
-    } catch {}
+    } catch (e) {
+      console.warn("[usePets] erro:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -332,7 +340,9 @@ export function usePets() {
       try {
         const saved = await SecureStore.getItemAsync("ifujao_my_phone");
         if (saved) setMyPhone(saved);
-      } catch {}
+      } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
     })();
   }, []);
 
@@ -341,7 +351,9 @@ export function usePets() {
       try {
         const id = await getOrCreateDeviceId();
         if (id) setMyDeviceId(id);
-      } catch {}
+      } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
     })();
   }, []);
 
@@ -353,7 +365,9 @@ export function usePets() {
           petsRef.current = loaded as PetPost[];
           setPets(loaded as PetPost[]);
         }
-      } catch {}
+      } catch (e) {
+        console.warn("[usePets] erro:", e);
+      }
       setLocalLoaded(true);
     })();
   }, []);

@@ -14,6 +14,8 @@ export interface MatchCompat {
 
 const EARTH_R_KM = 6371;
 
+const toRad = (d: number) => (d * Math.PI) / 180;
+
 const haversineKm = (
   a: { latitude: number; longitude: number },
   b: { latitude: number; longitude: number },
@@ -32,7 +34,6 @@ const haversineKm = (
   ) {
     return null;
   }
-  const toRad = (d: number) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
   const s =
@@ -55,7 +56,6 @@ const isDatePlausible = (
   // Compara apenas a data (YYYY-MM-DD) como texto, sem conversão de fuso
   const lostDay = lostDate.split("T")[0];
   const foundDay = foundDate.split("T")[0];
-  if (!lostDay || !foundDay) return { ok: true, sameDay: false, missing: true };
   return {
     ok: lostDay <= foundDay,
     sameDay: lostDay === foundDay,

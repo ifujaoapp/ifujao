@@ -39,10 +39,14 @@ export const MapLeaflet = ({
   petsRef.current = pets;
   const sponsorsRef = useRef(sponsors);
   sponsorsRef.current = sponsors;
-  const center = initialCenter ?? {
-    latitude: city.latitude,
-    longitude: city.longitude,
-  };
+  const center = useMemo(
+    () =>
+      initialCenter ?? {
+        latitude: city.latitude,
+        longitude: city.longitude,
+      },
+    [initialCenter, city.latitude, city.longitude],
+  );
   const isDark = theme === "dark";
   const mapFilter = isDark
     ? "filter: invert(1) hue-rotate(180deg) brightness(0.95);"

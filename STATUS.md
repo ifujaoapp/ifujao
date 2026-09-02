@@ -1,5 +1,51 @@
 # STATUS — StudyFlow
 
+## Sessão atual (2026-09-02) — Filtro "Todos" e pets reencontrados
+
+### Bug crítico: pets reencontrados somiam do mapa
+- **Sintoma:** Ao alternar para o filtro "Todos" (`showOnlyMine: false`),
+  pets do próprio device somiam do mapa (mas o contador `totalPetsNoMapa`
+  ainda os contava, gerando inconsistência entre o número do badge e os
+  pins visíveis).
+- **Causa raiz:** A função `withinFoundWindow` no script HTML inicial do
+  `MapLeaflet.tsx` referencia `_serverNow` que nunca é declarado no
+  escopo global, então a checagem `(_serverNow - t) <= 48h` sempre
+  retornava `NaN <= …` = `false`. Pets com `foundAt` definido eram
+  descartados no `addMarker` (`if (p.foundAt && !withinFoundWindow(...)) return;`).
+- **Correção:** O `renderPetsJs` agora sobrescreve `window.withinFoundWindow`
+  com a versão correta (usando `_serverNow` capturado na hora da injeção)
+  e o `addMarker` chama `window.withinFoundWindow`. Pets reencontrados
+  voltam a aparecer no mapa (dentro da janela de 48h).
+- **Arquivos:** `components/home/MapLeaflet.tsx`.
+
+### Contador do mapa consistente com o filtro do MapLeaflet
+- `totalPetsNoMapa` (badge azul) agora ignora pets reencontrados fora da
+  janela de 48h, alinhando com o filtro que oculta esses pins no mapa.
+- Cálculo: `visiblePetsOnMap = visiblePets.filter(p => !p.foundAt || now - foundAt <= 48h)`.
+- `pendingMatches` continua usando o `visiblePets` completo (matches
+  pendentes não devem ser escondidos pela janela de reencontro).
+- **Arquivos:** `app/(tabs)/index.tsx`.
+
+### Banner "Encontrado!" não flutua mais sobre a foto
+- O banner saía de dentro do `reportImageWrap` (que era `position: relative`
+  com o banner em `position: absolute`, `top: 10`, `alignSelf: center`),
+  ficando sobreposto à imagem.
+- Agora o banner é renderizado **entre as fotos e o nome do pet**, com
+  `alignSelf: center`, `marginTop: 4`, `marginBottom: 6`, sem `position: absolute`.
+- Novo estilo `foundBannerInline` adicionado em `app/(tabs)/index.tsx`.
+- **Arquivos:** `components/home/PetDetailBase.tsx`, `app/(tabs)/index.tsx`.
+
+### Lint: dependência faltante em useCallback
+- `triggerSync` em `hooks/usePets.ts` usava `myPhone` (em `isOwner(...)`)
+  mas o array de deps do `useCallback` só tinha `[myDeviceId]`.
+- Adicionado `myPhone` ao array de deps.
+- **Arquivos:** `hooks/usePets.ts`.
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.
+
+---
+
 ## Diretrizes gerais (sempre aplicar)
 - **Tema claro/escuro em TODAS as telas:** qualquer tela/componente novo ou modificado
   deve usar as variáveis de tema (`themeColors` / `c.*` de `constants/theme`) em vez de

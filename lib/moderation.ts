@@ -57,33 +57,47 @@ export const moderatorSoftDelete = async (petId: string): Promise<boolean> => {
     matchStatus: null,
     matchRequestedBy: null,
   };
-  try {
-    // 1) Payload atual do pet alvo (para não perder o restante do jsonb).
-    const getRes = await fetch(
-      `${MOD_URL}/rest/v1/pets?id=eq.${encodeURIComponent(petId)}&select=id,payload`,
+  const fetchPetPayload = async (
+    id: string,
+    select = "id,payload",
+  ): Promise<Record<string, unknown>> => {
+    const res = await fetch(
+      `${MOD_URL}/rest/v1/pets?id=eq.${encodeURIComponent(id)}&select=${select}`,
       { method: "GET", headers },
     );
-    const rows = ((await getRes.json().catch(() => [])) as any[]) ?? [];
-    const payload = rows?.[0]?.payload ?? {};
-
-    // 2) Soft-delete do pet + limpa o próprio vínculo de match.
-    const delRes = await fetch(
-      `${MOD_URL}/rest/v1/pets?id=eq.${encodeURIComponent(petId)}`,
+    const rows = ((await res.json().catch(() => [])) as any[]) ?? [];
+    return rows?.[0]?.payload ?? {};
+  };
+  const patchPet = async (
+    id: string,
+    body: Record<string, unknown>,
+  ): Promise<boolean> => {
+    const res = await fetch(
+      `${MOD_URL}/rest/v1/pets?id=eq.${encodeURIComponent(id)}`,
       {
         method: "PATCH",
         headers,
-        body: JSON.stringify({
-          deleted_at: now,
-          updated_at: now,
-          payload: { ...payload, ...clearMatch },
-        }),
+        body: JSON.stringify(body),
       },
     );
-    if (!delRes.ok) {
-      const txt = await delRes.text().catch(() => "");
-      console.warn("[moderation] delete falhou:", delRes.status, txt);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("[moderation] PATCH falhou:", id, res.status, txt);
       return false;
     }
+    return true;
+  };
+  try {
+    // 1) Payload atual do pet alvo (para não perder o restante do jsonb).
+    const payload = await fetchPetPayload(petId);
+
+    // 2) Soft-delete do pet + limpa o próprio vínculo de match.
+    const delOk = await patchPet(petId, {
+      deleted_at: now,
+      updated_at: now,
+      payload: { ...payload, ...clearMatch },
+    });
+    if (!delOk) return false;
 
     // 3) Contrapartes: pets que apontavam para este via matchedPetId.
     const cRes = await fetch(
@@ -95,18 +109,7 @@ export const moderatorSoftDelete = async (petId: string): Promise<boolean> => {
     const counterparts = ((await cRes.json().catch(() => [])) as any[]) ?? [];
     for (const c of counterparts) {
       const cp = { ...(c.payload ?? {}), ...clearMatch };
-      const up = await fetch(
-        `${MOD_URL}/rest/v1/pets?id=eq.${encodeURIComponent(c.id)}`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ updated_at: now, payload: cp }),
-        },
-      );
-      if (!up.ok) {
-        const txt = await up.text().catch(() => "");
-        console.warn("[moderation] limpeza de match falhou:", up.status, txt);
-      }
+      await patchPet(c.id, { updated_at: now, payload: cp });
     }
     return true;
   } catch (e) {

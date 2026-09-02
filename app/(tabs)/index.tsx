@@ -338,8 +338,13 @@ export default function HomeScreen() {
     // resolvido) até moderação/disputa.
     return base;
   })();
-  const petsDenunciados = visiblePets.filter((p) => p.reported);
-  const totalPetsNoMapa = visiblePets.length;
+  // Pets reencontrados fora da janela somem do mapa (alinhamento com o filtro
+  // withinFoundWindow do MapLeaflet) e portanto não devem contar no total do mapa.
+  const visiblePetsOnMap = visiblePets.filter(
+    (p) => !p.foundAt || Date.now() - new Date(p.foundAt).getTime() <= 48 * 3600 * 1000,
+  );
+  const petsDenunciados = visiblePetsOnMap.filter((p) => p.reported);
+  const totalPetsNoMapa = visiblePetsOnMap.length;
   // Matches pendentes que envolvem este device (aguardando sua confirmação ou
   // a do outro lado) — usado no indicador in-app. Conta tanto o pet que eu
   // iniciei quanto o pet alheio que aponta para um meu pet como pendente.
@@ -2084,6 +2089,18 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 13,
       fontWeight: "bold",
       letterSpacing: 0.5,
+    },
+    foundBannerInline: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      alignSelf: "center",
+      marginTop: 4,
+      marginBottom: 6,
+      backgroundColor: "#34C759",
+      paddingVertical: 5,
+      paddingHorizontal: 12,
+      borderRadius: 999,
     },
     pendingBanner: {
       flexDirection: "row",

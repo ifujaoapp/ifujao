@@ -131,7 +131,7 @@ export function usePets() {
         console.warn("[index] sync erro:", e);
       }
     },
-    [myDeviceId],
+    [myDeviceId, myPhone],
   );
 
   useEffect(() => {

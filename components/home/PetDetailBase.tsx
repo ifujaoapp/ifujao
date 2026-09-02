@@ -231,18 +231,18 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                       <Text style={styles.reportedBannerText}>DENÚNCIA</Text>
                     </View>
                   ) : null}
-                  {selectedPet.foundAt ? (
-                    <View style={styles.foundBanner}>
-                      <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
-                      <Text style={styles.foundBannerText}>
-                        Encontrado!
-                        {formatLostDate(selectedPet.foundAt)
-                          ? ` · ${formatLostDate(selectedPet.foundAt)}`
-                          : ""}
-                      </Text>
-                    </View>
-                  ) : null}
                 </View>
+                {selectedPet.foundAt ? (
+                  <View style={[styles.foundBannerInline, isSmall && { marginTop: -2, marginBottom: 2 }]}>
+                    <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
+                    <Text style={styles.foundBannerText}>
+                      Encontrado!
+                      {formatLostDate(selectedPet.foundAt)
+                        ? ` · ${formatLostDate(selectedPet.foundAt)}`
+                        : ""}
+                    </Text>
+                  </View>
+                ) : null}
                 <Text style={[styles.demoName, isSmall && { marginTop: -8, marginBottom: 0 }]} pointerEvents="none">
                   {selectedPet.name ? selectedPet.name : selectedPet.species}
                   {!selectedPet.name && selectedPet.breed ? ` - ${selectedPet.breed}` : ""}

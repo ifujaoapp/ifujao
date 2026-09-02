@@ -115,6 +115,7 @@ export const buildFoundMarkAction = (
     textColor: "#FFFFFF",
     bgColor: "#34C759",
     primary: ctx.isOwn,
+    reportedDisabled: true,
     onPress: () => {
       const id = ctx.selectedPet.id;
       ctx.commitPets(

@@ -78,7 +78,7 @@ export const MapLeaflet = ({
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} .leaflet-control-zoom{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 16px) !important;margin-right:4px !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .paw-pulse{position:absolute;left:50%;top:16px;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(10,132,255,0.30);box-shadow:0 0 0 2px rgba(10,132,255,0.25);animation:pawPulse 3s ease-out infinite;pointer-events:none;z-index:0;} .paw-pulse.paw-pulse-reported{background:rgba(255,59,48,0.30);box-shadow:0 0 0 2px rgba(255,59,48,0.25);} .paw-pulse.paw-pulse-found{background:rgba(52,199,89,0.30);box-shadow:0 0 0 2px rgba(52,199,89,0.25);} @keyframes pawPulse{0%{transform:scale(0.5);opacity:0.9;}70%{transform:scale(2);opacity:0;}100%{transform:scale(0.5);opacity:0;}} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 2.8s ease-out infinite;} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;z-index:3;} .pet-pin-label .pet-text{display:block;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.85),0 0 2px rgba(0,0,0,0.85);white-space:nowrap;} .pet-pin-label .pet-text-status{font-size:7px;opacity:0.95;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} .leaflet-control-zoom{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 16px) !important;margin-right:4px !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;z-index:3;} .pet-pin-label .pet-text{display:block;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.85),0 0 2px rgba(0,0,0,0.85);white-space:nowrap;} .pet-pin-label .pet-text-status{font-size:7px;opacity:0.95;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
     </head>
     <body>
       <div id="map"></div>
@@ -191,7 +191,7 @@ export const MapLeaflet = ({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
                 '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
-                '<div class="paw-pulse paw-pulse-reported"></div>' +
+                '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#FF3B30" stroke="#FFFFFF" stroke-width="2"/>' +
                 '</svg>' +
@@ -213,7 +213,7 @@ export const MapLeaflet = ({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
                 '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
-                '<div class="paw-pulse paw-pulse-found"></div>' +
+                '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
                 '</svg>' +
@@ -240,9 +240,9 @@ export const MapLeaflet = ({
                 className: 'paw-pin',
                 html: '<div style="position:relative;width:64px;height:58px;">' +
                   '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
-                  '<div class="paw-pulse paw-pulse-found"></div>' +
-                  '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
-                  '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
+                '<div></div>' +
+                '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
+                '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
                   '</svg>' +
                   '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
                   '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
@@ -258,7 +258,7 @@ export const MapLeaflet = ({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
                 '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
-                '<div class="paw-pulse paw-pulse-found"></div>' +
+                '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
                 '</svg>' +
@@ -275,14 +275,13 @@ export const MapLeaflet = ({
           }
           var species = __esc(label) || 'Pet';
           var relText = __esc(formatRelDays(lostDate));
-          var pulseCls = 'paw-pulse';
           var stroke = recencyColor(relDays(lostDate));
           var emoji = '<div class="paw-emoji">' + speciesEmoji(species) + '</div>';
           return L.divIcon({
             className: 'paw-pin',
             html: '<div style="position:relative;width:64px;height:58px;">' +
               '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
-              '<div class="' + pulseCls + '"></div>' +
+              '<div></div>' +
               '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
               '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="' + stroke + '" stroke-width="2"/>' +
               '</svg>' +

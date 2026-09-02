@@ -46,6 +46,9 @@ export interface PetRecord {
   remoteImageUrls?: string[];
   updatedAt?: string;
   deletedAt?: string | null;
+  // Data/hora de criação do pet (UTC ISO). Usado para a janela de 24h do
+  // limite anti-spam (lib/limits.ts). Opcional para pets legados.
+  createdAt?: string;
 }
 
 const ensureDbKey = async (): Promise<string> => {

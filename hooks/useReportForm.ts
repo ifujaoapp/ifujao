@@ -13,6 +13,7 @@ import {
 import { reverseGeocodeCity } from "@/lib/geocode";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { persistPhotos } from "@/lib/storage";
+import { canCreatePet } from "@/lib/limits";
 
 const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 import { type Region } from "react-native-maps";
@@ -40,6 +41,7 @@ export type UseReportFormParams = {
   canReport: boolean;
   setReportModalVisible: (value: boolean) => void;
   setIsCameraOpen: (value: boolean) => void;
+  godMode?: boolean;
   onNeedAcceptTerms?: () => void;
 };
 
@@ -64,6 +66,7 @@ export function useReportForm(params: UseReportFormParams) {
     canReport,
     setReportModalVisible,
     setIsCameraOpen,
+    godMode,
     onNeedAcceptTerms,
   } = params;
 
@@ -190,6 +193,14 @@ export function useReportForm(params: UseReportFormParams) {
         deviceId = await getOrCreateDeviceId();
       } catch {}
     }
+    // Limite anti-spam (bypass para moderadores em modo deus).
+    if (!godMode) {
+      const check = canCreatePet(pets, deviceId);
+      if (!check.ok) {
+        showAlert("warning", "Limite atingido", check.message!);
+        return;
+      }
+    }
     const newPet: PetPost = {
       id: Date.now().toString(),
       species,
@@ -211,6 +222,7 @@ export function useReportForm(params: UseReportFormParams) {
         postType === 'lost' && reward.trim()
           ? Number(reward.replace(/\D/g, ""))
           : undefined,
+      createdAt: new Date().toISOString(),
       dirty: true,
     };
     commitPets([newPet, ...pets]);

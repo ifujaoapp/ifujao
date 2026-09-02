@@ -178,6 +178,7 @@ export default function HomeScreen() {
     canReport: mapLocation.canReport,
     setReportModalVisible,
     setIsCameraOpen: camera.setIsCameraOpen,
+    godMode,
     onNeedAcceptTerms: () => setIsTermsVisible(true),
   });
   const {
@@ -320,7 +321,7 @@ export default function HomeScreen() {
       return { ...p, confirmed: isConfirmed };
     });
   }, [pets]);
-  const visiblePets = (() => {
+  const visiblePets = useMemo(() => {
     let base = showOnlyMine
       ? enrichedPets.filter((p) => isOwner(p, myDeviceId, myPhone))
       : enrichedPets;
@@ -337,7 +338,7 @@ export default function HomeScreen() {
     // pode esconder o post (anti-fraude). O pin permanece visível (marcado como
     // resolvido) até moderação/disputa.
     return base;
-  })();
+  }, [showOnlyMine, enrichedPets, myDeviceId, myPhone, aiResults, postTypeFilter]);
   // Pets reencontrados fora da janela somem do mapa (alinhamento com o filtro
   // withinFoundWindow do MapLeaflet) e portanto não devem contar no total do mapa.
   const visiblePetsOnMap = visiblePets.filter(

@@ -3,7 +3,7 @@ import { StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { type Region } from "react-native-maps";
 import { distanceMeters, type City } from "@/constants/cities";
-import { type SponsorPin } from "@/lib/sponsors";
+import { type SponsorPin, pickNearestSponsors } from "@/lib/sponsors";
 import { type PetRecord } from "@/lib/storage";
 import { FOUND_WINDOW_HOURS } from "@/constants/breeds";
 import birdAnimationData from "../../assets/sponsor-bird.json";
@@ -40,6 +40,8 @@ export const MapLeaflet = ({
   petsRef.current = pets;
   const sponsorsRef = useRef(sponsors);
   sponsorsRef.current = sponsors;
+  const userLocationRef = useRef(userLocation);
+  userLocationRef.current = userLocation;
   const center = useMemo(
     () =>
       initialCenter ?? {
@@ -48,6 +50,15 @@ export const MapLeaflet = ({
       },
     [initialCenter, city.latitude, city.longitude],
   );
+  // Pega os 8 sponsors mais proximos do usuario (ou do centro do mapa) para
+  // limitar quantos o passarinho anuncia. Recalcula quando o usuario se move
+  // significativamente ou a lista muda.
+  const nearestSponsors = useMemo(
+    () => pickNearestSponsors(sponsors, userLocation ?? center, 8),
+    [sponsors, userLocation, center],
+  );
+  const nearestSponsorsRef = useRef(nearestSponsors);
+  nearestSponsorsRef.current = nearestSponsors;
   const isDark = theme === "dark";
   const mapFilter = isDark
     ? "filter: invert(1) hue-rotate(180deg) brightness(0.95);"
@@ -97,6 +108,18 @@ export const MapLeaflet = ({
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
         };
+        // Distancia em km entre duas coordenadas (haversine).
+        function __haversine(lat1, lng1, lat2, lng2) {
+          if (typeof lat1 !== 'number' || typeof lng1 !== 'number' ||
+              typeof lat2 !== 'number' || typeof lng2 !== 'number') return null;
+          var toRad = function(d) { return (d * Math.PI) / 180; };
+          var dLat = toRad(lat2 - lat1);
+          var dLng = toRad(lng2 - lng1);
+          var s = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+          return 6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+        }
         function speciesEmoji(s) {
           var n = (s || '').toString().toLowerCase();
           var map = {
@@ -350,7 +373,10 @@ export const MapLeaflet = ({
         var __sponsors = [];
         window.__birdMarker = null;
         window.__birdAnim = null;
-        window.__birdFlyTimer = null;
+        window.__birdFlyRaf = null;
+        // Posição do usuário para cálculo de distância no banner. Inicia null;
+        // o RN atualiza via window.__setUserLatLng.
+        window.__userLatLng = null;
         function __pickSponsor() {
           if (!__sponsors || __sponsors.length === 0) return null;
           return __sponsors[Math.floor(Math.random() * __sponsors.length)];
@@ -360,38 +386,73 @@ export const MapLeaflet = ({
           if (!__sponsors || __sponsors.length === 0) return;
           var sp = __pickSponsor();
           if (!sp) return;
-          // Banner em HTML ao lado do pássaro (a direita dele, na direcao do
-          // movimento). Como o pássaro vai da direita para esquerda, o banner
-          // fica ATRÁS dele (a direita). Estrutura: [pássaro][corda][banner].
+          // Card do patrocinador compacto. Estrutura:
+          // [pássaro 56px][corda 14px][card 200px] = 270px total.
           var safeName = __esc(sp.name || 'Patrocinador');
+          var distStr = '';
+          if (window.__userLatLng && typeof sp.latitude === 'number' && typeof sp.longitude === 'number') {
+            var dKm = __haversine(window.__userLatLng.lat, window.__userLatLng.lng, sp.latitude, sp.longitude);
+            if (dKm != null) {
+              distStr = dKm < 1
+                ? Math.round(dKm * 1000) + ' m'
+                : dKm.toFixed(1).replace('.', ',') + ' km';
+            }
+          }
+          var logoHtml = (sp.logo && typeof sp.logo === 'string' && sp.logo.length > 4)
+            ? '<img src="' + __esc(sp.logo) + '" ' +
+                'style="width:26px; height:26px; border-radius:5px; object-fit:cover; ' +
+                'background:#fff; flex-shrink:0;" ' +
+                'onerror="this.style.display=' + "'none'" + ';this.nextElementSibling.style.display=' + "'flex'" + ';" />' +
+              '<span style="display:none; width:26px; height:26px; align-items:center; ' +
+                'justify-content:center; background:#fff; border-radius:5px; font-size:15px; flex-shrink:0;">🛍️</span>'
+            : '<span style="display:flex; width:26px; height:26px; align-items:center; ' +
+                'justify-content:center; background:#fff; border-radius:5px; font-size:15px; flex-shrink:0;">🛍️</span>';
+          // Linha 2: "X km" à esquerda + badge Ad à direita (space-between).
+          var distHtml = (function() {
+            var ad = '<span style="background:rgba(255,255,255,0.25); padding:0 4px; ' +
+              'border-radius:3px; font:800 8px sans-serif; line-height:1.3; flex-shrink:0;">Ad</span>';
+            var txt = distStr
+              ? '<span style="font:600 9px sans-serif; color:rgba(255,255,255,0.85); ' +
+                  'white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1; flex:1; min-width:0;">' + distStr + '</span>'
+              : '<span style="flex:1;"></span>';
+            return '<div style="display:flex; align-items:center; justify-content:space-between; ' +
+              'gap:4px; min-height:11px; margin-top:1px;">' + txt + ad + '</div>';
+          })();
           var iconHtml =
             '<div style="display:flex; align-items:center; pointer-events:auto; cursor:pointer;">' +
-              '<div id="lottie-bird" style="width:60px; height:60px; flex-shrink:0;"></div>' +
-              '<div style="width:20px; height:1.5px; background:rgba(0,0,0,0.55); flex-shrink:0;"></div>' +
-              '<div style="display:flex; align-items:center; background:#FF9500; color:#fff; ' +
-                'padding:5px 10px; border-radius:999px; font:700 12px sans-serif; ' +
-                'box-shadow:0 2px 4px rgba(0,0,0,0.4); white-space:nowrap; max-width:180px; ' +
-                'overflow:hidden; text-overflow:ellipsis;">' +
-                '<span style="max-width:130px; overflow:hidden; text-overflow:ellipsis;">' + safeName + '</span>' +
-                '<span style="margin-left:6px; background:rgba(255,255,255,0.25); ' +
-                  'padding:1px 5px; border-radius:4px; font-size:9px; font-weight:800;">Ad</span>' +
+              '<div id="lottie-bird" style="width:56px; height:56px; flex-shrink:0;"></div>' +
+              '<div style="width:14px; height:1.5px; background:rgba(0,0,0,0.55); flex-shrink:0;"></div>' +
+              '<div style="display:flex; flex-direction:row; align-items:center; ' +
+                'width:200px; height:40px; padding:4px 8px; ' +
+                'background:#FF9500; color:#fff; border-radius:8px; ' +
+                'box-shadow:0 3px 6px rgba(0,0,0,0.35); flex-shrink:0;">' +
+                logoHtml +
+                '<div style="display:flex; flex-direction:column; flex:1; min-width:0; margin-left:6px;">' +
+                  '<div style="font:700 9px sans-serif; min-width:0; ' +
+                    'white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.2;">' + safeName + '</div>' +
+                  distHtml +
+                '</div>' +
               '</div>' +
             '</div>';
           var icon = L.divIcon({
             className: 'bird-marker',
             html: iconHtml,
-            iconSize: [320, 60],
-            iconAnchor: [16, 30], // ancora no canto esquerdo do pássaro
+            iconSize: [280, 56],
+            iconAnchor: [16, 28], // ancora no canto esquerdo do pássaro
           });
           // Posicao inicial: começa FORA da borda direita (com folga) para o
-          // pássaro entrar voando da direita. Altura aleatoria entre 25% e
-          // 75% da altura visivel.
+          // pássaro entrar voando da direita. Altura aleatoria entre 5% e 85%
+          // da altura visivel (margens maiores para o pássaro poder passar
+          // mais em cima ou mais em baixo do mapa).
           var b = map.getBounds();
           var totalLngInit = b.getEast() - b.getWest();
           var startLng = b.getEast() + totalLngInit * 0.15;
           var endLng = b.getWest();
           var latRange = b.getNorth() - b.getSouth();
-          var startLat = b.getSouth() + (0.25 + Math.random() * 0.5) * latRange;
+          // Puxa o range de Y para o canto superior (5%) e ainda permite quase
+          // tocar a borda inferior (85%), evitando os 15% mais altos/baixos
+          // (limites onde o banner pode ser cortado pela UI do mapa).
+          var startLat = b.getSouth() + (0.05 + Math.random() * 0.8) * latRange;
           var m = L.marker([startLat, startLng], { icon: icon, zIndexOffset: 500 }).addTo(map);
           // Click em QUALQUER parte do banner/pássaro.
           m.on('click', function() {
@@ -409,7 +470,7 @@ export const MapLeaflet = ({
               autoplay: true,
               animationData: __birdAnimData,
             });
-          } catch (e) {}
+        } catch {}
           // Vôo linear: anima o pássaro da borda direita até muito além da
           // borda esquerda (folga generosa para o banner inteiro sair da
           // tela) em ~16s usando requestAnimationFrame (suave). Quando sai,
@@ -419,7 +480,8 @@ export const MapLeaflet = ({
           // (que fica a direita do pássaro) saia completamente da tela.
           var extraLng = totalLng * 0.6;
           var fullLng = totalLng + extraLng;
-          var duration = 16000; // ms
+          // Duração aleatória entre 16s e 30s para não ficar cansativo.
+          var duration = 16000 + Math.floor(Math.random() * 14000); // 16000-29999ms
           var startTime = null;
           function step(ts) {
             if (!window.__birdMarker) return;
@@ -434,20 +496,25 @@ export const MapLeaflet = ({
               try { m.remove(); } catch (e) {}
               try { if (window.__birdAnim) window.__birdAnim.destroy(); } catch (e) {}
               window.__birdMarker = null;
-              setTimeout(__setupBird, 2000);
+              // Pausa curta antes do próximo voo (1-3s aleatório).
+              var pause = 1000 + Math.floor(Math.random() * 2000);
+              setTimeout(__setupBird, pause);
             }
           }
           window.__birdFlyRaf = requestAnimationFrame(step);
           window.__birdMarker = m;
         }
-        // API exposta para o RN controlar a lista de sponsors.
+        // API exposta para o RN controlar a lista de sponsors e a posição
+        // do usuário (para exibir distância no banner).
         window.__setSponsorsBird = function(list) {
           __sponsors = list || [];
-          // Se ja existe pássaro e a lista mudou, deixa terminar o ciclo.
-          // Se nao existe, tenta criar.
           if (!window.__birdMarker && __sponsors.length > 0) {
             __setupBird();
           }
+        };
+        window.__setUserLatLng = function(lat, lng) {
+          window.__userLatLng = (typeof lat === 'number' && typeof lng === 'number')
+            ? { lat: lat, lng: lng } : null;
         };
         window.__renderPets([]);
       </script>
@@ -524,16 +591,32 @@ export const MapLeaflet = ({
   }, [mapReady, sponsors, showSponsorText]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Injeta a lista de sponsors para o pássaro Lottie. O pássaro só aparece
-  // se houver ao menos 1 sponsor e a WebView estiver pronta.
+  // se houver ao menos 1 sponsor e a WebView estiver pronta. Usamos a lista
+  // de sponsors mais próximos (limitada por pickNearestSponsors) para evitar
+  // exagero de banners quando o usuário está longe dos patrocinadores.
   useEffect(() => {
     if (!mapReady || !webRef.current) return;
     const js = `(function(){
       if (typeof window.__setSponsorsBird === 'function') {
-        window.__setSponsorsBird(${JSON.stringify(sponsors)});
+        window.__setSponsorsBird(${JSON.stringify(nearestSponsors)});
       }
     })();`;
     webRef.current.injectJavaScript(js);
-  }, [mapReady, sponsors]);
+  }, [mapReady, nearestSponsors]);
+
+  // Injeta a posição do usuário para o cálculo de distância no banner do
+  // pássaro (mostra "X km" abaixo do nome do patrocinador).
+  useEffect(() => {
+    if (!mapReady || !webRef.current) return;
+    const lat = userLocation?.latitude ?? null;
+    const lng = userLocation?.longitude ?? null;
+    const js = `(function(){
+      if (typeof window.__setUserLatLng === 'function') {
+        window.__setUserLatLng(${lat}, ${lng});
+      }
+    })();`;
+    webRef.current.injectJavaScript(js);
+  }, [mapReady, userLocation?.latitude, userLocation?.longitude]);
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
   // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a
@@ -632,6 +715,22 @@ export const MapLeaflet = ({
         setMapReady(true);
         webRef.current?.injectJavaScript(renderPetsJs(petsRef.current));
         webRef.current?.injectJavaScript(renderSponsorsJs(sponsorsRef.current));
+        // Re-injeta a lista de sponsors (já filtrada pelos mais próximos) e a
+        // posição do usuário para o pássaro Lottie. Necessário porque o
+        // WebView recarrega quando o `center` muda (e mapReady não volta a
+        // false, então os useEffect não re-rodam).
+        try {
+          const sList = JSON.stringify(nearestSponsorsRef.current);
+          const uLoc = userLocationRef.current;
+          const uLat = uLoc?.latitude ?? null;
+          const uLng = uLoc?.longitude ?? null;
+          webRef.current?.injectJavaScript(
+            `(function(){ if (typeof window.__setSponsorsBird === 'function') { window.__setSponsorsBird(${sList}); } })();`,
+          );
+          webRef.current?.injectJavaScript(
+            `(function(){ if (typeof window.__setUserLatLng === 'function') { window.__setUserLatLng(${uLat}, ${uLng}); } })();`,
+          );
+        } catch {}
         // Garante que o Leaflet recalcule o tamanho do container após o WebView
         // ter dimensões reais (evita mapa preto/cinza por tamanho 0).
         webRef.current?.injectJavaScript(

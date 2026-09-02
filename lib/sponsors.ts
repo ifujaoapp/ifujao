@@ -1,5 +1,48 @@
 import { getSupabase } from "./supabase";
 
+// Haversine em km (mesma formula do matchScore) para ordenar por proximidade.
+const haversineKm = (
+  a: { latitude: number; longitude: number },
+  b: { latitude: number; longitude: number },
+): number => {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) *
+    Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+};
+
+// Seleciona os N sponsors mais proximos de um centro (haversine). Se nao
+// houver centro ou a lista for menor que N, embaralha e retorna todos.
+// Ordem: distancia crescente, mas com Fisher-Yates nos empatas/empates
+// finais para variar.
+export const pickNearestSponsors = <T extends { latitude: number; longitude: number }>(
+  list: T[],
+  center: { latitude: number; longitude: number } | null,
+  n: number = 8,
+): T[] => {
+  if (list.length <= 1) return list;
+  if (!center) {
+    // Sem centro: embaralha e pega ate N.
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy.slice(0, n);
+  }
+  // Calcula distancia, ordena crescente e pega os N primeiros.
+  const sorted = [...list]
+    .map((s) => ({ s, d: haversineKm(center, s) }))
+    .sort((a, b) => a.d - b.d)
+    .slice(0, n)
+    .map((x) => x.s);
+  return sorted;
+};
+
 export type SponsorPin = {
   id: string;
   name: string;

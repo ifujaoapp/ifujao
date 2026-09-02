@@ -1,6 +1,76 @@
 # STATUS — StudyFlow
 
-## Sessão atual (2026-09-02) — Filtro "Todos" e pets reencontrados
+## Sessão atual (2026-09-02) — Pássaro Lottie e melhorias do patrocinador
+
+### Pássaro Lottie como sponsor animado dentro do mapa
+- **O que:** Pássaro animado em Lottie (`assets/sponsor-bird.json`) carregado
+  via `lottie-web` (CDN) dentro do HTML do Leaflet. Voa da direita para a
+  esquerda carregando um card compacto do patrocinador (logo, nome,
+  distância, badge "Ad"). Tap em qualquer parte do banner envia mensagem
+  para o RN abrir o `SponsorDetailModal`.
+- **Decisões técnicas:**
+  - `L.marker` + `L.divIcon` (não overlay HTML separado) — assim o pássaro
+    fica dentro do mundo do mapa e se move junto com o pan/zoom.
+  - `zIndexOffset: 500` (abaixo dos pets em 1000) para pets sempre prevalecerem.
+  - `requestAnimationFrame` para movimento linear suave (16s, com folga de
+    60% da largura visível para o banner sair inteiro).
+  - Troca de sponsor a cada ciclo: `__pickSponsor` faz `Math.random` no
+    array, destruindo a animação anterior (`birdAnim.destroy()`) e criando
+    nova instância.
+
+### Card do patrocinador (atrás do pássaro)
+- **Dimensões:** 200×40px, retangular com sombra, cor `#FF9500`.
+- **Linha 1:** logo 26×26 (ou 🛍️ fallback) + nome do patrocinador em 9px
+  negrito, com `text-overflow:ellipsis`.
+- **Linha 2:** distância do usuário (9px) à esquerda + badge "Ad" (8px
+  bold em fundo translúcido) à direita, via `flex space-between`.
+- **Distância:** calculada via `__haversine` no JS da WebView quando o RN
+  injeta `__userLatLng` (em `MapLeaflet` via `__setUserLatLng`).
+
+### Limitação a 8 sponsors mais próximos
+- **Problema:** com 100+ sponsors cadastrados, mostrar todos em sequência
+  é inviável (poluição visual e anúncios irrelevantes distantes).
+- **Solução:** `pickNearestSponsors(list, center, n=8)` em `lib/sponsors.ts`
+  filtra os 8 mais próximos do `userLocation` (ou do centro do mapa como
+  fallback) via haversine. Sem centro, embaralha toda a lista. O resultado
+  é injetado no pássaro via `nearestSponsors` memoizado no `MapLeaflet`.
+- **Arquivos:**
+  - `lib/sponsors.ts` — novo helper `pickNearestSponsors`
+  - `components/home/MapLeaflet.tsx` — `nearestSponsors` em useMemo, deps
+    `[sponsors, userLocation, center]`; useEffect do pássaro usa essa lista
+
+### Tempo entre aparições aleatório (16-30s)
+- **Problema:** vôo fixo de 16s ficava repetitivo e cansativo.
+- **Solução:** duração do vôo aleatória entre 16000ms e 29999ms
+  (`Math.floor(Math.random() * 14000) + 16000`). Pausa entre ciclos
+  também aleatória 1-3s.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `__setupBird` /
+  `step` com `duration` e pausa randomizados.
+
+### Y do pássaro mais flexível
+- **Problema:** pássaro aparecia sempre na faixa central do mapa
+  (25-75% da altura), nunca perto do topo.
+- **Solução:** faixa ampliada para 5-85% da altura visível, evitando
+  apenas os 15% mais altos/baixos (onde o banner seria cortado pela UI
+  do mapa).
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `startLat` em
+  `__setupBird`.
+
+### Bug: pássaro só aparecia após reload manual
+- **Causa:** `mapReady` não voltava a `false` quando o `center` mudava
+  (e a WebView recarregava), então os `useEffect` não re-disparavam
+  para injetar `__setSponsorsBird` e `__setUserLatLng`.
+- **Solução:** o `onLoad` agora re-injeta os sponsors filtrados
+  (`nearestSponsorsRef.current`) e a posição do usuário
+  (`userLocationRef.current`) após cada carregamento.
+- **Arquivos:** `components/home/MapLeaflet.tsx` — `onLoad` do WebView.
+
+### Pendências
+- Nenhuma. Lint e type-check limpos.
+
+---
+
+## Sessão 2026-09-02 (anterior) — Filtro "Todos" e pets reencontrados
 
 ### Bug crítico: pets reencontrados somiam do mapa
 - **Sintoma:** Ao alternar para o filtro "Todos" (`showOnlyMine: false`),

@@ -6,6 +6,7 @@ import { distanceMeters, type City } from "@/constants/cities";
 import { type SponsorPin } from "@/lib/sponsors";
 import { type PetRecord } from "@/lib/storage";
 import { FOUND_WINDOW_HOURS } from "@/constants/breeds";
+import birdAnimationData from "../../assets/sponsor-bird.json";
 export const MapLeaflet = ({
   initialCenter,
   region,
@@ -51,6 +52,12 @@ export const MapLeaflet = ({
   const mapFilter = isDark
     ? "filter: invert(1) hue-rotate(180deg) brightness(0.95);"
     : "";
+  // Serializa a animação Lottie do pássaro uma vez (no mount) para injetar
+  // no HTML do mapa e carregar via lottie-web.
+  const birdDataJson = useMemo(
+    () => JSON.stringify(birdAnimationData),
+    [],
+  );
   const html = useMemo(
     () => `
   <!DOCTYPE html>
@@ -59,6 +66,7 @@ export const MapLeaflet = ({
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
       <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} .leaflet-control-zoom{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 16px) !important;margin-right:4px !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .paw-pulse{position:absolute;left:50%;top:16px;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:rgba(10,132,255,0.30);box-shadow:0 0 0 2px rgba(10,132,255,0.25);animation:pawPulse 3s ease-out infinite;pointer-events:none;z-index:0;} .paw-pulse.paw-pulse-reported{background:rgba(255,59,48,0.30);box-shadow:0 0 0 2px rgba(255,59,48,0.25);} .paw-pulse.paw-pulse-found{background:rgba(52,199,89,0.30);box-shadow:0 0 0 2px rgba(52,199,89,0.25);} @keyframes pawPulse{0%{transform:scale(0.5);opacity:0.9;}70%{transform:scale(2);opacity:0;}100%{transform:scale(0.5);opacity:0;}} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);animation:sponsorPulse 2.8s ease-out infinite;} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;z-index:3;} .pet-pin-label .pet-text{display:block;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.85),0 0 2px rgba(0,0,0,0.85);white-space:nowrap;} .pet-pin-label .pet-text-status{font-size:7px;opacity:0.95;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} @keyframes sponsorPulse{0%{box-shadow:0 0 0 4px rgba(255,149,0,0.45),0 6px 14px rgba(0,0,0,0.45);}70%{box-shadow:0 0 0 16px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}100%{box-shadow:0 0 0 4px rgba(255,149,0,0),0 6px 14px rgba(0,0,0,0.45);}} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;}</style>
     </head>
     <body>
@@ -333,11 +341,119 @@ export const MapLeaflet = ({
             groups[key].forEach(function(p, i){ addMarker(p, p.latitude, p.longitude + delta * i); });
           });
         };
+        // ===== Pássaro Lottie (sponsor animado) =====
+        // Renderiza o Lottie DENTRO do Leaflet para que o evento de clique seja
+        // capturado pelo DOM do navegador (sem conflito de zIndex/elevation
+        // nativo do RN sobre o WebView). Move-se pelo mapa em loop.
+        // A lista de sponsors é injetada depois via setSponsorsBird.
+        var __birdAnimData = ${birdDataJson};
+        var __sponsors = [];
+        window.__birdMarker = null;
+        window.__birdAnim = null;
+        window.__birdFlyTimer = null;
+        function __pickSponsor() {
+          if (!__sponsors || __sponsors.length === 0) return null;
+          return __sponsors[Math.floor(Math.random() * __sponsors.length)];
+        }
+        function __setupBird() {
+          if (window.__birdMarker) return;
+          if (!__sponsors || __sponsors.length === 0) return;
+          var sp = __pickSponsor();
+          if (!sp) return;
+          // Banner em HTML ao lado do pássaro (a direita dele, na direcao do
+          // movimento). Como o pássaro vai da direita para esquerda, o banner
+          // fica ATRÁS dele (a direita). Estrutura: [pássaro][corda][banner].
+          var safeName = __esc(sp.name || 'Patrocinador');
+          var iconHtml =
+            '<div style="display:flex; align-items:center; pointer-events:auto; cursor:pointer;">' +
+              '<div id="lottie-bird" style="width:60px; height:60px; flex-shrink:0;"></div>' +
+              '<div style="width:20px; height:1.5px; background:rgba(0,0,0,0.55); flex-shrink:0;"></div>' +
+              '<div style="display:flex; align-items:center; background:#FF9500; color:#fff; ' +
+                'padding:5px 10px; border-radius:999px; font:700 12px sans-serif; ' +
+                'box-shadow:0 2px 4px rgba(0,0,0,0.4); white-space:nowrap; max-width:180px; ' +
+                'overflow:hidden; text-overflow:ellipsis;">' +
+                '<span style="max-width:130px; overflow:hidden; text-overflow:ellipsis;">' + safeName + '</span>' +
+                '<span style="margin-left:6px; background:rgba(255,255,255,0.25); ' +
+                  'padding:1px 5px; border-radius:4px; font-size:9px; font-weight:800;">Ad</span>' +
+              '</div>' +
+            '</div>';
+          var icon = L.divIcon({
+            className: 'bird-marker',
+            html: iconHtml,
+            iconSize: [320, 60],
+            iconAnchor: [16, 30], // ancora no canto esquerdo do pássaro
+          });
+          // Posicao inicial: começa FORA da borda direita (com folga) para o
+          // pássaro entrar voando da direita. Altura aleatoria entre 25% e
+          // 75% da altura visivel.
+          var b = map.getBounds();
+          var totalLngInit = b.getEast() - b.getWest();
+          var startLng = b.getEast() + totalLngInit * 0.15;
+          var endLng = b.getWest();
+          var latRange = b.getNorth() - b.getSouth();
+          var startLat = b.getSouth() + (0.25 + Math.random() * 0.5) * latRange;
+          var m = L.marker([startLat, startLng], { icon: icon, zIndexOffset: 500 }).addTo(map);
+          // Click em QUALQUER parte do banner/pássaro.
+          m.on('click', function() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              sponsorId: sp.id, name: sp.name, latitude: sp.latitude, longitude: sp.longitude,
+              address: sp.address, link: sp.link, phone: sp.phone, instagram: sp.instagram,
+              facebook: sp.facebook, logo: sp.logo, visibleFrom: sp.visibleFrom, updatedAt: sp.updatedAt,
+            }));
+          });
+          try {
+            window.__birdAnim = lottie.loadAnimation({
+              container: document.getElementById('lottie-bird'),
+              renderer: 'svg',
+              loop: true,
+              autoplay: true,
+              animationData: __birdAnimData,
+            });
+          } catch (e) {}
+          // Vôo linear: anima o pássaro da borda direita até muito além da
+          // borda esquerda (folga generosa para o banner inteiro sair da
+          // tela) em ~16s usando requestAnimationFrame (suave). Quando sai,
+          // troca o sponsor e recria.
+          var totalLng = startLng - endLng; // positivo
+          // Folga extra: ~60% da largura visivel para garantir que o banner
+          // (que fica a direita do pássaro) saia completamente da tela.
+          var extraLng = totalLng * 0.6;
+          var fullLng = totalLng + extraLng;
+          var duration = 16000; // ms
+          var startTime = null;
+          function step(ts) {
+            if (!window.__birdMarker) return;
+            if (startTime === null) startTime = ts;
+            var elapsed = ts - startTime;
+            var t = Math.min(elapsed / duration, 1);
+            var lng = startLng - fullLng * t;
+            m.setLatLng([startLat, lng]);
+            if (t < 1) {
+              window.__birdFlyRaf = requestAnimationFrame(step);
+            } else {
+              try { m.remove(); } catch (e) {}
+              try { if (window.__birdAnim) window.__birdAnim.destroy(); } catch (e) {}
+              window.__birdMarker = null;
+              setTimeout(__setupBird, 2000);
+            }
+          }
+          window.__birdFlyRaf = requestAnimationFrame(step);
+          window.__birdMarker = m;
+        }
+        // API exposta para o RN controlar a lista de sponsors.
+        window.__setSponsorsBird = function(list) {
+          __sponsors = list || [];
+          // Se ja existe pássaro e a lista mudou, deixa terminar o ciclo.
+          // Se nao existe, tenta criar.
+          if (!window.__birdMarker && __sponsors.length > 0) {
+            __setupBird();
+          }
+        };
         window.__renderPets([]);
       </script>
     </body>
   </html>`,
-    [center.latitude, center.longitude, mapFilter],
+    [center.latitude, center.longitude, mapFilter, birdDataJson],
   );
 
   // Delta de separação (graus) para pets na mesma coordenada (~33m). Como esta
@@ -406,6 +522,18 @@ export const MapLeaflet = ({
     if (!mapReady || !webRef.current) return;
     webRef.current.injectJavaScript(renderSponsorsJs(sponsors));
   }, [mapReady, sponsors, showSponsorText]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Injeta a lista de sponsors para o pássaro Lottie. O pássaro só aparece
+  // se houver ao menos 1 sponsor e a WebView estiver pronta.
+  useEffect(() => {
+    if (!mapReady || !webRef.current) return;
+    const js = `(function(){
+      if (typeof window.__setSponsorsBird === 'function') {
+        window.__setSponsorsBird(${JSON.stringify(sponsors)});
+      }
+    })();`;
+    webRef.current.injectJavaScript(js);
+  }, [mapReady, sponsors]);
 
   // Centraliza o mapa na posição real do usuário quando ela chega/atualiza
   // (incluindo quando definida tarde). Usa um limiar para não "pular" o mapa a

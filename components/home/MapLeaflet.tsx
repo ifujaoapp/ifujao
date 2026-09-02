@@ -471,13 +471,16 @@ export const MapLeaflet = ({
             });
         } catch {}
           // Vôo linear: anima o pássaro da borda direita até muito além da
-          // borda esquerda (folga generosa para o banner inteiro sair da
-          // tela) em ~16s usando requestAnimationFrame (suave). Quando sai,
-          // troca o sponsor e recria.
-          var totalLng = startLng - endLng; // positivo
-          // Folga extra: ~60% da largura visivel para garantir que o banner
-          // (que fica a direita do pássaro) saia completamente da tela.
-          var extraLng = totalLng * 0.6;
+          // borda esquerda em ~16s usando requestAnimationFrame (suave).
+          // Quando sai, troca o sponsor e recria.
+          var totalLng = startLng - endLng; // positivo (largura visivel em graus)
+          // Folga extra calculada em PIXELS (não em graus) para garantir que
+          // o banner inteiro (270px) saia completamente da tela independente
+          // do zoom. Converte px -> graus usando a largura atual do mapa.
+          var mapSize = map.getSize();
+          var pxPerDeg = mapSize.x / totalLng; // px por grau na latitude atual
+          // 280px de banner + 40px de folga alem da borda esquerda
+          var extraLng = (280 + 40) / pxPerDeg;
           var fullLng = totalLng + extraLng;
           // Duração aleatória entre 16s e 30s para não ficar cansativo.
           var duration = 16000 + Math.floor(Math.random() * 14000); // 16000-29999ms

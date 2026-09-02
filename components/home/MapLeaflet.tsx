@@ -343,13 +343,25 @@ export const MapLeaflet = ({
   const renderPetsJs = (list: PetRecord[]) =>
     `(function(){
       var _serverNow = ${Date.now()};
+      var FOUND_WINDOW_HOURS = ${FOUND_WINDOW_HOURS};
+      // O withinFoundWindow do <script> inicial referencia um _serverNow que
+      // nunca é definido no escopo global, então SEMPRE retorna false — o que
+      // faz pets com foundAt (marcados como encontrados) sumirem do mapa.
+      // Sobrescrevemos a função com a versão que usa o _serverNow desta IIFE
+      // e atualizamos a referência global para que buildPetIcon também use.
+      window.withinFoundWindow = function(fa){
+        if (!fa) return false;
+        var t = new Date(fa).getTime();
+        if (isNaN(t)) return false;
+        return (_serverNow - t) <= FOUND_WINDOW_HOURS * 3600 * 1000;
+      };
       window.__renderPets = function(pets){
         if (!window.__petMarkers) window.__petMarkers = [];
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
         function addMarker(p, lat, lng){
            // Pet reencontrado fora da janela: não aparece mais no mapa.
-           if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
+           if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
            // Achado já resolvido (match confirmado): some do mapa.
            // achados confirmados permanecem visíveis (anti-fraude)
              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);

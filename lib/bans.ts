@@ -1,6 +1,6 @@
 import { ssGet, ssSet } from "./secureStoreSafe";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
-import { getGodToken } from "./moderation";
+import { getFreshGodToken } from "./moderation";
 
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
@@ -15,6 +15,37 @@ export type BanRow = {
   unbanned_at: string | null;
   unbanned_by: string | null;
 };
+
+// Helper: faz POST na Edge Function ban-user com retry automatico quando
+// o token expira (401). Em caso de 401, re-autentica com as credenciais
+// guardadas (moderation.ts) e tenta de novo uma unica vez.
+async function callBanFunction(
+  body: Record<string, unknown>,
+): Promise<Response> {
+  const fresh1 = await getFreshGodToken();
+  const res1 = await fetch(`${URL}/functions/v1/ban-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${fresh1 ?? ""}`,
+      apikey: ANON,
+    },
+    body: JSON.stringify(body),
+  });
+  if (res1.status !== 401) return res1;
+  // 401: token expirado ou invalido. Forca refresh e tenta uma unica vez.
+  const fresh2 = await getFreshGodToken(true);
+  if (!fresh2 || fresh2 === fresh1) return res1;
+  return await fetch(`${URL}/functions/v1/ban-user`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${fresh2}`,
+      apikey: ANON,
+    },
+    body: JSON.stringify(body),
+  });
+}
 
 // Verifica se o device/phone esta banido consultando a tabela
 // `banned_users` diretamente (PostgREST, RLS permite SELECT publico).
@@ -65,21 +96,11 @@ export const checkBanStatus = async (
   if (!deviceId && !phone) {
     return { banned: false, row: null };
   }
-  const token = await getGodToken();
-  if (!token) return { banned: false, row: null };
   try {
-    const res = await fetch(`${URL}/functions/v1/ban-user`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: ANON,
-      },
-      body: JSON.stringify({
-        action: "status",
-        deviceId: deviceId ?? undefined,
-        phone: phone ?? undefined,
-      }),
+    const res = await callBanFunction({
+      action: "status",
+      deviceId: deviceId ?? undefined,
+      phone: phone ?? undefined,
     });
     const data = (await res.json().catch(() => ({}))) as {
       banned?: boolean;
@@ -125,25 +146,17 @@ export const banUser = async (params: {
   if (!params.deviceId && !params.phone) {
     return { ok: false, error: "Informe deviceId ou phone" };
   }
-  const token = await getGodToken();
-  if (!token) return { ok: false, error: "Sessão de moderador ausente" };
   try {
-    const res = await fetch(`${URL}/functions/v1/ban-user`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: ANON,
-      },
-      body: JSON.stringify({
-        action: "ban",
-        deviceId: params.deviceId,
-        phone: params.phone,
-        reason: params.reason,
-      }),
+    const res = await callBanFunction({
+      action: "ban",
+      deviceId: params.deviceId,
+      phone: params.phone,
+      reason: params.reason,
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -158,24 +171,16 @@ export const unbanUser = async (params: {
   if (!params.deviceId && !params.phone) {
     return { ok: false, error: "Informe deviceId ou phone" };
   }
-  const token = await getGodToken();
-  if (!token) return { ok: false, error: "Sessão de moderador ausente" };
   try {
-    const res = await fetch(`${URL}/functions/v1/ban-user`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-        apikey: ANON,
-      },
-      body: JSON.stringify({
-        action: "unban",
-        deviceId: params.deviceId,
-        phone: params.phone,
-      }),
+    const res = await callBanFunction({
+      action: "unban",
+      deviceId: params.deviceId,
+      phone: params.phone,
     });
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    if (!res.ok) return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    if (!res.ok) {
+      return { ok: false, error: data.error ?? `HTTP ${res.status}` };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };

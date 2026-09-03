@@ -5,6 +5,13 @@ const GOD_TOKEN_KEY = "ifujao_god_token";
 const MOD_URL = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 const MOD_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
 
+// Cache das credenciais para re-autenticar automaticamente quando o
+// token expirar (1h). Guardado em SecureStore (criptografado no
+// dispositivo). Apenas o app de moderacao usa isso; nao vai para
+// o codigo do usuario comum.
+const MOD_USER_KEY = "ifujao_mod_user";
+const MOD_PASS_KEY = "ifujao_mod_pass";
+
 export const getGodToken = (): Promise<string | null> => ssGet(GOD_TOKEN_KEY);
 
 const clearGodToken = (): Promise<void> => ssDel(GOD_TOKEN_KEY);
@@ -20,11 +27,53 @@ export const loginModerator = async (
   });
   if (error || !data?.token) return false;
   await ssSet(GOD_TOKEN_KEY, data.token as string);
+  // Salva as credenciais para re-autenticar quando o token expirar.
+  await ssSet(MOD_USER_KEY, username);
+  await ssSet(MOD_PASS_KEY, password);
   return true;
+};
+
+// Retorna o token de moderador. Se o token atual falhar (expirado,
+// secret mudou), re-autentica automaticamente usando as credenciais
+// guardadas no login. Retorna null se nao houver credenciais.
+//
+// Se `forceRefresh` for true, ignora o token em cache e tenta re-
+// autenticar do zero (usado quando o servidor retornou 401).
+let refreshInFlight: Promise<string | null> | null = null;
+export const getFreshGodToken = async (
+  forceRefresh = false,
+): Promise<string | null> => {
+  if (!forceRefresh) {
+    const current = await getGodToken();
+    if (current) return current;
+  }
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async () => {
+    try {
+      const user = await ssGet(MOD_USER_KEY);
+      const pass = await ssGet(MOD_PASS_KEY);
+      if (!user || !pass) {
+        refreshInFlight = null;
+        return null;
+      }
+      // Limpa o token expirado/invalido antes de re-autenticar.
+      await clearGodToken();
+      const ok = await loginModerator(user, pass);
+      refreshInFlight = null;
+      if (!ok) return null;
+      return await getGodToken();
+    } catch {
+      refreshInFlight = null;
+      return null;
+    }
+  })();
+  return refreshInFlight;
 };
 
 export const logoutModerator = async (): Promise<void> => {
   await clearGodToken();
+  await ssDel(MOD_USER_KEY);
+  await ssDel(MOD_PASS_KEY);
 };
 
 // Soft-delete de qualquer pet (moderação). PATCH direto na PostgREST usando o

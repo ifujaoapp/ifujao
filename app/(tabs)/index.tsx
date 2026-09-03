@@ -416,9 +416,26 @@ export default function HomeScreen() {
         setShowSponsorText={setShowSponsorText}
         onMarkerPress={onMarkerPress}
         onPetLongPress={(info) => {
-          if (!godMode) return;
           const p = pets.find((x) => x.id === info.petId);
-          if (p) setModPet(p);
+          if (!p) return;
+          if (godMode) {
+            // Em godMode o long-press abre um menu: o moderador pode
+            // querer ver o post normalmente OU moderar. Antes ia direto
+            // para o modal de moderacao, o que engessava o fluxo.
+            showAlert("info", "Ações do moderador", "O que você quer fazer com este alerta?", [
+              {
+                text: "Ver detalhes",
+                onPress: () => onMarkerPress(info.petId),
+              },
+              {
+                text: "Moderar",
+                onPress: () => setModPet(p),
+              },
+              { text: "Cancelar", style: "cancel" },
+            ]);
+          }
+          // Fora do godMode, o long-press nao faz nada (toque curto
+          // continua abrindo o detalhe via click normal).
         }}
         theme={theme}
         toggleTheme={toggleTheme}

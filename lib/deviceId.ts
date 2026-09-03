@@ -1,6 +1,6 @@
 import * as Application from "expo-application";
-import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import { ssGet, ssSet } from "./secureStoreSafe";
 
 const DEVICE_ID_KEY = "ifujao_device_id";
 
@@ -42,10 +42,10 @@ export async function getOrCreateDeviceId(): Promise<string> {
   }
 
   try {
-    const stored = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    const stored = await ssGet(DEVICE_ID_KEY);
     if (stored) return stored;
     const id = generateId();
-    await SecureStore.setItemAsync(DEVICE_ID_KEY, id);
+    await ssSet(DEVICE_ID_KEY, id);
     return id;
   } catch {
     try {

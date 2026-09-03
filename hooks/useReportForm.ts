@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import * as Location from "expo-location";
-import * as SecureStore from "expo-secure-store";
+import { ssSet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
 import { getTermsAccepted, setTermsAccepted } from "@/lib/terms";
 import {
@@ -184,7 +184,7 @@ export function useReportForm(params: UseReportFormParams) {
       return;
     }
     const ownerPhone = normalizePhone(contact);
-    SecureStore.setItemAsync("ifujao_my_phone", ownerPhone).catch(() => {});
+    ssSet("ifujao_my_phone", ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
     let deviceId = myDeviceId;

@@ -10,6 +10,7 @@ import React, {
 import { AppState, type AppStateStatus } from "react-native";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { checkBan, readBanCache, writeBanCache, type BanRow } from "@/lib/bans";
+import { ssGet } from "@/lib/secureStoreSafe";
 
 type BanContextValue = {
   isBanned: boolean;
@@ -54,14 +55,12 @@ export function BanProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const id = await getOrCreateDeviceId();
-        const ph = (await import("expo-secure-store"))
-          .default.getItemAsync("ifujao_my_phone")
-          .catch(() => null);
+        const ph = await ssGet("ifujao_my_phone");
         if (!mounted) return;
         setDeviceId(id);
-        setPhone((ph as unknown as string) ?? "");
+        setPhone(ph ?? "");
         // Tenta usar cache para a primeira renderização (rapido).
-        const cached = await readBanCache(id, (ph as unknown as string) ?? "");
+        const cached = await readBanCache(id, ph ?? "");
         if (cached && mounted) {
           const age = Date.now() - cached.ts;
           if (age < CACHE_TTL_MS) {

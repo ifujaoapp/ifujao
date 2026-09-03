@@ -1,15 +1,13 @@
-import * as SecureStore from "expo-secure-store";
+import { ssGet, ssSet, ssDel } from "./secureStoreSafe";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 
 const GOD_TOKEN_KEY = "ifujao_god_token";
 const MOD_URL = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
 const MOD_ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
 
-export const getGodToken = (): Promise<string | null> =>
-  SecureStore.getItemAsync(GOD_TOKEN_KEY);
+export const getGodToken = (): Promise<string | null> => ssGet(GOD_TOKEN_KEY);
 
-const clearGodToken = (): Promise<void> =>
-  SecureStore.deleteItemAsync(GOD_TOKEN_KEY);
+const clearGodToken = (): Promise<void> => ssDel(GOD_TOKEN_KEY);
 
 export const loginModerator = async (
   username: string,
@@ -21,7 +19,7 @@ export const loginModerator = async (
     body: { username, password },
   });
   if (error || !data?.token) return false;
-  await SecureStore.setItemAsync(GOD_TOKEN_KEY, data.token as string);
+  await ssSet(GOD_TOKEN_KEY, data.token as string);
   return true;
 };
 

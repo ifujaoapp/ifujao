@@ -13,7 +13,7 @@
 //    ativa. Se nao houver, retorna 404.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { jwtVerify } from "https://deno.land/x/djwt@v2.8/verify.ts";
+import { jwtVerify } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";

@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { ssGet, ssSet, ssDel } from './secureStoreSafe';
 import { ensureSession, isSupabaseConfigured } from './supabase';
 import { uploadPetPhotos } from './photos';
 import { embedPet } from './embed';
@@ -9,7 +9,7 @@ const LAST_SYNC_KEY = 'ifujao_last_sync';
 
 export const getPendingDeletes = async (): Promise<string[]> => {
   try {
-    const raw = await SecureStore.getItemAsync(PENDING_DELETES_KEY);
+    const raw = await ssGet(PENDING_DELETES_KEY);
     return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
@@ -20,24 +20,24 @@ export const addPendingDelete = async (id: string): Promise<void> => {
   const list = await getPendingDeletes();
   if (!list.includes(id)) {
     list.push(id);
-    await SecureStore.setItemAsync(PENDING_DELETES_KEY, JSON.stringify(list));
+    await ssSet(PENDING_DELETES_KEY, JSON.stringify(list));
   }
 };
 
 const clearPendingDeletes = async (): Promise<void> => {
-  await SecureStore.deleteItemAsync(PENDING_DELETES_KEY).catch(() => {});
+  await ssDel(PENDING_DELETES_KEY).catch(() => {});
 };
 
 const getLastSync = async (): Promise<string | null> => {
   try {
-    return await SecureStore.getItemAsync(LAST_SYNC_KEY);
+    return await ssGet(LAST_SYNC_KEY);
   } catch {
     return null;
   }
 };
 
 const setLastSync = async (iso: string): Promise<void> => {
-  await SecureStore.setItemAsync(LAST_SYNC_KEY, iso).catch(() => {});
+  await ssSet(LAST_SYNC_KEY, iso).catch(() => {});
 };
 
 // Cursor SEPARADO para soft-deletes. Ver comentário no passo 3: usar um único
@@ -46,14 +46,14 @@ const LAST_SYNC_DEL_KEY = 'ifujao_last_sync_del';
 
 const getLastDeletedSync = async (): Promise<string | null> => {
   try {
-    return await SecureStore.getItemAsync(LAST_SYNC_DEL_KEY);
+    return await ssGet(LAST_SYNC_DEL_KEY);
   } catch {
     return null;
   }
 };
 
 const setLastDeletedSync = async (iso: string): Promise<void> => {
-  await SecureStore.setItemAsync(LAST_SYNC_DEL_KEY, iso).catch(() => {});
+  await ssSet(LAST_SYNC_DEL_KEY, iso).catch(() => {});
 };
 
 // Converte um registro remoto (linha da tabela) num PetRecord local.

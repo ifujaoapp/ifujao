@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { ssGet, ssSet } from './secureStoreSafe';
 import { Paths, File, Directory } from 'expo-file-system';
 import { open } from '@op-engineering/op-sqlite';
 
@@ -52,7 +52,7 @@ export interface PetRecord {
 }
 
 const ensureDbKey = async (): Promise<string> => {
-  let key = await SecureStore.getItemAsync(DB_KEY_STORAGE);
+  let key = await ssGet(DB_KEY_STORAGE);
   if (!key) {
     const bytes = new Uint8Array(32);
     if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
@@ -63,7 +63,7 @@ const ensureDbKey = async (): Promise<string> => {
     key = Array.from(bytes)
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');
-    await SecureStore.setItemAsync(DB_KEY_STORAGE, key);
+    await ssSet(DB_KEY_STORAGE, key);
   }
   return key;
 };

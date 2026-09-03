@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import { ssGet, ssSet } from "./secureStoreSafe";
 import { getSupabase, isSupabaseConfigured } from "./supabase";
 import { getGodToken } from "./moderation";
 
@@ -149,7 +149,7 @@ export const readBanCache = async (
   phone: string,
 ): Promise<BanCacheEntry | null> => {
   try {
-    const raw = await SecureStore.getItemAsync(BAN_CACHE_KEY);
+    const raw = await ssGet(BAN_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as BanCacheEntry;
     if (parsed.deviceId !== deviceId || parsed.phone !== phone) return null;
@@ -166,6 +166,6 @@ export const writeBanCache = async (
 ): Promise<void> => {
   try {
     const entry: BanCacheEntry = { ts: Date.now(), ban, deviceId, phone };
-    await SecureStore.setItemAsync(BAN_CACHE_KEY, JSON.stringify(entry));
+    await ssSet(BAN_CACHE_KEY, JSON.stringify(entry));
   } catch {}
 };

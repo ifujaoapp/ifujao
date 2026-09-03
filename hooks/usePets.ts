@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Share } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { ssGet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { isOwner, normalizePhone } from "@/constants/breeds";
@@ -42,7 +42,7 @@ export function usePets() {
   useEffect(() => {
     (async () => {
       try {
-        const t = await SecureStore.getItemAsync("ifujao_god_token");
+        const t = await ssGet("ifujao_god_token");
         if (t) setGodMode(true);
       } catch (e) {
         console.warn("[usePets] erro:", e);
@@ -338,7 +338,7 @@ export function usePets() {
   useEffect(() => {
     (async () => {
       try {
-        const saved = await SecureStore.getItemAsync("ifujao_my_phone");
+        const saved = await ssGet("ifujao_my_phone");
         if (saved) setMyPhone(saved);
       } catch (e) {
         console.warn("[usePets] erro:", e);

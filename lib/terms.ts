@@ -1,4 +1,4 @@
-import * as SecureStore from "expo-secure-store";
+import { ssGet, ssSet } from "./secureStoreSafe";
 
 const TERMS_KEY = "ifujao_terms_accepted";
 const TERMS_VERSION = "08/2026";
@@ -11,7 +11,7 @@ export interface TermsStatus {
 
 export const getTermsAccepted = async (): Promise<TermsStatus> => {
   try {
-    const stored = await SecureStore.getItemAsync(TERMS_KEY);
+    const stored = await ssGet(TERMS_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
@@ -29,7 +29,7 @@ export const getTermsAccepted = async (): Promise<TermsStatus> => {
 
 export const setTermsAccepted = async (accepted: boolean, version: string = TERMS_VERSION): Promise<void> => {
   try {
-    await SecureStore.setItemAsync(TERMS_KEY, JSON.stringify({
+    await ssSet(TERMS_KEY, JSON.stringify({
       accepted,
       acceptedAt: new Date().toISOString(),
       version,

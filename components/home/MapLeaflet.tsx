@@ -913,8 +913,6 @@ export const MapLeaflet = ({
               visibleFrom: data.visibleFrom ?? null,
               updatedAt: data.updatedAt ?? null,
             });
-          } else if (data.petId) {
-            onMarkerPress(data.petId);
           } else if (data.type === 'petLongPress' && onPetLongPress) {
             onPetLongPress({
               petId: data.petId,
@@ -922,6 +920,8 @@ export const MapLeaflet = ({
               phone: data.phone ?? null,
               contact: data.contact ?? null,
             });
+          } else if (data.petId) {
+            onMarkerPress(data.petId);
           }
         } catch {}
       }}

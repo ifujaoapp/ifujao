@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import { Colors } from "@/constants/theme";
 import { type PetRecord } from "@/lib/storage";
-import { banUser, unbanUser } from "@/lib/bans";
+import { banUser, checkBan, unbanUser } from "@/lib/bans";
 
 export type ModerationDetailModalProps = {
   visible: boolean;
@@ -58,11 +58,22 @@ export function ModerationDetailModal({
   const [busy, setBusy] = useState(false);
   const [banned, setBanned] = useState(false);
 
-  // Reset ao trocar de pet.
+  // Reset + checagem no servidor ao trocar de pet. Sem isso, o modal sempre
+  // mostraria "Banir usuario" mesmo se o device/phone ja estivesse banido
+  // (o state local `banned` so muda apos o usuario clicar no botao).
   useEffect(() => {
     setBanned(false);
     setBusy(false);
-  }, [pet?.id]);
+    if (!pet) return;
+    let cancelled = false;
+    (async () => {
+      const row = await checkBan(pet.ownerDeviceId, pet.ownerPhone);
+      if (!cancelled && row) setBanned(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [pet?.id, pet?.ownerDeviceId, pet?.ownerPhone]);
 
   if (!pet) return null;
 

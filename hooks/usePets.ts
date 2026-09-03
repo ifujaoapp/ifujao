@@ -253,16 +253,14 @@ export function usePets() {
   }, []);
 
   const reportPet = (pet: PetPost) => {
-    // O dono nao denuncia o proprio post. Em godMode o moderador pode estar
-    // revisando o proprio post durante testes - permite abrir o modal
-    // (UX: o submitReport tambem respeita godMode e nao bloqueia o envio).
-    if (!godMode && isOwner(pet, myDeviceId, myPhone)) return;
+    // O dono não denuncia o próprio post (evita erro de RLS e confusão de UX).
+    if (isOwner(pet, myDeviceId, myPhone)) return;
     setReportTarget(pet);
   };
 
   const submitReport = (pet: PetPost, reason: string) => {
-    // Mesma regra: dono nao denuncia proprio post, exceto em godMode.
-    if (!godMode && isOwner(pet, myDeviceId, myPhone)) return;
+    // O dono não denuncia o próprio post.
+    if (isOwner(pet, myDeviceId, myPhone)) return;
     const reporter = myPhone ? normalizePhone(myPhone) : "";
     commitPets(
       pets.map((p) =>

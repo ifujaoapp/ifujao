@@ -191,9 +191,9 @@ export function useMapLocation(triggerSync: () => void) {
         setLocationEnabled(false);
         return;
       }
-      // Posição conhecida (cache) — instantânea, igual ao Google Maps: mostra o
-      // seu pino e centraliza JÁ, sem esperar fix fresco de GPS (que num
-      // dispositivo "frio" pode levar vários segundos).
+      // Posicao conhecida (cache) - instantanea, igual ao Google Maps: mostra
+      // o seu pino e centraliza JA, sem esperar fix fresco de GPS (que num
+      // dispositivo "frio" pode levar varios segundos).
       const last = await Location.getLastKnownPositionAsync().catch(() => null);
       if (!cancelled && last) {
         const coords = {
@@ -204,8 +204,9 @@ export function useMapLocation(triggerSync: () => void) {
         applyCenter(coords);
         setLocationEnabled(true);
       }
-      // Refina com fix fresco (não trava o app: timeout por tentativa).
-      const coords = await fetchGps();
+      // Refina com um unico fix fresco (nao trava o app: timeout por
+      // tentativa).
+      const coords = await fetchGps(1);
       if (cancelled || !coords) return;
       setUserLocation(coords);
       applyCenter(coords);
@@ -214,23 +215,26 @@ export function useMapLocation(triggerSync: () => void) {
 
     getOnce();
 
-    // Reconsulta o GPS periodicamente e atualiza a posição do usuário. Isso
-    // faz o mapa (via pan no MapLeaflet) acompanhar a localização real, inclusive
-    // quando ela é definida tarde no emulador.
+    // Polling leve: usa getLastKnownPositionAsync (instantaneo, sem custo
+    // de bateria) a cada 30s. NAO chama getCurrentPositionAsync (caro) nem
+    // accuracy: High. O objetivo soh eh refrescar a posicao quando o OS
+    // ja tem um fix novo em cache (geralmente gerado por outros apps ou
+    // pelo proprio OS). Se o usuario quer atualizacao imediata, usa o
+    // botao "Centralizar no meu GPS".
     const poll = setInterval(async () => {
       const ok = await checkPermissionAndServices();
       if (!ok) {
         setLocationEnabled(false);
         return;
       }
-      // Usa fetchGps (com timeout por tentativa) em vez de
-      // getCurrentPositionAsync sem timeout, que pode travar e nunca resolver
-      // — era o motivo de o mapa só centralizar ao clicar no botão.
-      const coords = await fetchGps();
-      if (!coords) return;
+      const last = await Location.getLastKnownPositionAsync().catch(() => null);
+      if (!last) return;
+      const coords = {
+        latitude: last.coords.latitude,
+        longitude: last.coords.longitude,
+      };
       setUserLocation(coords);
-      applyCenter(coords);
-    }, 5000);
+    }, 30000);
 
     const appStateSub = AppState.addEventListener("change", (state) => {
       if (state === "active") {

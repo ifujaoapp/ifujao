@@ -377,12 +377,6 @@ export const MapLeaflet = ({
              'mouseup', 'mouseleave'].forEach(function(evt) {
               el.addEventListener(evt, cancel, { capture: true, passive: true });
             });
-            el.addEventListener('click', function(ev) {
-              // A supressao real acontece no m.on('click', ...) do Leaflet
-              // (ver __longPressFired). Aqui so impedimos o default do DOM.
-              try { ev.preventDefault(); } catch (e) {}
-            }, { capture: true });
-            // Suprime o contextmenu nativo do navegador no DOM.
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });
@@ -695,9 +689,6 @@ export const MapLeaflet = ({
              'mouseup', 'mouseleave'].forEach(function(evt) {
               el.addEventListener(evt, cancel, { capture: true, passive: true });
             });
-            el.addEventListener('click', function(ev) {
-              try { ev.preventDefault(); } catch (e) {}
-            }, { capture: true });
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });

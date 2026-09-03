@@ -203,17 +203,18 @@ export function useReportForm(params: UseReportFormParams) {
     ssSet("ifujao_my_phone", ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
-    // Valida especie x foto via Gemini (multimodal embedding). NAO bloqueia
-    // o post: se a foto parecer nao condizer com a especie escolhida, marca
-    // speciesMismatch no payload e mostra um alerta ao usuario. Falha da IA
-    // (sem key, timeout, etc) e ignorada — o post segue normal.
+    // Valida especie x foto via Edge Function validate-species (Gemini
+    // multimodal embedding no server). NAO bloqueia o post: se a foto
+    // parecer nao condizer, marca speciesMismatch no payload e mostra
+    // um alerta ao usuario. Falha da Edge Function e ignorada — o post
+    // segue normal (helper retorna mismatch: false em erro).
     let speciesMismatch = false;
     try {
-      if (storedImages.length > 0 && species && process.env.EXPO_PUBLIC_GEMINI_API_KEY) {
+      if (storedImages.length > 0 && species) {
         const photoUri = storedImages[0];
         const match = await checkSpeciesMatch({
           imageUrl: photoUri.startsWith("http") ? photoUri : undefined,
-          imageBase64: photoUri.startsWith("http") ? "" : await readAsBase64(photoUri),
+          imageBase64: photoUri.startsWith("http") ? undefined : await readAsBase64(photoUri),
           mimeType: "image/jpeg",
           chosenSpecies: species,
         });

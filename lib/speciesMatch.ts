@@ -1,89 +1,53 @@
-// Validador de especie x foto via Gemini (multimodal embedding).
-// Reutiliza o mesmo modelo multimodal (gemini-embedding-2) que embed-pets e
-// search-pets ja usam: gera embedding da FOTO do post e embedding do TEXTO
-// da especie escolhida, e compara os dois via dot product. Se a similaridade
-// for baixa, a foto provavelmente nao e da especie.
+// Validador de especie x foto via Edge Function (Gemini multimodal embedding).
+// A chave Gemini fica no Supabase (Deno.env.get), NAO no client. O client
+// chama a Edge Function via sb.functions.invoke, igual lib/search.ts faz com
+// search-pets.
 //
-// NAO bloqueia o post — apenas retorna {mismatch: true} para o caller decidir
-// o que fazer (alertar o usuario, marcar speciesMismatch no payload, etc).
-//
-// Custo: zero (a chave Gemini e free tier). Latencia: ~500ms-1s.
+// Retorna { mismatch, score } comparando o embedding da FOTO do post com o
+// embedding do TEXTO da especie escolhida. NAO bloqueia o post — apenas
+// sinaliza para o caller decidir o que fazer.
 
-const EMBED_MODEL = "gemini-embedding-2";
-const EMBED_URL = `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent`;
-const EMBED_DIM = 3072;
-
-// Threshold de similaridade. Abaixo disso = mismatch provavel.
-// Conservador para evitar falso positivo (gato vs cachorro da score ~0.5-0.6).
-const MISMATCH_THRESHOLD = 0.55;
+import { ensureSession } from './supabase';
 
 export type SpeciesMatchResult = {
   mismatch: boolean;
   score: number;
-  detected?: string;
-};
-
-const getApiKey = (): string => {
-  const k = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
-  if (!k) throw new Error("EXPO_PUBLIC_GEMINI_API_KEY nao configurada");
-  return k;
-};
-
-// Gera embedding (vetor de 3072 dims) para um input multimodal (imagem ou texto).
-const embed = async (apiKey: string, parts: any[]): Promise<number[]> => {
-  const res = await fetch(`${EMBED_URL}?key=${apiKey}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      content: { parts },
-      outputDimensionality: EMBED_DIM,
-    }),
-  });
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`gemini embed falhou: ${res.status} ${txt}`);
-  }
-  const json = await res.json();
-  const vals = json?.embedding?.values;
-  if (!Array.isArray(vals) || vals.length === 0) {
-    throw new Error("gemini embed retornou vazio");
-  }
-  return vals as number[];
-};
-
-// Dot product de dois vetores normalizados (Gemini retorna vetores normalizados,
-// entao dot product === similaridade coseno).
-const dot = (a: number[], b: number[]): number => {
-  let s = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) s += a[i] * b[i];
-  return s;
 };
 
 export type CheckArgs = {
-  // Imagem em base64 (sem prefixo data:).
-  imageBase64: string;
-  mimeType: string;
-  // Especie que o usuario escolheu no form (ex: "Gato", "Cachorro").
-  chosenSpecies: string;
-  // URL publica da foto (opcional, preferida se o upload ja foi feito).
+  // URI local (file://) OU URL publica (https://). A Edge Function busca
+  // a imagem (ou aceita inline base64).
   imageUrl?: string;
+  // Base64 da imagem SEM prefixo data:. Obrigatorio se imageUrl nao for
+  // passada (a Edge Function faz o upload / envia inline).
+  imageBase64?: string;
+  mimeType: string;
+  chosenSpecies: string;
 };
 
 export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchResult> => {
-  const apiKey = getApiKey();
-  // 1) Embedding da FOTO. Se imageUrl for publica, o Gemini busca direto;
-  // senao, manda inline em base64.
-  const imgPart = args.imageUrl
-    ? { file_data: { file_uri: args.imageUrl, mime_type: args.mimeType } }
-    : { inline_data: { mime_type: args.mimeType, data: args.imageBase64 } };
-  const photoEmb = await embed(apiKey, [imgPart]);
-  // 2) Embedding do TEXTO da especie.
-  const textEmb = await embed(apiKey, [{ text: args.chosenSpecies }]);
-  // 3) Compara. Vetores do Gemini ja vem normalizados -> dot = cos similarity.
-  const score = dot(photoEmb, textEmb);
-  return {
-    mismatch: score < MISMATCH_THRESHOLD,
-    score,
-  };
+  const sb = await ensureSession();
+  if (!sb) return { mismatch: false, score: 0 };
+  try {
+    const { data, error } = await sb.functions.invoke('validate-species', {
+      body: {
+        imageUrl: args.imageUrl,
+        imageBase64: args.imageBase64,
+        mimeType: args.mimeType,
+        chosenSpecies: args.chosenSpecies,
+      },
+    });
+    if (error || !data) {
+      console.warn('[speciesMatch] falhou:', error?.message);
+      return { mismatch: false, score: 0 };
+    }
+    const result = data as SpeciesMatchResult;
+    return {
+      mismatch: !!result.mismatch,
+      score: typeof result.score === 'number' ? result.score : 0,
+    };
+  } catch (e) {
+    console.warn('[speciesMatch] erro:', e);
+    return { mismatch: false, score: 0 };
+  }
 };

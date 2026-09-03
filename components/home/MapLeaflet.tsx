@@ -14,6 +14,7 @@ export const MapLeaflet = ({
   recenterNonce,
   pets,
   onMarkerPress,
+  onPetLongPress,
   sponsors,
   onSponsorPress,
   theme,
@@ -27,6 +28,7 @@ export const MapLeaflet = ({
   recenterNonce: number;
   pets: PetRecord[];
   onMarkerPress: (petId: string) => void;
+  onPetLongPress?: (info: { petId: string; deviceId: string | null; phone: string | null; contact: string | null }) => void;
   sponsors: SponsorPin[];
   onSponsorPress: (s: SponsorPin) => void;
   theme: "light" | "dark";
@@ -295,6 +297,37 @@ export const MapLeaflet = ({
           });
         }
 
+        // Helper: anexa "long press" (~500ms sem mover/soltar) a um L.marker.
+        // Dispara postMessage com {type:'petLongPress', petId, deviceId, phone,
+        // contact, ownerPhone, ownerDeviceId}. Usado em godMode para abrir o
+        // modal de moderação do pet. Cancela com mousemove/mouseup/touchmove/
+        // touchend antes do tempo.
+        function __attachLongPress(marker, p) {
+          var t = null;
+          var start = function(ev) {
+            try { if (ev && ev.originalEvent && ev.originalEvent.preventDefault) ev.originalEvent.preventDefault(); } catch (e) {}
+            if (t) clearTimeout(t);
+            t = setTimeout(function() {
+              t = null;
+              try {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'petLongPress',
+                  petId: p.id,
+                  deviceId: p.ownerDeviceId || null,
+                  phone: p.ownerPhone || null,
+                  contact: p.contact || null,
+                }));
+              } catch (e) {}
+            }, 500);
+          };
+          var cancel = function() {
+            if (t) { clearTimeout(t); t = null; }
+          };
+          marker.on('mousedown touchstart', start);
+          marker.on('mouseup mousemove touchend touchmove', cancel);
+          marker.on('click', cancel);
+        }
+
         window.__map = map;
         // Pane dedicado aos pinos de PET, com z-index maior que o markerPane
         // (600) padrão dos patrocinadores, garantindo que os pets fiquem SEMPRE
@@ -350,6 +383,7 @@ export const MapLeaflet = ({
             // achados confirmados permanecem visíveis (anti-fraude)
              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
             m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+            if (typeof __attachLongPress === 'function') __attachLongPress(m, p);
             window.__petMarkers.push(m);
           }
           var groups = {};
@@ -548,6 +582,29 @@ export const MapLeaflet = ({
         if (!window.__petMarkers) window.__petMarkers = [];
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
+        // Long press ~500ms -> postMessage {type:'petLongPress', petId, ...}.
+        function attachLongPress(marker, p) {
+          var t = null;
+          marker.on('mousedown touchstart', function(ev) {
+            try { if (ev && ev.originalEvent && ev.originalEvent.preventDefault) ev.originalEvent.preventDefault(); } catch (e) {}
+            if (t) clearTimeout(t);
+            t = setTimeout(function() {
+              t = null;
+              try {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: 'petLongPress',
+                  petId: p.id,
+                  deviceId: p.ownerDeviceId || null,
+                  phone: p.ownerPhone || null,
+                  contact: p.contact || null,
+                }));
+              } catch (e) {}
+            }, 500);
+          });
+          marker.on('mouseup mousemove touchend touchmove click', function() {
+            if (t) { clearTimeout(t); t = null; }
+          });
+        }
         function addMarker(p, lat, lng){
            // Pet reencontrado fora da janela: não aparece mais no mapa.
            if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
@@ -555,6 +612,7 @@ export const MapLeaflet = ({
            // achados confirmados permanecem visíveis (anti-fraude)
              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+           attachLongPress(m, p);
            window.__petMarkers.push(m);
         }
         var groups = {};
@@ -759,6 +817,13 @@ export const MapLeaflet = ({
             });
           } else if (data.petId) {
             onMarkerPress(data.petId);
+          } else if (data.type === 'petLongPress' && onPetLongPress) {
+            onPetLongPress({
+              petId: data.petId,
+              deviceId: data.deviceId ?? null,
+              phone: data.phone ?? null,
+              contact: data.contact ?? null,
+            });
           }
         } catch {}
       }}

@@ -442,3 +442,91 @@ Separar o backdrop (área escura que fecha o modal) do sheet (conteúdo) como **
 
 ### Pendências
 - Nenhuma. Lint e type-check limpos.
+
+## Sessão 2026-09-02/03 — Sistema de banimento (modo deus)
+
+### Objetivo
+Adicionar um sistema completo de banimento de usuários para que
+moderadores autenticados (`is_moderator: true` no JWT do `god-login`)
+possam banir/desbanir donos de pets via long-press no pin de qualquer
+pet no mapa, com efeito imediato (com cooldown de UI e tela cheia de
+"em análise" para o dispositivo banido).
+
+### Implementação
+- **Tabela `banned_users`** (`supabase/banned_users.sql`):
+  - Colunas: `id uuid pk`, `device_id text`, `phone text`, `banned_by text`,
+    `banned_at timestamptz`, `unbanned_at timestamptz null`,
+    `reason text null`, `expires_at timestamptz null`.
+  - Índices parciais em `device_id` e `phone` onde `unbanned_at IS NULL`.
+  - RLS: `SELECT` público (anon + authenticated) para checagem no
+    cliente; `INSERT/UPDATE/DELETE` apenas `service_role` (chamadas
+    via Edge Function).
+- **Edge Function `ban-user`** (`supabase/functions/ban-user/index.ts`):
+  - `POST` com `Authorization: Bearer <jwt>`.
+  - Valida `is_moderator: true` no payload do JWT (assinado pelo
+    `god-login`).
+  - Body: `{action: "ban" | "unban", deviceId?, phone?, reason?, expiresAt?}`.
+  - Upsert de ban (com `unbanned_at = null`); unban seta `unbanned_at`.
+  - Usa `SUPABASE_SERVICE_ROLE_KEY`.
+- **`lib/bans.ts`**: helpers `checkBan`, `banUser`, `unbanUser`,
+  `listActiveBans`. Cache em `SecureStore` (chave `banned_cache_v1`)
+  com TTL de 60s; `checkBan` é offline-first (cache → fallback rede).
+  `banUser`/`unbanUser` chamam a Edge Function e invalidam o cache.
+- **`src/components/BanProvider.tsx`** (Context):
+  - Lê `deviceId` (de `lib/deviceId.ts`) e checa ban na montagem.
+  - Polling a cada **60s** enquanto app está em foreground.
+  - Listener `AppState` para recheck imediato ao voltar do background.
+  - Exposição: `isBanned`, `banInfo`, `refresh()`, `clearLocal()`.
+- **`src/components/BannedScreen.tsx`**: tela cheia, sem ações,
+  mensagem **não ofensiva** ("Sua conta está em análise por atividade
+  incomum. Caso acredite que houve engano, entre em contato com o
+  suporte."). Tema claro/escuro via `themeColors`.
+- **`app/_layout.tsx`**: agora envolve com `<BanProvider>` e renderiza
+  `<BannedScreen>` quando `isBanned`, **substituindo** o `<Stack>` (o
+  app inteiro fica bloqueado).
+- **Long-press no pin de pet (godMode)**:
+  - `MapLeaflet.tsx` ganhou um helper `__attachLongPress(el, petId)`
+    que dispara `postMessage({type:"petLongPress", petId, deviceId, phone, contact})`
+    após **500ms** de pointer-down sem pointer-up/move.
+  - Chamado em ambos os pontos onde pins de pet são renderizados
+    (`__renderPets` no escopo global e no escopo de `__initMap`).
+  - `MapLeaflet` aceita prop `onPetLongPress(info)`; `MapArea.tsx`
+    propaga; `app/(tabs)/index.tsx` recebe e abre
+    `ModerationDetailModal` para o pet correspondente.
+- **`components/home/ModerationDetailModal.tsx`** (novo): exibe dados
+  do dispositivo (deviceId, phone, contact, plataforma, app version,
+  total de pets, banido?), com botões "Banir usuário" (vermelho) e
+  "Liberar banimento" (verde). `banUser` desabilitado por **60s** após
+  sucesso (cooldown). `unbanUser` requer confirmação via `Alert`.
+
+### Integração no `app/(tabs)/index.tsx`
+- Import de `ModerationDetailModal` adicionado.
+- `const [modPet, setModPet] = useState<PetRecord | null>(null)`
+  declarado após `useMapLocation`.
+- `onPetLongPress={(info) => { const p = pets.find(x => x.id === info.petId); if (p) setModPet(p); }}`
+  passado para `<MapArea>`.
+- `<ModerationDetailModal visible={!!modPet} pet={modPet} allPets={pets} onClose={() => setModPet(null)} />`
+  renderizado antes de `<GodLoginModal>`.
+
+### Validação
+- `npm run lint` — 0 erros / 0 warnings.
+- A confirmar: deploy da Edge Function e aplicação da migration
+  `banned_users.sql` no Supabase.
+
+### Arquivos
+- `supabase/banned_users.sql` (novo)
+- `supabase/functions/ban-user/index.ts` (novo)
+- `lib/bans.ts` (novo)
+- `src/components/BanProvider.tsx` (novo)
+- `src/components/BannedScreen.tsx` (novo)
+- `components/home/ModerationDetailModal.tsx` (novo)
+- `app/_layout.tsx` — `<BanProvider>` + gate `BannedScreen`
+- `app/(tabs)/index.tsx` — `modPet` + handler + modal
+- `components/home/MapLeaflet.tsx` — `__attachLongPress` em 2 escopos
+- `components/home/MapArea.tsx` — prop `onPetLongPress`
+
+### Pendências
+- Deploy da Edge Function `ban-user` (`supabase functions deploy ban-user`).
+- Aplicar migration no Supabase.
+- Documentar em `AGENTS.md` que o JWT de `god-login` precisa ter
+  `is_moderator: true` (já é o caso atual).

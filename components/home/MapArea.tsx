@@ -34,6 +34,7 @@ export interface MapAreaProps {
   showSponsorText: boolean;
   setShowSponsorText: Dispatch<SetStateAction<boolean>>;
   onMarkerPress: (petId: string) => void;
+  onPetLongPress?: (info: { petId: string; deviceId: string | null; phone: string | null; contact: string | null }) => void;
   theme: "light" | "dark";
   toggleTheme: () => void;
   selectedCity: City;
@@ -77,6 +78,7 @@ export function MapArea(props: MapAreaProps) {
     showSponsorText,
     setShowSponsorText,
     onMarkerPress,
+    onPetLongPress,
     theme,
     toggleTheme,
     selectedCity,
@@ -202,6 +204,7 @@ export function MapArea(props: MapAreaProps) {
             fitToResults={!!aiResults}
             showSponsorText={showSponsorText}
             onMarkerPress={onMarkerPress}
+            onPetLongPress={onPetLongPress}
             theme={theme}
             city={selectedCity}
           />

@@ -9,6 +9,8 @@ import { useEffect } from 'react';
 import { ThemeProvider as AppThemeProvider, useThemeMode } from '@/hooks/use-theme-mode';
 import AppLock from '@/src/components/AppLock';
 import { AppAlertProvider } from '@/src/components/AppAlert';
+import { BanProvider, useBanContext } from '@/src/components/BanProvider';
+import { BannedScreen } from '@/src/components/BannedScreen';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -17,10 +19,21 @@ export const unstable_settings = {
 function RootLayoutNav() {
   const { theme } = useThemeMode();
   const isDark = theme === 'dark';
+  const { isBanned } = useBanContext();
 
   useEffect(() => {
     NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
   }, [isDark]);
+
+  // Bloqueio total: usuario banido nao tem acesso a nenhuma rota.
+  if (isBanned) {
+    return (
+      <>
+        <BannedScreen />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+      </>
+    );
+  }
 
   return (
     <AppLock>
@@ -44,9 +57,11 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
-        <AppAlertProvider>
-          <RootLayoutNav />
-        </AppAlertProvider>
+        <BanProvider>
+          <AppAlertProvider>
+            <RootLayoutNav />
+          </AppAlertProvider>
+        </BanProvider>
       </AppThemeProvider>
     </GestureHandlerRootView>
   );

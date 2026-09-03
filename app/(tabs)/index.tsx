@@ -1,5 +1,6 @@
 import { GodLoginModal } from "@/components/home/GodLoginModal";
 import { MapArea } from "@/components/home/MapArea";
+import { ModerationDetailModal } from "@/components/home/ModerationDetailModal";
 import {
   AboutModal,
   PhotoSourceModal,
@@ -143,6 +144,7 @@ export default function HomeScreen() {
   } = usePets();
 
   const mapLocation = useMapLocation(triggerSync);
+  const [modPet, setModPet] = useState<PetRecord | null>(null);
   const {
     mapRegion,
     userLocation,
@@ -560,6 +562,13 @@ export default function HomeScreen() {
           setIsTermsVisible(false);
         }}
         styles={styles}
+      />
+
+      <ModerationDetailModal
+        visible={!!modPet}
+        pet={modPet}
+        allPets={pets}
+        onClose={() => setModPet(null)}
       />
 
       <GodLoginModal

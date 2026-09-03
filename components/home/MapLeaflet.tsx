@@ -361,6 +361,12 @@ export const MapLeaflet = ({
                 ev.originalEvent.stopPropagation();
               }
             } catch (e) {}
+            // BUG: em Android WebView, o contextmenu do Leaflet pode disparar
+            // "fantasma" durante pinch-zoom (2 dedos saindo eh tratado como
+            // long-press em algumas versoes). Sem essa checagem, send() seta
+            // __longPressFired=true por 1.2s e o click seguinte no pin eh
+            // consumido sem abrir o detalhe.
+            if (marker.__pinchActive) { marker.__pinchActive = false; return; }
             send();
           });
           // (2) + (3) Fallback: timer manual no DOM do icon.
@@ -378,8 +384,8 @@ export const MapLeaflet = ({
               // eh consumido pela flag __longPressFired sem abrir o detalhe.
               try {
                 var touches = (ev && ev.touches) || null;
-                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
-                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
+                if (touches && touches.length > 1) { pinchActive = true; marker.__pinchActive = true; cancel(); return; }
+                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; marker.__pinchActive = true; cancel(); return; }
               } catch (e) {}
               try {
                 if (ev && ev.stopPropagation) ev.stopPropagation();
@@ -389,7 +395,7 @@ export const MapLeaflet = ({
                 timer = null;
                 // Se um pinch foi detectado entre o touchstart e o timeout,
                 // descarta. Garante que o long-press nao dispara apos o zoom.
-                if (pinchActive) { pinchActive = false; return; }
+                if (pinchActive) { pinchActive = false; marker.__pinchActive = false; return; }
                 send();
               }, 500);
             };
@@ -401,6 +407,7 @@ export const MapLeaflet = ({
               try {
                 if (ev && ev.touches && ev.touches.length > 1) {
                   pinchActive = true;
+                  marker.__pinchActive = true;
                   cancel();
                 }
               } catch (e) {}
@@ -409,7 +416,7 @@ export const MapLeaflet = ({
             ['touchend', 'touchcancel',
              'pointerup', 'pointercancel', 'pointermove',
              'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
+              el.addEventListener(evt, function(){ pinchActive = false; marker.__pinchActive = false; cancel(); }, { capture: true, passive: true });
             });
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}
@@ -703,6 +710,10 @@ export const MapLeaflet = ({
                 ev.originalEvent.stopPropagation();
               }
             } catch (e) {}
+            // BUG: contextmenu fantasma durante pinch-zoom no Android WebView.
+            // Sem essa checagem, __longPressFired fica preso em true por 1.2s
+            // e o click seguinte no pin eh consumido sem abrir o detalhe.
+            if (marker.__pinchActive) { marker.__pinchActive = false; return; }
             send();
           });
           var el = null;
@@ -720,8 +731,8 @@ export const MapLeaflet = ({
               // detalhe do pet nao abrir ao tocar logo apos dar zoom.
               try {
                 var touches = (ev && ev.touches) || null;
-                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
-                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
+                if (touches && touches.length > 1) { pinchActive = true; marker.__pinchActive = true; cancel(); return; }
+                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; marker.__pinchActive = true; cancel(); return; }
               } catch (e) {}
               try {
                 if (ev && ev.stopPropagation) ev.stopPropagation();
@@ -729,7 +740,7 @@ export const MapLeaflet = ({
               cancel();
               timer = setTimeout(function() {
                 timer = null;
-                if (pinchActive) { pinchActive = false; return; }
+                if (pinchActive) { pinchActive = false; marker.__pinchActive = false; return; }
                 send();
               }, 500);
             };
@@ -740,6 +751,7 @@ export const MapLeaflet = ({
               try {
                 if (ev && ev.touches && ev.touches.length > 1) {
                   pinchActive = true;
+                  marker.__pinchActive = true;
                   cancel();
                 }
               } catch (e) {}
@@ -748,7 +760,7 @@ export const MapLeaflet = ({
             ['touchend', 'touchcancel',
              'pointerup', 'pointercancel', 'pointermove',
              'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
+              el.addEventListener(evt, function(){ pinchActive = false; marker.__pinchActive = false; cancel(); }, { capture: true, passive: true });
             });
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}

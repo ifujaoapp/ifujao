@@ -1,23 +1,16 @@
 // Edge Function: validate-species (moderação).
-// Recebe { imageUrl?, imageBase64?, mimeType, chosenSpecies } e compara o
-// embedding multimodal da FOTO com o embedding do TEXTO da especie escolhida.
-// Retorna { mismatch: boolean, score: number }.
+// Recebe { imageUrl?, imageBase64?, mimeType, chosenSpecies } e usa o Gemini
+// de GERACAO (gemini-2.5-flash, multimodal) para classificar a especie
+// visivel na foto. Retorna { mismatch, detected, confidence }.
 //
-// Usa o mesmo modelo multimodal (gemini-embedding-2) que embed-pets e
-// search-pets ja usam. A chave GEMINI_API_KEY fica nos secrets do projeto
-// (Deno.env.get), nunca no client.
+// Por que gemini-2.5-flash e NAO gemini-embedding-2: o embedding multimodal
+// da foto e o embedding do texto "Cachorro" ficam em regioes diferentes do
+// espaco vetorial, dando dot product baixo (~0.38) mesmo quando a foto E
+// cachorro. O modelo de geracao entende diretamente o conteudo da imagem e
+// responde com a especie detectada.
 //
+// A chave GEMINI_API_KEY fica nos secrets do projeto (Deno.env.get).
 // NAO bloqueia nada: o caller decide o que fazer com o resultado.
-
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const EMBED_MODEL = "gemini-embedding-2";
-const EMBED_DIM = 3072;
-// Threshold de similaridade (dot product de vetores normalizados).
-// Abaixo disso = mismatch provavel. Calibrado em 0.45: cachorro vs "Cachorro"
-// tipicamente ~0.65-0.75, gato vs "Gato" ~0.65-0.75, cachorro vs "Gato" ~0.40.
-// 0.45 fica entre os dois, dando margem para variacoes de raca/idade/angulo.
-const MISMATCH_THRESHOLD = 0.45;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,55 +25,43 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-// Gera embedding (vetor de 3072 dims) para um input multimodal.
-const embed = async (apiKey: string, parts: any[]): Promise<number[]> => {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        content: { parts },
-        outputDimensionality: EMBED_DIM,
-      }),
+// Sinônimos de cada espécie. A chave deve espelhar SPECIES_BREEDS do app
+// (Cachorro, Gato, etc). Usado para normalizar o que o Gemini retorna.
+const SPECIES_SYNONYMS: Record<string, string[]> = {
+  "Cachorro": ["cachorro", "cao", "cão", "dog", "cachorrinho", "cachorra", "cadela", "doguinho", "caozinho", "filhote de cachorro", "puppy"],
+  "Gato": ["gato", "gata", "cat", "gatinho", "gatito", "felino", "kitten"],
+  "Calopsita": ["calopsita", "cockatiel"],
+  "Papagaio": ["papagaio", "parrot"],
+  "Arara": ["arara", "macaw"],
+  "Cacatua": ["cacatua", "cockatoo"],
+  "Periquito-australiano": ["periquito", "budgerigar", "budgie"],
+  "Agapornis": ["agapornis", "lovebird"],
+  "Ferret": ["ferret", "furao", "furão", "furona"],
+  "Hámster": ["hamster", "hámster"],
+  "Coelho": ["coelho", "coelha", "rabbit", "bunny"],
+  "Porquinho-da-índia": ["porquinho", "guinea pig", "cobaia"],
+  "Gerbil": ["gerbil"],
+  "Rato Twister": ["rato", "ratinho", "rat"],
+  "Jabuti e Cágado": ["jabuti", "cagado", "cágado", "tartaruga", "turtle"],
+  "Gecko": ["gecko", "lagartixa"],
+  "Iguana": ["iguana"],
+  "Cobra": ["cobra", "snake", "serpente", "piton", "jiboia", "python"],
+};
+
+const stripDiacritics = (s: string): string =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+
+// Normaliza a string de especie (do Gemini ou do client) para a chave canonica
+// usada no app. Retorna null se nao reconhecer.
+const normalizeSpecies = (s: string): string | null => {
+  const k = stripDiacritics(s);
+  for (const [canon, syns] of Object.entries(SPECIES_SYNONYMS)) {
+    if (stripDiacritics(canon) === k) return canon;
+    for (const syn of syns) {
+      if (stripDiacritics(syn) === k) return canon;
     }
-  );
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`gemini embed falhou: ${res.status} ${txt}`);
   }
-  const j = await res.json();
-  const vals = j?.embedding?.values;
-  if (!Array.isArray(vals) || vals.length === 0) {
-    throw new Error("gemini embed retornou vazio");
-  }
-  return vals as number[];
-};
-
-// Dot product. Vetores do Gemini ja vem normalizados -> dot = cos similarity.
-const dot = (a: number[], b: number[]): number => {
-  let s = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) s += a[i] * b[i];
-  return s;
-};
-
-// Busca uma URL publica e devolve os bytes como Uint8Array. Usado quando o
-// client manda imageUrl (foto ja no Storage) em vez de imageBase64.
-const fetchImageBytes = async (url: string): Promise<Uint8Array> => {
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`fetch image falhou: ${res.status}`);
-  const buf = await res.arrayBuffer();
-  return new Uint8Array(buf);
-};
-
-const bytesToBase64 = (bytes: Uint8Array): string => {
-  let bin = "";
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(bin);
+  return null;
 };
 
 Deno.serve(async (req) => {
@@ -103,7 +84,7 @@ Deno.serve(async (req) => {
     if (!userRes.ok) return json({ error: "unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
-    const chosenSpecies = typeof body?.chosenSpecies === "string"
+    const chosenSpeciesRaw = typeof body?.chosenSpecies === "string"
       ? body.chosenSpecies.trim()
       : "";
     const mimeType = typeof body?.mimeType === "string"
@@ -116,9 +97,15 @@ Deno.serve(async (req) => {
       ? body.imageBase64
       : null;
 
-    if (!chosenSpecies) return json({ error: "chosenSpecies required" }, 400);
+    if (!chosenSpeciesRaw) return json({ error: "chosenSpecies required" }, 400);
     if (!imageUrl && !imageBase64) {
       return json({ error: "imageUrl or imageBase64 required" }, 400);
+    }
+
+    const chosenCanon = normalizeSpecies(chosenSpeciesRaw);
+    if (!chosenCanon) {
+      // Especie do client nao reconhecida: passa direto, sem validar.
+      return json({ mismatch: false, detected: null, confidence: 0 }, 200);
     }
 
     // Monta a parte da imagem: inline_data (base64) ou file_data (URL).
@@ -126,15 +113,74 @@ Deno.serve(async (req) => {
       ? { file_data: { file_uri: imageUrl, mime_type: mimeType } }
       : { inline_data: { mime_type: mimeType, data: imageBase64! } };
 
-    // 1) Embedding da FOTO.
-    const photoEmb = await embed(geminiKey, [imgPart]);
-    // 2) Embedding do TEXTO da especie.
-    const textEmb = await embed(geminiKey, [{ text: chosenSpecies }]);
-    // 3) Compara.
-    const score = dot(photoEmb, textEmb);
-    console.log(`[validate-species] species=${chosenSpecies} score=${score} mismatch=${score < MISMATCH_THRESHOLD}`);
+    // Prompt pedindo ao Gemini para classificar a especie visivel.
+    const prompt = `Analise esta imagem e identifique qual animal esta visivel.
+Responda APENAS com um JSON no formato: {"species": "nome do animal", "confidence": 0.0-1.0}.
+
+Use nomes em portugues. Exemplos: "cachorro", "gato", "calopsita", "papagaio", "coelho".
+Se nao for nenhum animal domestico reconhecivel, responda {"species": "outro", "confidence": 0.0}.`;
+
+    // Chama gemini-2.5-flash com responseSchema JSON.
+    const gRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              imgPart,
+              { text: prompt },
+            ],
+          }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                species: { type: "STRING" },
+                confidence: { type: "NUMBER" },
+              },
+              required: ["species", "confidence"],
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(15000),
+      }
+    );
+    if (!gRes.ok) {
+      const txt = await gRes.text().catch(() => "");
+      console.error("[validate-species] gemini falhou:", gRes.status, txt);
+      return json({ mismatch: false, detected: null, confidence: 0 }, 200);
+    }
+    const j = await gRes.json();
+    const text = j?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      console.error("[validate-species] resposta vazia");
+      return json({ mismatch: false, detected: null, confidence: 0 }, 200);
+    }
+    let parsed: { species?: string; confidence?: number };
+    try { parsed = JSON.parse(text); } catch {
+      console.error("[validate-species] parse falhou:", text);
+      return json({ mismatch: false, detected: null, confidence: 0 }, 200);
+    }
+    const detectedRaw = (parsed.species || "").toString();
+    const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
+    const detectedCanon = normalizeSpecies(detectedRaw);
+
+    // Mismatch se:
+    //  - Gemini identificou uma especie diferente da escolhida
+    //  - E confianca >= 0.6 (abaixo disso, ignora — pode ser incerto)
+    const mismatch = !!detectedCanon
+      && detectedCanon !== chosenCanon
+      && confidence >= 0.6;
+
+    console.log(
+      `[validate-species] chosen=${chosenCanon} detected=${detectedCanon || detectedRaw || "?"} ` +
+      `confidence=${confidence} mismatch=${mismatch}`
+    );
     return json(
-      { mismatch: score < MISMATCH_THRESHOLD, score },
+      { mismatch, detected: detectedCanon, confidence },
       200
     );
   } catch (e) {

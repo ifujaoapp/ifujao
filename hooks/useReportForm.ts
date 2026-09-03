@@ -211,9 +211,11 @@ export function useReportForm(params: UseReportFormParams) {
     try {
       if (storedImages.length > 0 && species) {
         const photoUri = storedImages[0];
+        const b64 = photoUri.startsWith("http") ? undefined : await readAsBase64(photoUri);
+        console.log('[speciesMatch] DEBUG photoUri=', photoUri, 'http?', photoUri.startsWith("http"), 'b64.length=', b64?.length);
         const match = await checkSpeciesMatch({
           imageUrl: photoUri.startsWith("http") ? photoUri : undefined,
-          imageBase64: photoUri.startsWith("http") ? undefined : await readAsBase64(photoUri),
+          imageBase64: b64,
           mimeType: "image/jpeg",
           chosenSpecies: species,
         });

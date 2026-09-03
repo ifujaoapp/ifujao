@@ -12,6 +12,7 @@ import { ensureSession } from './supabase';
 export type SpeciesMatchResult = {
   mismatch: boolean;
   score: number;
+  detected?: string | null;
 };
 
 export type CheckArgs = {

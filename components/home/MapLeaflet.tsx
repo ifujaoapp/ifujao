@@ -300,18 +300,25 @@ export const MapLeaflet = ({
         // Helper: anexa "long press" (~500ms sem soltar/mover) a um L.marker.
         // Dispara postMessage com {type:'petLongPress', petId, deviceId, phone,
         // contact}. Usado em godMode para abrir o modal de moderação do pet.
-        // - mouse / touch: conta 500ms enquanto o botão/dedo está pressionado.
-        //   Se o usuário soltar ANTES dos 500ms, é tap (deixa o click normal
-        //   abrir o detalhe). Se passar dos 500ms, dispara long-press E
-        //   suprime o click subsequente (stopPropagation + preventDefault),
-        //   caso contrário o click abriria o detalhe do pet ao mesmo tempo.
+        //
+        // IMPORTANTE: o Leaflet filtra/normaliza eventos via L.DomEvent e, em
+        // Android WebView (tap:true), nem sempre dispara mousedown/touchstart
+        // no marker. Por isso anexamos os listeners DIRETAMENTE no elemento
+        // DOM do icon (marker._icon) com addEventListener nativo, bypassando
+        // o sistema de eventos do Leaflet. É a abordagem recomendada nos
+        // próprios issues do Leaflet (gh#3929, gh#5556).
         function __attachLongPress(marker, p) {
           var timer = null;
           var fired = false;
+          var cancel = function() {
+            if (timer) { clearTimeout(timer); timer = null; }
+          };
           var start = function(ev) {
-            try { if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) ev.originalEvent.stopPropagation(); } catch (e) {}
+            try {
+              if (ev && ev.stopPropagation) ev.stopPropagation();
+            } catch (e) {}
             fired = false;
-            if (timer) clearTimeout(timer);
+            cancel();
             timer = setTimeout(function() {
               timer = null;
               fired = true;
@@ -326,32 +333,30 @@ export const MapLeaflet = ({
               } catch (e) {}
             }, 500);
           };
-          var cancel = function() {
-            if (timer) { clearTimeout(timer); timer = null; }
-          };
-          // Mouse (desktop / web)
-          marker.on('mousedown', start);
-          marker.on('mouseup mousemove', cancel);
-          // Touch (mobile via WebView)
-          marker.on('touchstart', start);
-          marker.on('touchend touchmove', cancel);
-          // Se o long-press disparou, suprime o click subsequente (que abriria
-          // o detalhe do pet) por 800ms após o disparo.
-          marker.on('click', function(ev) {
+          // Anexa no DOM real do icon, com capture:true para garantir que
+          // rodamos ANTES de qualquer handler do Leaflet (que pode parar
+          // propagação). Também escutamos pointer* (Chrome 55+ Android usa
+          // pointer events, não touch).
+          var el = null;
+          try { el = marker.getElement() || marker._icon; } catch (e) {}
+          if (!el) return;
+          ['mousedown', 'touchstart', 'pointerdown'].forEach(function(evt) {
+            el.addEventListener(evt, start, { capture: true, passive: true });
+          });
+          ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'touchmove',
+           'pointerup', 'pointercancel', 'pointermove'].forEach(function(evt) {
+            el.addEventListener(evt, cancel, { capture: true, passive: true });
+          });
+          // Suprime o click subsequente se o long-press disparou.
+          el.addEventListener('click', function(ev) {
             if (fired) {
               fired = false;
               try {
-                if (ev && ev.originalEvent) {
-                  ev.originalEvent.stopPropagation();
-                  ev.originalEvent.preventDefault();
-                }
-                if (ev && ev.stopPropagation) {
-                  ev.stopPropagation();
-                  ev.preventDefault();
-                }
+                ev.stopPropagation();
+                ev.preventDefault();
               } catch (e) {}
             }
-          });
+          }, { capture: true });
         }
 
         window.__map = map;
@@ -609,17 +614,21 @@ export const MapLeaflet = ({
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
         // Long press ~500ms -> postMessage {type:'petLongPress', petId, ...}.
-        // Conta enquanto o botão/dedo está pressionado; cancela com
-        // mouseup/touchend antes dos 500ms (caso normal de tap). Quando o
-        // long-press dispara, suprime o click subsequente para não abrir o
-        // detalhe do pet em paralelo.
+        // Anexa direto no DOM do icon (não via marker.on) porque em Android
+        // WebView o Leaflet não propaga mousedown/touchstart no marker — é
+        // a abordagem dos issues gh#3929 e gh#5556 do Leaflet.
         function attachLongPress(marker, p) {
           var timer = null;
           var fired = false;
+          var cancel = function() {
+            if (timer) { clearTimeout(timer); timer = null; }
+          };
           var start = function(ev) {
-            try { if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) ev.originalEvent.stopPropagation(); } catch (e) {}
+            try {
+              if (ev && ev.stopPropagation) ev.stopPropagation();
+            } catch (e) {}
             fired = false;
-            if (timer) clearTimeout(timer);
+            cancel();
             timer = setTimeout(function() {
               timer = null;
               fired = true;
@@ -634,28 +643,25 @@ export const MapLeaflet = ({
               } catch (e) {}
             }, 500);
           };
-          var cancel = function() {
-            if (timer) { clearTimeout(timer); timer = null; }
-          };
-          marker.on('mousedown', start);
-          marker.on('mouseup mousemove', cancel);
-          marker.on('touchstart', start);
-          marker.on('touchend touchmove', cancel);
-          marker.on('click', function(ev) {
+          var el = null;
+          try { el = marker.getElement() || marker._icon; } catch (e) {}
+          if (!el) return;
+          ['mousedown', 'touchstart', 'pointerdown'].forEach(function(evt) {
+            el.addEventListener(evt, start, { capture: true, passive: true });
+          });
+          ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'touchmove',
+           'pointerup', 'pointercancel', 'pointermove'].forEach(function(evt) {
+            el.addEventListener(evt, cancel, { capture: true, passive: true });
+          });
+          el.addEventListener('click', function(ev) {
             if (fired) {
               fired = false;
               try {
-                if (ev && ev.originalEvent) {
-                  ev.originalEvent.stopPropagation();
-                  ev.originalEvent.preventDefault();
-                }
-                if (ev && ev.stopPropagation) {
-                  ev.stopPropagation();
-                  ev.preventDefault();
-                }
+                ev.stopPropagation();
+                ev.preventDefault();
               } catch (e) {}
             }
-          });
+          }, { capture: true });
         }
         function addMarker(p, lat, lng){
            // Pet reencontrado fora da janela: não aparece mais no mapa.

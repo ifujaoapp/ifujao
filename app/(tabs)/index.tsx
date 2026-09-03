@@ -416,6 +416,7 @@ export default function HomeScreen() {
         setShowSponsorText={setShowSponsorText}
         onMarkerPress={onMarkerPress}
         onPetLongPress={(info) => {
+          if (!godMode) return;
           const p = pets.find((x) => x.id === info.petId);
           if (p) setModPet(p);
         }}

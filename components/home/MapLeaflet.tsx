@@ -328,7 +328,17 @@ export const MapLeaflet = ({
             // que veio de um long-press e NAO abra o detalhe do pet. O
             // handler de click do Leaflet (m.on('click', ...)) verifica
             // marker.__longPressFired antes de chamar onMarkerPress.
+            //
+            // IMPORTANTE: a flag tem validade curta (~1.2s). Em Android
+            // WebView, o Leaflet nem sempre dispara o click sintetico apos
+            // o contextmenu do long-press (depende da versao). Se a flag
+            // ficasse presa em true, o PROXIMO tap curto seria consumido
+            // sem abrir o detalhe do pet (teria que clicar 2x). Com TTL,
+            // a flag expira sozinha se o click sintetico nao chegar.
             try { marker.__longPressFired = true; } catch (e) {}
+            setTimeout(function() {
+              try { marker.__longPressFired = false; } catch (e) {}
+            }, 1200);
             try {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'petLongPress',
@@ -642,7 +652,14 @@ export const MapLeaflet = ({
         // Leaflet + fallback manual no DOM do icon com capture:true).
         function attachLongPress(marker, p) {
           var send = function() {
+            // Marca o marker com TTL de 1.2s. Mesmo motivo do __attachLongPress:
+            // se o click sintetico do Leaflet nao chegar apos o contextmenu do
+            // long-press, a flag expira sozinha em vez de ficar presa em true
+            // (o que faria o proximo tap ser consumido sem abrir o detalhe).
             try { marker.__longPressFired = true; } catch (e) {}
+            setTimeout(function() {
+              try { marker.__longPressFired = false; } catch (e) {}
+            }, 1200);
             try {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'petLongPress',

@@ -54,33 +54,39 @@ export const buildDeleteAction = (ctx: PetActionCtx): BarAction | null =>
       }
     : null;
 
-export const buildUndoReportAction = (ctx: PetActionCtx): BarAction | null =>
-  ctx.selectedPet.reported && !!ctx.myDeviceId && ctx.selectedPet.reporterDeviceId === ctx.myDeviceId
-    ? {
-        key: "undoReport",
-        icon: "flag",
-        label: "Apagar denúncia",
-        color: "#0A84FF",
-        iconColor: "#0A84FF",
-        textColor: "#0A84FF",
-        onPress: () => {
-          ctx.commitPets(
-            ctx.pets.map((p) =>
-              p.id === ctx.selectedPet.id
-                ? {
-                    ...p,
-                    reported: false,
-                    reportReason: undefined,
-                    reportedBy: undefined,
-                    dirty: true,
-                  }
-                : p,
-            ),
-          );
-          ctx.setSelectedPet(null);
-        },
-      }
-    : null;
+export const buildUndoReportAction = (ctx: PetActionCtx): BarAction | null => {
+  // Aparece se o post foi denunciado E:
+  //  - o usuario foi quem denunciou (caso normal de "desfazer propria denuncia"), OU
+  //  - o moderador esta logado (godMode) - permite limpar qualquer denuncia,
+  //    inclusive as feitas por outros usuarios.
+  const iAmReporter =
+    !!ctx.myDeviceId && ctx.selectedPet.reporterDeviceId === ctx.myDeviceId;
+  if (!ctx.selectedPet.reported || (!iAmReporter && !ctx.godMode)) return null;
+  return {
+    key: "undoReport",
+    icon: "flag",
+    label: ctx.godMode && !iAmReporter ? "Apagar denúncia (mod)" : "Apagar denúncia",
+    color: "#0A84FF",
+    iconColor: "#0A84FF",
+    textColor: "#0A84FF",
+    onPress: () => {
+      ctx.commitPets(
+        ctx.pets.map((p) =>
+          p.id === ctx.selectedPet.id
+            ? {
+                ...p,
+                reported: false,
+                reportReason: undefined,
+                reportedBy: undefined,
+                dirty: true,
+              }
+            : p,
+        ),
+      );
+      ctx.setSelectedPet(null);
+    },
+  };
+};
 
 export const buildUnfoundAction = (ctx: PetActionCtx): BarAction => ({
   key: "unfound",

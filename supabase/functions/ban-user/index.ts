@@ -13,7 +13,6 @@
 //    ativa. Se nao houver, retorna 404.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { jwtVerify } from "https://deno.land/x/djwt@v2.8/mod.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -33,6 +32,51 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+// Base64url -> bytes (Deno nativo, sem import externo).
+function base64urlToBytes(s: string): Uint8Array {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  const b64 = (s + pad).replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+// Verifica um JWT HS256 manualmente (sem djwt) e retorna o payload, ou null.
+// Implementação enxuta baseada em Web Crypto API (Deno nativo).
+async function verifyJwtHs256(
+  token: string,
+  secret: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const [h, p, s] = parts;
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"],
+    );
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      base64urlToBytes(s),
+      new TextEncoder().encode(`${h}.${p}`),
+    );
+    if (!valid) return null;
+    const payloadJson = new TextDecoder().decode(base64urlToBytes(p));
+    const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+    if (typeof payload.exp === "number" && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response("Método não permitido", { status: 405, headers: corsHeaders });
@@ -44,21 +88,10 @@ Deno.serve(async (req: Request) => {
   const auth = req.headers.get("authorization") ?? "";
   const token = auth.replace(/^Bearer\s+/i, "").trim();
   if (!token) return json({ error: "Token ausente" }, 401);
-  let moderator = "";
-  try {
-    const key = await crypto.subtle.importKey(
-      "raw",
-      new TextEncoder().encode(jwtSecretRaw),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"],
-    );
-    const payload = await jwtVerify(token, key);
-    if (!(payload as any).is_moderator) return json({ error: "Sem permissão" }, 403);
-    moderator = String((payload as any).moderator ?? "");
-  } catch {
-    return json({ error: "Token inválido" }, 401);
-  }
+  const payload = await verifyJwtHs256(token, jwtSecretRaw);
+  if (!payload) return json({ error: "Token inválido" }, 401);
+  if (!payload.is_moderator) return json({ error: "Sem permissão" }, 403);
+  const moderator = String(payload.moderator ?? "");
 
   const { action, deviceId, phone, reason } = await req.json().catch(() => ({}));
   if (action !== "ban" && action !== "unban") {

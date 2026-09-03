@@ -659,6 +659,7 @@ const formatDisappearedWhen = (date?: string): string => {
       shareCardRef={shareCardRef}
       godMode={godMode}
       headerExtra={null}
+      title="Pet encontrado"
       dateNode={dateNode}
       topActions={topActions}
       secondaryActions={secondary}

@@ -124,6 +124,7 @@ export function PetLostModal(props: PetModalProps) {
       shareCardRef={shareCardRef}
       godMode={godMode}
       headerExtra={headerExtra}
+      title="Pet perdido"
       dateNode={dateNode}
       topActions={topActions}
       secondaryActions={secondary}

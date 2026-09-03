@@ -61,6 +61,7 @@ export interface PetDetailBaseProps {
   godMode: boolean;
   // Slots preenchidos por PetLostModal / PetFoundModal
   headerExtra?: ReactNode;
+  title?: string;
   dateNode?: ReactNode;
   topActions?: BarAction[];
   secondaryActions?: BarAction[];
@@ -82,6 +83,7 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
     shareCardRef,
     godMode,
     headerExtra,
+    title,
     dateNode,
     topActions,
     secondaryActions,
@@ -202,6 +204,14 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
                   automaticallyAdjustContentInsets={false}
                 >
                 {headerExtra}
+                {title ? (
+                  <Text
+                    style={{ fontSize: 16, color: "#000000", fontWeight: "700", textAlign: "center", marginTop: 4, marginBottom: 4 }}
+                    pointerEvents="none"
+                  >
+                    {title}
+                  </Text>
+                ) : null}
                  <View style={styles.reportImageWrap}>
                   <View style={{ alignItems: 'center' }}>
                      <View style={{ backgroundColor: themeColors.card, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: themeColors.cardStroke, shadowColor: themeColors.text, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2, alignSelf: 'center' }}>

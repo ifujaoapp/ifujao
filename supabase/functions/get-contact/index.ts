@@ -102,14 +102,13 @@ Deno.serve(async (req: Request) => {
   // service_role bypassa). Apenas para moderadores autenticados.
   const { data, error } = await sb
     .from("pet_contacts")
-    .select("contact, phone")
+    .select("contact")
     .eq("pet_id", petId)
     .maybeSingle();
   if (error) return json({ error: error.message }, 500);
 
   return json({
     ok: true,
-    phone: data?.phone ?? null,
     contact: data?.contact ?? null,
   });
 });

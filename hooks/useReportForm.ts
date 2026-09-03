@@ -14,6 +14,22 @@ import { reverseGeocodeCity } from "@/lib/geocode";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { persistPhotos } from "@/lib/storage";
 import { canCreatePet } from "@/lib/limits";
+import { checkSpeciesMatch } from "@/lib/speciesMatch";
+import { File } from "expo-file-system";
+
+// Le um arquivo local (file://) como base64 (sem prefixo data:). Usado pelo
+// validador de especie para enviar a foto inline ao Gemini.
+const readAsBase64 = async (uri: string): Promise<string> => {
+  const buf = await new File(uri).arrayBuffer();
+  let bin = "";
+  const bytes = new Uint8Array(buf);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
+  }
+  // btoa funciona no Hermes/React Native moderno. Fallback: retorna string vazia.
+  try { return globalThis.btoa(bin); } catch { return ""; }
+};
 
 const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 import { type Region } from "react-native-maps";
@@ -187,6 +203,25 @@ export function useReportForm(params: UseReportFormParams) {
     ssSet("ifujao_my_phone", ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
+    // Valida especie x foto via Gemini (multimodal embedding). NAO bloqueia
+    // o post: se a foto parecer nao condizer com a especie escolhida, marca
+    // speciesMismatch no payload e mostra um alerta ao usuario. Falha da IA
+    // (sem key, timeout, etc) e ignorada — o post segue normal.
+    let speciesMismatch = false;
+    try {
+      if (storedImages.length > 0 && species && process.env.EXPO_PUBLIC_GEMINI_API_KEY) {
+        const photoUri = storedImages[0];
+        const match = await checkSpeciesMatch({
+          imageUrl: photoUri.startsWith("http") ? photoUri : undefined,
+          imageBase64: photoUri.startsWith("http") ? "" : await readAsBase64(photoUri),
+          mimeType: "image/jpeg",
+          chosenSpecies: species,
+        });
+        speciesMismatch = match.mismatch;
+      }
+    } catch {
+      speciesMismatch = false;
+    }
     let deviceId = myDeviceId;
     if (!deviceId) {
       try {
@@ -222,6 +257,7 @@ export function useReportForm(params: UseReportFormParams) {
         postType === 'lost' && reward.trim()
           ? Number(reward.replace(/\D/g, ""))
           : undefined,
+      speciesMismatch: speciesMismatch || undefined,
       createdAt: new Date().toISOString(),
       dirty: true,
     };
@@ -242,7 +278,16 @@ export function useReportForm(params: UseReportFormParams) {
     setPostType('lost');
     setIsCameraOpen(false);
     setReportModalVisible(false);
-    showAlert("success", "Sucesso!", "Alerta publicado!");
+    if (speciesMismatch) {
+      // NAO bloqueia: o alerta foi publicado. Apenas avisa o usuario.
+      showAlert(
+        "warning",
+        "Foto pode não condizer",
+        `A foto parece não ser de ${species.toLowerCase()}. Seu alerta foi publicado, mas a comunidade pode denunciá-lo se a foto não condizer com o animal.`,
+      );
+    } else {
+      showAlert("success", "Sucesso!", "Alerta publicado!");
+    }
   };
 
   const openReport = async (type?: 'lost' | 'found') => {

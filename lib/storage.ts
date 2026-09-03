@@ -38,6 +38,10 @@ export interface PetRecord {
   matchedPetId?: string | null;
   matchStatus?: 'pending' | 'confirmed' | null;
   matchRequestedBy?: 'owner' | 'finder' | null;
+  // Flag setada pelo validador de especie (Gemini) quando a foto parece nao
+  // condizer com a especie escolhida. Nao bloqueia o post; apenas alerta o
+  // usuario e marca para o moderador ver no ModerationDetailModal.
+  speciesMismatch?: boolean;
   // Status calculado: true se o pet foi confirmado como devolvido ao dono
   // (existe um perdido com matchedPetId === este pet e matchStatus === 'confirmed')
   confirmed?: boolean;

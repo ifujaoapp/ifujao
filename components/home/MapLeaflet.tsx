@@ -85,7 +85,12 @@ export const MapLeaflet = ({
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { attributionControl: false, zoomControl: false }).setView([${center.latitude}, ${center.longitude}], 13);
+        // tap:false desabilita o Map.Tap handler do Leaflet, que intercepta
+        // long-press e converte em click sintetico (impede o contextmenu de
+        // disparar). contextmenu:true habilita o disparo de 'contextmenu'
+        // em markers no toque longo (~500ms) — é o caminho mais confiavel
+        // em Android WebView para detectar long-press.
+        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: false, contextmenu: true, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19
@@ -297,66 +302,95 @@ export const MapLeaflet = ({
           });
         }
 
-        // Helper: anexa "long press" (~500ms sem soltar/mover) a um L.marker.
-        // Dispara postMessage com {type:'petLongPress', petId, deviceId, phone,
-        // contact}. Usado em godMode para abrir o modal de moderação do pet.
+        // Helper: anexa "long press" ao L.marker. Estratégia tripla para
+        // cobrir as inconsistências de eventos entre Android WebView / iOS
+        // WebView / Web desktop:
         //
-        // IMPORTANTE: o Leaflet filtra/normaliza eventos via L.DomEvent e, em
-        // Android WebView (tap:true), nem sempre dispara mousedown/touchstart
-        // no marker. Por isso anexamos os listeners DIRETAMENTE no elemento
-        // DOM do icon (marker._icon) com addEventListener nativo, bypassando
-        // o sistema de eventos do Leaflet. É a abordagem recomendada nos
-        // próprios issues do Leaflet (gh#3929, gh#5556).
+        //  1) marker.on('contextmenu', ...) - Leaflet já tem suporte
+        //     oficial: em mobile, tocar e segurar ~500ms dispara
+        //     'contextmenu' no marker, com originalEvent.preventDefault()
+        //     para suprimir o menu de contexto do navegador. É a forma
+        //     mais confiável em Android WebView (problema documentado em
+        //     gh#3929, gh#5556 do Leaflet).
+        //  2) Fallback manual com 'touchstart' no DOM do icon - se
+        //     contextmenu oscilar (algumas versões iOS não disparam),
+        //     contamos 500ms manualmente e cancelamos com touchend/
+        //     touchmove.
+        //  3) Bypass via 'addEventListener' direto no icon com
+        //     capture:true - garante que chegamos antes de qualquer
+        //     handler do Leaflet que possa parar propagação.
+        //
+        // O postMessage tem fired=true para suprimir o click subsequente
+        // (abriria o detalhe do pet em paralelo).
         function __attachLongPress(marker, p) {
-          var timer = null;
           var fired = false;
-          var cancel = function() {
-            if (timer) { clearTimeout(timer); timer = null; }
-          };
-          var start = function(ev) {
+          var send = function() {
+            if (fired) return;
+            fired = true;
             try {
-              if (ev && ev.stopPropagation) ev.stopPropagation();
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'petLongPress',
+                petId: p.id,
+                deviceId: p.ownerDeviceId || null,
+                phone: p.ownerPhone || null,
+                contact: p.contact || null,
+              }));
             } catch (e) {}
-            fired = false;
-            cancel();
-            timer = setTimeout(function() {
-              timer = null;
-              fired = true;
-              try {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'petLongPress',
-                  petId: p.id,
-                  deviceId: p.ownerDeviceId || null,
-                  phone: p.ownerPhone || null,
-                  contact: p.contact || null,
-                }));
-              } catch (e) {}
-            }, 500);
           };
-          // Anexa no DOM real do icon, com capture:true para garantir que
-          // rodamos ANTES de qualquer handler do Leaflet (que pode parar
-          // propagação). Também escutamos pointer* (Chrome 55+ Android usa
-          // pointer events, não touch).
+          // (1) Contextmenu via Leaflet — caminho primário.
+          marker.on('contextmenu', function(ev) {
+            try {
+              if (ev && ev.originalEvent && ev.originalEvent.preventDefault) {
+                ev.originalEvent.preventDefault();
+              }
+              if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) {
+                ev.originalEvent.stopPropagation();
+              }
+            } catch (e) {}
+            send();
+          });
+          // (2) + (3) Fallback: timer manual no DOM do icon.
           var el = null;
           try { el = marker.getElement() || marker._icon; } catch (e) {}
-          if (!el) return;
-          ['mousedown', 'touchstart', 'pointerdown'].forEach(function(evt) {
-            el.addEventListener(evt, start, { capture: true, passive: true });
-          });
-          ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'touchmove',
-           'pointerup', 'pointercancel', 'pointermove'].forEach(function(evt) {
-            el.addEventListener(evt, cancel, { capture: true, passive: true });
-          });
-          // Suprime o click subsequente se o long-press disparou.
-          el.addEventListener('click', function(ev) {
-            if (fired) {
-              fired = false;
+          if (el) {
+            var timer = null;
+            var cancel = function() {
+              if (timer) { clearTimeout(timer); timer = null; }
+            };
+            var start = function(ev) {
               try {
-                ev.stopPropagation();
-                ev.preventDefault();
+                if (ev && ev.stopPropagation) ev.stopPropagation();
               } catch (e) {}
-            }
-          }, { capture: true });
+              cancel();
+              timer = setTimeout(function() {
+                timer = null;
+                send();
+              }, 500);
+            };
+            ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
+              el.addEventListener(evt, start, { capture: true, passive: true });
+            });
+            ['touchend', 'touchcancel', 'touchmove',
+             'pointerup', 'pointercancel', 'pointermove',
+             'mouseup', 'mouseleave'].forEach(function(evt) {
+              el.addEventListener(evt, cancel, { capture: true, passive: true });
+            });
+            // Suprime o click subsequente quando o long-press disparou.
+            el.addEventListener('click', function(ev) {
+              if (fired) {
+                fired = false;
+                try {
+                  ev.stopPropagation();
+                  ev.preventDefault();
+                } catch (e) {}
+              }
+            }, { capture: true });
+            // Suprime também o contextmenu nativo do navegador no DOM.
+            el.addEventListener('contextmenu', function(ev) {
+              if (fired) { fired = false; }
+              try { ev.preventDefault(); } catch (e) {}
+            }, { capture: true });
+          }
         }
 
         window.__map = map;
@@ -613,55 +647,74 @@ export const MapLeaflet = ({
         if (!window.__petMarkers) window.__petMarkers = [];
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
-        // Long press ~500ms -> postMessage {type:'petLongPress', petId, ...}.
-        // Anexa direto no DOM do icon (não via marker.on) porque em Android
-        // WebView o Leaflet não propaga mousedown/touchstart no marker — é
-        // a abordagem dos issues gh#3929 e gh#5556 do Leaflet.
+        // Long press -> postMessage {type:'petLongPress', petId, ...}.
+        // Mesma estratégia tripla do __attachLongPress (contextmenu via
+        // Leaflet + fallback manual no DOM do icon com capture:true).
         function attachLongPress(marker, p) {
-          var timer = null;
           var fired = false;
-          var cancel = function() {
-            if (timer) { clearTimeout(timer); timer = null; }
-          };
-          var start = function(ev) {
+          var send = function() {
+            if (fired) return;
+            fired = true;
             try {
-              if (ev && ev.stopPropagation) ev.stopPropagation();
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'petLongPress',
+                petId: p.id,
+                deviceId: p.ownerDeviceId || null,
+                phone: p.ownerPhone || null,
+                contact: p.contact || null,
+              }));
             } catch (e) {}
-            fired = false;
-            cancel();
-            timer = setTimeout(function() {
-              timer = null;
-              fired = true;
-              try {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'petLongPress',
-                  petId: p.id,
-                  deviceId: p.ownerDeviceId || null,
-                  phone: p.ownerPhone || null,
-                  contact: p.contact || null,
-                }));
-              } catch (e) {}
-            }, 500);
           };
+          marker.on('contextmenu', function(ev) {
+            try {
+              if (ev && ev.originalEvent && ev.originalEvent.preventDefault) {
+                ev.originalEvent.preventDefault();
+              }
+              if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) {
+                ev.originalEvent.stopPropagation();
+              }
+            } catch (e) {}
+            send();
+          });
           var el = null;
           try { el = marker.getElement() || marker._icon; } catch (e) {}
-          if (!el) return;
-          ['mousedown', 'touchstart', 'pointerdown'].forEach(function(evt) {
-            el.addEventListener(evt, start, { capture: true, passive: true });
-          });
-          ['mouseup', 'mouseleave', 'touchend', 'touchcancel', 'touchmove',
-           'pointerup', 'pointercancel', 'pointermove'].forEach(function(evt) {
-            el.addEventListener(evt, cancel, { capture: true, passive: true });
-          });
-          el.addEventListener('click', function(ev) {
-            if (fired) {
-              fired = false;
+          if (el) {
+            var timer = null;
+            var cancel = function() {
+              if (timer) { clearTimeout(timer); timer = null; }
+            };
+            var start = function(ev) {
               try {
-                ev.stopPropagation();
-                ev.preventDefault();
+                if (ev && ev.stopPropagation) ev.stopPropagation();
               } catch (e) {}
-            }
-          }, { capture: true });
+              cancel();
+              timer = setTimeout(function() {
+                timer = null;
+                send();
+              }, 500);
+            };
+            ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
+              el.addEventListener(evt, start, { capture: true, passive: true });
+            });
+            ['touchend', 'touchcancel', 'touchmove',
+             'pointerup', 'pointercancel', 'pointermove',
+             'mouseup', 'mouseleave'].forEach(function(evt) {
+              el.addEventListener(evt, cancel, { capture: true, passive: true });
+            });
+            el.addEventListener('click', function(ev) {
+              if (fired) {
+                fired = false;
+                try {
+                  ev.stopPropagation();
+                  ev.preventDefault();
+                } catch (e) {}
+              }
+            }, { capture: true });
+            el.addEventListener('contextmenu', function(ev) {
+              if (fired) { fired = false; }
+              try { ev.preventDefault(); } catch (e) {}
+            }, { capture: true });
+          }
         }
         function addMarker(p, lat, lng){
            // Pet reencontrado fora da janela: não aparece mais no mapa.

@@ -94,10 +94,10 @@ Deno.serve(async (req: Request) => {
   const moderator = String(payload.moderator ?? "");
 
   const { action, deviceId, phone, reason } = await req.json().catch(() => ({}));
-  if (action !== "ban" && action !== "unban") {
-    return json({ error: "action deve ser 'ban' ou 'unban'" }, 400);
+  if (action !== "ban" && action !== "unban" && action !== "status") {
+    return json({ error: "action deve ser 'ban', 'unban' ou 'status'" }, 400);
   }
-  if (!deviceId && !phone) {
+  if (action !== "status" && !deviceId && !phone) {
     return json({ error: "Informe deviceId ou phone" }, 400);
   }
 
@@ -110,6 +110,23 @@ Deno.serve(async (req: Request) => {
   if (deviceId) conds.push(`device_id.eq.${deviceId}`);
   if (phone) conds.push(`phone.eq.${phone}`);
   const filter = conds.join(",");
+
+  // status: checa no backend (tabela banned_users via service_role) se ha
+  // ban ativo para o device/phone. Retorna a linha ativa ou null.
+  if (action === "status") {
+    if (!deviceId && !phone) {
+      return json({ banned: false, row: null });
+    }
+    const { data: existing } = await sb
+      .from("banned_users")
+      .select("id,device_id,phone,banned_by,banned_at,reason,unbanned_at,unbanned_by")
+      .or(filter)
+      .is("unbanned_at", null)
+      .order("banned_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return json({ banned: !!existing, row: existing ?? null });
+  }
 
   if (action === "ban") {
     // Verifica se ja existe banimento ativo para esse device/phone.

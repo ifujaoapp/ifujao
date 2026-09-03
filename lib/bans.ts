@@ -16,8 +16,10 @@ export type BanRow = {
   unbanned_by: string | null;
 };
 
-// Verifica se o device/phone esta banido (consulta server-side, RLS permite
-// SELECT publico). Retorna a primeira linha ativa ou null.
+// Verifica se o device/phone esta banido consultando a tabela
+// `banned_users` diretamente (PostgREST, RLS permite SELECT publico).
+// Usado pelo proprio app para auto-checagem (o dispositivo checa a si
+// mesmo). Retorna a primeira linha ativa ou null.
 export const checkBan = async (
   deviceId?: string | null,
   phone?: string | null,
@@ -46,6 +48,48 @@ export const checkBan = async (
   } catch (e) {
     console.warn("[bans] checkBan exception:", e);
     return null;
+  }
+};
+
+// Verifica o status de ban via Edge Function ban-user (action=status).
+// Requer godToken (modo deus). A funcao roda no backend com service_role
+// e retorna {banned, row} a partir da tabela banned_users. Usado pelo
+// ModerationDetailModal para mostrar o botao correto (banir vs liberar).
+export const checkBanStatus = async (
+  deviceId?: string | null,
+  phone?: string | null,
+): Promise<{ banned: boolean; row: BanRow | null }> => {
+  if (!isSupabaseConfigured || !URL || !ANON) {
+    return { banned: false, row: null };
+  }
+  if (!deviceId && !phone) {
+    return { banned: false, row: null };
+  }
+  const token = await getGodToken();
+  if (!token) return { banned: false, row: null };
+  try {
+    const res = await fetch(`${URL}/functions/v1/ban-user`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        apikey: ANON,
+      },
+      body: JSON.stringify({
+        action: "status",
+        deviceId: deviceId ?? undefined,
+        phone: phone ?? undefined,
+      }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      banned?: boolean;
+      row?: BanRow | null;
+    };
+    if (!res.ok) return { banned: false, row: null };
+    return { banned: !!data.banned, row: data.row ?? null };
+  } catch (e) {
+    console.warn("[bans] checkBanStatus exception:", e);
+    return { banned: false, row: null };
   }
 };
 

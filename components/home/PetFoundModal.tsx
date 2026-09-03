@@ -608,25 +608,8 @@ const formatDisappearedWhen = (date?: string): string => {
       const d = buildDeleteAction(ctx);
       if (d) secondary.push(d);
     }
-  } else if (godMode) {
-    // Em godMode o moderador ve TODAS as acoes em qualquer post (ja
-    // denunciado ou nao). Sem isso, posts found ja denunciados por
-    // outros usuarios caiam num ramo vazio (isReported && !isReporter)
-    // que impedia o moderador de apagar/editar/limpar a denuncia.
-    if (contact) topActions.push(contact);
-    const fm = buildFoundMarkAction(ctx);
-    if (fm.top) topActions.push(fm.top);
-    const r = buildReportAction(ctx);
-    if (r) topActions.push(r);
-    topActions.push(buildShareAction(ctx));
-    const d = buildDeleteAction(ctx);
-    if (d) topActions.push(d);
-    const u = buildUndoReportAction(ctx);
-    if (u) topActions.push(u);
-    const fm2 = buildFoundMarkAction(ctx);
-    if (fm2.secondary) topActions.push(fm2.secondary);
   } else {
-    // Usuario normal: se está denunciado: só quem denunciou pode apagar a denúncia
+    // Se está denunciado: só quem denunciou pode apagar a denúncia
     if (isReported && !isReporter) {
       // Todos os botões desabilitados para quem não é o reporter
     } else if (isReported && isReporter) {

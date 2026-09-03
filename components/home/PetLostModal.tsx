@@ -83,21 +83,6 @@ export function PetLostModal(props: PetModalProps) {
       const u = buildUndoReportAction(ctx);
       if (u) secondary.push(u);
     }
-  } else if (godMode) {
-    // Em godMode: TODAS as acoes ficam em topActions (acesso direto, sem
-    // precisar expandir "Mais opcoes"). O moderador precisa agir rapido.
-    if (contact) topActions.push(contact);
-    const fm = buildFoundMarkAction(ctx);
-    if (fm.top) topActions.push(fm.top);
-    const r = buildReportAction(ctx);
-    if (r) topActions.push(r);
-    topActions.push(buildShareAction(ctx));
-    const d = buildDeleteAction(ctx);
-    if (d) topActions.push(d);
-    const u = buildUndoReportAction(ctx);
-    if (u) topActions.push(u);
-    const fm2 = buildFoundMarkAction(ctx);
-    if (fm2.secondary) topActions.push(fm2.secondary);
   } else {
     if (contact) topActions.push(contact);
     const fm = buildFoundMarkAction(ctx);

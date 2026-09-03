@@ -153,10 +153,6 @@ export const moderatorSoftDelete = async (petId: string): Promise<boolean> => {
     if (!delOk) return false;
 
     // 3) Contrapartes: pets que apontavam para este via matchedPetId.
-    //    Coleta o resultado de cada PATCH — se algum falhar, a funcao
-    //    retorna false no final para que o caller saiba que o servidor
-    //    pode estar inconsistente (sem isso, o caller tinha o falso
-    //    positivo de "ok" mesmo com contrapartes orfas).
     const cRes = await fetch(
       `${MOD_URL}/rest/v1/pets?payload->>matchedPetId=eq.${encodeURIComponent(
         petId,
@@ -164,13 +160,11 @@ export const moderatorSoftDelete = async (petId: string): Promise<boolean> => {
       { method: "GET", headers },
     );
     const counterparts = ((await cRes.json().catch(() => [])) as any[]) ?? [];
-    let allOk = true;
     for (const c of counterparts) {
       const cp = { ...(c.payload ?? {}), ...clearMatch };
-      const ok = await patchPet(c.id, { updated_at: now, payload: cp });
-      if (!ok) allOk = false;
+      await patchPet(c.id, { updated_at: now, payload: cp });
     }
-    return allOk;
+    return true;
   } catch (e) {
     console.warn("[moderation] delete erro:", e);
     return false;

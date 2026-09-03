@@ -71,14 +71,14 @@ export function AppAlertProvider({ children }: { children: React.ReactNode }) {
               <Ionicons name={ICON_MAP[config.type].name} size={44} color={ICON_MAP[config.type].color} style={styles.icon} />
               <Text style={[styles.title, { color: palette.title }]}>{config.title}</Text>
               {config.message ? <Text style={[styles.message, { color: palette.message }]}>{config.message}</Text> : null}
-              <View style={[styles.actions, config.buttons.length > 2 && { flexDirection: 'column' }]}>
+              <View style={[styles.actions, config.buttons.length > 2 && styles.actionsColumn]}>
                 {config.buttons.map((btn, i) => {
                   const color =
                     btn.style === 'destructive' ? palette.destructive : btn.style === 'cancel' ? palette.cancel : palette.default;
                   return (
                     <TouchableOpacity
                       key={`${btn.text}-${i}`}
-                      style={[styles.actionBtn, config.buttons.length > 2 && { borderTopWidth: 1, borderColor: palette.border }]}
+                      style={[styles.actionBtn, config.buttons.length > 2 && styles.actionBtnColumn]}
                       onPress={() => close(btn)}
                       activeOpacity={0.6}
                     >
@@ -164,10 +164,19 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(0,0,0,0.08)',
     marginTop: 4,
   },
+  actionsColumn: {
+    flexDirection: 'column',
+  },
   actionBtn: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  actionBtnColumn: {
+    flex: 0,
+    width: '100%',
+    borderTopWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   actionText: {
     fontSize: 16,

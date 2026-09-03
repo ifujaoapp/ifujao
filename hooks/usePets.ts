@@ -310,10 +310,15 @@ export function usePets() {
                   "Erro",
                   "Não foi possível remover o post no servidor.",
                 );
-              } else {
-                commitPets(next);
-                triggerSync(true);
+                // NAO fecha o card: o moderador precisa ver o erro e tentar
+                // de novo. Antes, o setSelectedPet(null) abaixo era chamado
+                // em qualquer caminho, deixando o pet sumir do card mas
+                // continuar na lista (inconsistencia visual).
+                return;
               }
+              commitPets(next);
+              triggerSync(true);
+              setSelectedPet(null);
             } else {
               await addPendingDelete(petId);
               commitPets(next);
@@ -329,8 +334,8 @@ export function usePets() {
                   });
                 }
               }
+              setSelectedPet(null);
             }
-            setSelectedPet(null);
           },
         },
       ],

@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import { Colors } from "@/constants/theme";
@@ -53,6 +54,7 @@ export function ModerationDetailModal({
   const { theme } = useThemeMode();
   const isDark = theme === "dark";
   const c = isDark ? Colors.dark : Colors.light;
+  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [banned, setBanned] = useState(false);
 
@@ -132,8 +134,23 @@ export function ModerationDetailModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={[styles.overlay, { backgroundColor: "rgba(0,0,0,0.55)" }]}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View
+        style={[
+          styles.overlay,
+          {
+            backgroundColor: "rgba(0,0,0,0.55)",
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <View style={[styles.card, { backgroundColor: c.card, borderColor: c.cardStroke }]}>
           <View style={styles.header}>
             <View style={styles.headerTitle}>

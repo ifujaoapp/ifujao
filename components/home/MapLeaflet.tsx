@@ -297,18 +297,24 @@ export const MapLeaflet = ({
           });
         }
 
-        // Helper: anexa "long press" (~500ms sem mover/soltar) a um L.marker.
+        // Helper: anexa "long press" (~500ms sem soltar/mover) a um L.marker.
         // Dispara postMessage com {type:'petLongPress', petId, deviceId, phone,
-        // contact, ownerPhone, ownerDeviceId}. Usado em godMode para abrir o
-        // modal de moderação do pet. Cancela com mousemove/mouseup/touchmove/
-        // touchend antes do tempo.
+        // contact}. Usado em godMode para abrir o modal de moderação do pet.
+        // - mouse / touch: conta 500ms enquanto o botão/dedo está pressionado.
+        //   Se o usuário soltar ANTES dos 500ms, é tap (deixa o click normal
+        //   abrir o detalhe). Se passar dos 500ms, dispara long-press E
+        //   suprime o click subsequente (stopPropagation + preventDefault),
+        //   caso contrário o click abriria o detalhe do pet ao mesmo tempo.
         function __attachLongPress(marker, p) {
-          var t = null;
+          var timer = null;
+          var fired = false;
           var start = function(ev) {
-            try { if (ev && ev.originalEvent && ev.originalEvent.preventDefault) ev.originalEvent.preventDefault(); } catch (e) {}
-            if (t) clearTimeout(t);
-            t = setTimeout(function() {
-              t = null;
+            try { if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) ev.originalEvent.stopPropagation(); } catch (e) {}
+            fired = false;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function() {
+              timer = null;
+              fired = true;
               try {
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                   type: 'petLongPress',
@@ -321,11 +327,31 @@ export const MapLeaflet = ({
             }, 500);
           };
           var cancel = function() {
-            if (t) { clearTimeout(t); t = null; }
+            if (timer) { clearTimeout(timer); timer = null; }
           };
-          marker.on('mousedown touchstart', start);
-          marker.on('mouseup mousemove touchend touchmove', cancel);
-          marker.on('click', cancel);
+          // Mouse (desktop / web)
+          marker.on('mousedown', start);
+          marker.on('mouseup mousemove', cancel);
+          // Touch (mobile via WebView)
+          marker.on('touchstart', start);
+          marker.on('touchend touchmove', cancel);
+          // Se o long-press disparou, suprime o click subsequente (que abriria
+          // o detalhe do pet) por 800ms após o disparo.
+          marker.on('click', function(ev) {
+            if (fired) {
+              fired = false;
+              try {
+                if (ev && ev.originalEvent) {
+                  ev.originalEvent.stopPropagation();
+                  ev.originalEvent.preventDefault();
+                }
+                if (ev && ev.stopPropagation) {
+                  ev.stopPropagation();
+                  ev.preventDefault();
+                }
+              } catch (e) {}
+            }
+          });
         }
 
         window.__map = map;
@@ -583,13 +609,20 @@ export const MapLeaflet = ({
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
         // Long press ~500ms -> postMessage {type:'petLongPress', petId, ...}.
+        // Conta enquanto o botão/dedo está pressionado; cancela com
+        // mouseup/touchend antes dos 500ms (caso normal de tap). Quando o
+        // long-press dispara, suprime o click subsequente para não abrir o
+        // detalhe do pet em paralelo.
         function attachLongPress(marker, p) {
-          var t = null;
-          marker.on('mousedown touchstart', function(ev) {
-            try { if (ev && ev.originalEvent && ev.originalEvent.preventDefault) ev.originalEvent.preventDefault(); } catch (e) {}
-            if (t) clearTimeout(t);
-            t = setTimeout(function() {
-              t = null;
+          var timer = null;
+          var fired = false;
+          var start = function(ev) {
+            try { if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) ev.originalEvent.stopPropagation(); } catch (e) {}
+            fired = false;
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(function() {
+              timer = null;
+              fired = true;
               try {
                 window.ReactNativeWebView.postMessage(JSON.stringify({
                   type: 'petLongPress',
@@ -600,9 +633,28 @@ export const MapLeaflet = ({
                 }));
               } catch (e) {}
             }, 500);
-          });
-          marker.on('mouseup mousemove touchend touchmove click', function() {
-            if (t) { clearTimeout(t); t = null; }
+          };
+          var cancel = function() {
+            if (timer) { clearTimeout(timer); timer = null; }
+          };
+          marker.on('mousedown', start);
+          marker.on('mouseup mousemove', cancel);
+          marker.on('touchstart', start);
+          marker.on('touchend touchmove', cancel);
+          marker.on('click', function(ev) {
+            if (fired) {
+              fired = false;
+              try {
+                if (ev && ev.originalEvent) {
+                  ev.originalEvent.stopPropagation();
+                  ev.originalEvent.preventDefault();
+                }
+                if (ev && ev.stopPropagation) {
+                  ev.stopPropagation();
+                  ev.preventDefault();
+                }
+              } catch (e) {}
+            }
           });
         }
         function addMarker(p, lat, lng){

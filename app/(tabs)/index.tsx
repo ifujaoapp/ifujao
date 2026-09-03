@@ -496,6 +496,10 @@ export default function HomeScreen() {
         showSponsorText={showSponsorText}
         setShowSponsorText={setShowSponsorText}
         onMarkerPress={onMarkerPress}
+        onPetLongPress={(info) => {
+          const p = pets.find((x) => x.id === info.petId);
+          if (p) setModPet(p);
+        }}
         theme={theme}
         toggleTheme={toggleTheme}
         selectedCity={selectedCity}

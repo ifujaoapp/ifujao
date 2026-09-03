@@ -60,7 +60,13 @@ export const getFreshGodToken = async (
       await clearGodToken();
       const ok = await loginModerator(user, pass);
       refreshInFlight = null;
-      if (!ok) return null;
+      if (!ok) {
+        // Credenciais podem ter mudado. Limpa tudo para forcar novo login.
+        await clearGodToken();
+        await ssDel(MOD_USER_KEY);
+        await ssDel(MOD_PASS_KEY);
+        return null;
+      }
       return await getGodToken();
     } catch {
       refreshInFlight = null;

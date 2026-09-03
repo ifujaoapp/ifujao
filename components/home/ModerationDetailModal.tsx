@@ -23,6 +23,9 @@ export type ModerationDetailModalProps = {
   // Lista de pets do mesmo device/phone (para mostrar o historico).
   allPets: PetRecord[];
   onClose: () => void;
+  // Chamado quando a sessao de moderador expirou e o usuario precisa
+  // logar de novo. O componente pai (index.tsx) abre o GodLoginModal.
+  onNeedReauth?: () => void;
 };
 
 const formatDate = (iso?: string | null) => {
@@ -50,6 +53,7 @@ export function ModerationDetailModal({
   pet,
   allPets,
   onClose,
+  onNeedReauth,
 }: ModerationDetailModalProps) {
   const { theme } = useThemeMode();
   const isDark = theme === "dark";
@@ -90,6 +94,27 @@ export function ModerationDetailModal({
   const reportedCount = sameDevicePets.filter((p) => p.reported).length;
   const foundCount = sameDevicePets.filter((p) => p.foundAt).length;
 
+  const handleAuthError = (err?: string) => {
+    if (err && /token|sess|inválido|expirado/i.test(err)) {
+      Alert.alert(
+        "Sessão de moderador expirou",
+        "Faça login novamente para continuar.",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Login",
+            onPress: () => {
+              onClose();
+              onNeedReauth?.();
+            },
+          },
+        ],
+      );
+    } else {
+      Alert.alert("Erro", err ?? "Falha desconhecida.");
+    }
+  };
+
   const doBan = () => {
     Alert.alert(
       "Banir usuário?",
@@ -108,7 +133,7 @@ export function ModerationDetailModal({
                 reason: "Conteúdo impróprio",
               });
               if (!res.ok) {
-                Alert.alert("Erro", res.error ?? "Falha ao banir.");
+                handleAuthError(res.error);
                 return;
               }
               setBanned(true);
@@ -135,7 +160,7 @@ export function ModerationDetailModal({
               phone: pet.ownerPhone,
             });
             if (!res.ok) {
-              Alert.alert("Erro", res.error ?? "Falha ao liberar.");
+              handleAuthError(res.error);
               return;
             }
             setBanned(false);

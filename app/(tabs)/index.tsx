@@ -573,6 +573,7 @@ export default function HomeScreen() {
         pet={modPet}
         allPets={pets}
         onClose={() => setModPet(null)}
+        onNeedReauth={() => setIsGodLoginVisible(true)}
       />
 
       <GodLoginModal

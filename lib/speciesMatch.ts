@@ -1,11 +1,10 @@
-// Validador de especie x foto via Edge Function (Gemini multimodal embedding).
+// Validador de especie x foto via Edge Function (Gemini gemini-2.5-flash).
 // A chave Gemini fica no Supabase (Deno.env.get), NAO no client. O client
 // chama a Edge Function via sb.functions.invoke, igual lib/search.ts faz com
 // search-pets.
 //
-// Retorna { mismatch, score } comparando o embedding da FOTO do post com o
-// embedding do TEXTO da especie escolhida. NAO bloqueia o post — apenas
-// sinaliza para o caller decidir o que fazer.
+// Retorna { mismatch, confidence, detected } baseado na classificacao do
+// Gemini sobre a foto vs a especie escolhida. NAO bloqueia o post.
 
 import { ensureSession } from './supabase';
 
@@ -42,12 +41,13 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
       console.warn('[speciesMatch] falhou:', error?.message);
       return { mismatch: false, score: 0 };
     }
-    const result = data as SpeciesMatchResult;
-    // TEMP: log para diagnosticar threshold.
-    console.log('[speciesMatch] species=', args.chosenSpecies, 'score=', result.score, 'mismatch=', result.mismatch);
+    const result = data as { mismatch?: boolean; confidence?: number; detected?: string | null };
+    // TEMP: log para diagnosticar.
+    console.log('[speciesMatch] species=', args.chosenSpecies, 'detected=', result.detected, 'confidence=', result.confidence, 'mismatch=', result.mismatch);
     return {
       mismatch: !!result.mismatch,
-      score: typeof result.score === 'number' ? result.score : 0,
+      score: typeof result.confidence === 'number' ? result.confidence : 0,
+      detected: result.detected ?? null,
     };
   } catch (e) {
     console.warn('[speciesMatch] erro:', e);

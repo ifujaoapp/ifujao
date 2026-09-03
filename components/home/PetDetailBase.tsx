@@ -119,7 +119,12 @@ export function PetDetailModalBase(props: PetDetailBaseProps) {
   ).current;
 
   const renderBtn = (item: BarAction) => {
-    const disabled = item.disabled || (item.reportedDisabled && !!selectedPet?.reported) || (item.confirmedDisabled && !!selectedPet?.confirmed);
+    // Em godMode o moderador ignora os flags reportedDisabled/confirmedDisabled
+    // (bypass): ele precisa agir em qualquer post, mesmo ja denunciado ou
+    // confirmado. O flag item.disabled (manual) continua valendo.
+    const reportedGate = item.reportedDisabled && !!selectedPet?.reported && !godMode;
+    const confirmedGate = item.confirmedDisabled && !!selectedPet?.confirmed && !godMode;
+    const disabled = item.disabled || reportedGate || confirmedGate;
     const base = item.primary ? styles.demoActionBtnPrimary : styles.demoActionBtnNeutral;
     return (
       <TouchableOpacity

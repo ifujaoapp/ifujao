@@ -27,19 +27,34 @@ export const buildShareAction = (ctx: PetActionCtx): BarAction => ({
   onPress: () => ctx.sharePetCard(ctx.selectedPet),
 });
 
-export const buildReportAction = (ctx: PetActionCtx): BarAction | null =>
-  !ctx.selectedPet.reported && !ctx.isOwn
-    ? {
-        key: "report",
-        icon: "flag",
-        label: "Denunciar",
-        color: "#FF9500",
-        iconColor: "#FF9500",
-        textColor: "#48484A",
-        confirmedDisabled: true,
-        onPress: () => ctx.reportPet(ctx.selectedPet),
-      }
-    : null;
+export const buildReportAction = (ctx: PetActionCtx): BarAction | null => {
+  // Em godMode o moderador ve "Denunciar (mod)" em qualquer post nao
+  // denunciado (ate nos proprios, caso esteja revisando).
+  if (ctx.selectedPet.reported) return null;
+  if (ctx.godMode) {
+    return {
+      key: "report",
+      icon: "flag",
+      label: "Denunciar (mod)",
+      color: "#FF9500",
+      iconColor: "#FF9500",
+      textColor: "#48484A",
+      confirmedDisabled: true,
+      onPress: () => ctx.reportPet(ctx.selectedPet),
+    };
+  }
+  if (ctx.isOwn) return null;
+  return {
+    key: "report",
+    icon: "flag",
+    label: "Denunciar",
+    color: "#FF9500",
+    iconColor: "#FF9500",
+    textColor: "#48484A",
+    confirmedDisabled: true,
+    onPress: () => ctx.reportPet(ctx.selectedPet),
+  };
+};
 
 export const buildDeleteAction = (ctx: PetActionCtx): BarAction | null =>
   ctx.isOwn || ctx.godMode
@@ -112,10 +127,11 @@ export const buildFoundMarkAction = (
   if (!(ctx.isOwn || ctx.godMode)) return {};
   // Não mostra "Marcar como encontrado" se o pet já está encontrado ou é um post de achado
   if (ctx.selectedPet.foundAt || ctx.selectedPet.postType === 'found') return {};
+  const isMod = ctx.godMode && !ctx.isOwn;
   const foundAction: BarAction = {
     key: "found",
     icon: "checkmark-circle",
-    label: "Marcar como encontrado",
+    label: isMod ? "Marcar encontrado (mod)" : "Marcar como encontrado",
     color: "#34C759",
     iconColor: "#FFFFFF",
     textColor: "#FFFFFF",
@@ -132,6 +148,8 @@ export const buildFoundMarkAction = (
       ctx.setSelectedPet(null);
     },
   };
+  // Top apenas para o dono. Moderador em post de outro vai para secondary
+  // (junto com "Apagar (mod)" / "Apagar denuncia (mod)").
   return ctx.isOwn ? { top: foundAction } : { secondary: foundAction };
 };
 

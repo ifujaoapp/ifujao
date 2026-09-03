@@ -79,6 +79,9 @@ export function PetLostModal(props: PetModalProps) {
       topActions.push(buildUnfoundAction(ctx));
       const d = buildDeleteAction(ctx);
       if (d) secondary.push(d);
+      // Moderador tambem pode limpar denuncias em posts ja encontrados.
+      const u = buildUndoReportAction(ctx);
+      if (u) secondary.push(u);
     }
   } else {
     if (contact) topActions.push(contact);

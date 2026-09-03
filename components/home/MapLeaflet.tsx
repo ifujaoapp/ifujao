@@ -14,7 +14,6 @@ export const MapLeaflet = ({
   recenterNonce,
   pets,
   onMarkerPress,
-  onPetLongPress,
   sponsors,
   onSponsorPress,
   theme,
@@ -28,7 +27,6 @@ export const MapLeaflet = ({
   recenterNonce: number;
   pets: PetRecord[];
   onMarkerPress: (petId: string) => void;
-  onPetLongPress?: (info: { petId: string; deviceId: string | null; phone: string | null; contact: string | null }) => void;
   sponsors: SponsorPin[];
   onSponsorPress: (s: SponsorPin) => void;
   theme: "light" | "dark";
@@ -92,7 +90,7 @@ export const MapLeaflet = ({
         // click em pins especificamente apos zoom por pinca no Android
         // WebView, porque desabilita o processamento de click sintetico que
         // o Leaflet faz apos gestos multi-touch.
-        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: true, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
+        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: false, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19
@@ -304,119 +302,6 @@ export const MapLeaflet = ({
           });
         }
 
-        // Helper: anexa "long press" ao L.marker. Estratégia tripla para
-        // cobrir as inconsistências de eventos entre Android WebView / iOS
-        // WebView / Web desktop:
-        //
-        //  1) marker.on('contextmenu', ...) - Leaflet já tem suporte
-        //     oficial: em mobile, tocar e segurar ~500ms dispara
-        //     'contextmenu' no marker, com originalEvent.preventDefault()
-        //     para suprimir o menu de contexto do navegador. É a forma
-        //     mais confiável em Android WebView (problema documentado em
-        //     gh#3929, gh#5556 do Leaflet).
-        //  2) Fallback manual com 'touchstart' no DOM do icon - se
-        //     contextmenu oscilar (algumas versões iOS não disparam),
-        //     contamos 500ms manualmente e cancelamos com touchend/
-        //     touchmove.
-        //  3) Bypass via 'addEventListener' direto no icon com
-        //     capture:true - garante que chegamos antes de qualquer
-        //     handler do Leaflet que possa parar propagação.
-        //
-        // O postMessage tem fired=true para suprimir o click subsequente
-        // (abriria o detalhe do pet em paralelo).
-        function __attachLongPress(marker, p) {
-          var send = function() {
-            // Marca o marker para que o handler de click subsequente saiba
-            // que veio de um long-press e NAO abra o detalhe do pet. O
-            // handler de click do Leaflet (m.on('click', ...)) verifica
-            // marker.__longPressFired antes de chamar onMarkerPress.
-            //
-            // IMPORTANTE: a flag tem validade curta (~1.2s). Em Android
-            // WebView, o Leaflet nem sempre dispara o click sintetico apos
-            // o contextmenu do long-press (depende da versao). Se a flag
-            // ficasse presa em true, o PROXIMO tap curto seria consumido
-            // sem abrir o detalhe do pet (teria que clicar 2x). Com TTL,
-            // a flag expira sozinha se o click sintetico nao chegar.
-            try { marker.__longPressFired = true; } catch (e) {}
-            setTimeout(function() {
-              try { marker.__longPressFired = false; } catch (e) {}
-            }, 1200);
-            try {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'petLongPress',
-                petId: p.id,
-                deviceId: p.ownerDeviceId || null,
-                phone: p.ownerPhone || null,
-                contact: p.contact || null,
-              }));
-            } catch (e) {}
-          };
-          // (1) Contextmenu via Leaflet — caminho primário.
-          marker.on('contextmenu', function(ev) {
-            try {
-              if (ev && ev.originalEvent && ev.originalEvent.preventDefault) {
-                ev.originalEvent.preventDefault();
-              }
-              if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) {
-                ev.originalEvent.stopPropagation();
-              }
-            } catch (e) {}
-            send();
-          });
-          // (2) + (3) Fallback: timer manual no DOM do icon.
-          var el = null;
-          try { el = marker.getElement() || marker._icon; } catch (e) {}
-          if (el) {
-            var timer = null;
-            var pinchActive = false;
-            var cancel = function() {
-              if (timer) { clearTimeout(timer); timer = null; }
-            };
-            var start = function(ev) {
-              // Ignora pinch-zoom (2+ dedos). Caso contrario o timer dispara
-              // long-press no meio do gesto de pinca e o proximo tap no pin
-              // eh consumido pela flag __longPressFired sem abrir o detalhe.
-              try {
-                var touches = (ev && ev.touches) || null;
-                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
-                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
-              } catch (e) {}
-              try {
-                if (ev && ev.stopPropagation) ev.stopPropagation();
-              } catch (e) {}
-              cancel();
-              timer = setTimeout(function() {
-                timer = null;
-                // Se um pinch foi detectado entre o touchstart e o timeout,
-                // descarta. Garante que o long-press nao dispara apos o zoom.
-                if (pinchActive) { pinchActive = false; return; }
-                send();
-              }, 500);
-            };
-            ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
-              el.addEventListener(evt, start, { capture: true, passive: true });
-            });
-            // touchmove com 2+ dedos durante o gesto = pinch. Marca e cancela.
-            var onTouchMove = function(ev) {
-              try {
-                if (ev && ev.touches && ev.touches.length > 1) {
-                  pinchActive = true;
-                  cancel();
-                }
-              } catch (e) {}
-            };
-            el.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
-            ['touchend', 'touchcancel',
-             'pointerup', 'pointercancel', 'pointermove',
-             'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
-            });
-            el.addEventListener('contextmenu', function(ev) {
-              try { ev.preventDefault(); } catch (e) {}
-            }, { capture: true });
-          }
-        }
-
         window.__map = map;
         // Pane dedicado aos pinos de PET, com z-index maior que o markerPane
         // (600) padrão dos patrocinadores, garantindo que os pets fiquem SEMPRE
@@ -470,10 +355,9 @@ export const MapLeaflet = ({
              if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
              // Achado já resolvido (match confirmado): some do mapa.
              // achados confirmados permanecem visíveis (anti-fraude)
-              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
-              m.on('click', function(){ if (m.__longPressFired) { m.__longPressFired = false; return; } window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
-             if (typeof __attachLongPress === 'function') __attachLongPress(m, p);
-             window.__petMarkers.push(m);
+               var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+               m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+              window.__petMarkers.push(m);
           }
           var groups = {};
           pets.forEach(function(p){
@@ -671,99 +555,14 @@ export const MapLeaflet = ({
         if (!window.__petMarkers) window.__petMarkers = [];
         window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
         window.__petMarkers = [];
-        // Long press -> postMessage {type:'petLongPress', petId, ...}.
-        // Mesma estratégia tripla do __attachLongPress (contextmenu via
-        // Leaflet + fallback manual no DOM do icon com capture:true).
-        function attachLongPress(marker, p) {
-          var send = function() {
-            // Marca o marker com TTL de 1.2s. Mesmo motivo do __attachLongPress:
-            // se o click sintetico do Leaflet nao chegar apos o contextmenu do
-            // long-press, a flag expira sozinha em vez de ficar presa em true
-            // (o que faria o proximo tap ser consumido sem abrir o detalhe).
-            try { marker.__longPressFired = true; } catch (e) {}
-            setTimeout(function() {
-              try { marker.__longPressFired = false; } catch (e) {}
-            }, 1200);
-            try {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'petLongPress',
-                petId: p.id,
-                deviceId: p.ownerDeviceId || null,
-                phone: p.ownerPhone || null,
-                contact: p.contact || null,
-              }));
-            } catch (e) {}
-          };
-          marker.on('contextmenu', function(ev) {
-            try {
-              if (ev && ev.originalEvent && ev.originalEvent.preventDefault) {
-                ev.originalEvent.preventDefault();
-              }
-              if (ev && ev.originalEvent && ev.originalEvent.stopPropagation) {
-                ev.originalEvent.stopPropagation();
-              }
-            } catch (e) {}
-            send();
-          });
-          var el = null;
-          try { el = marker.getElement() || marker._icon; } catch (e) {}
-          if (el) {
-            var timer = null;
-            var pinchActive = false;
-            var cancel = function() {
-              if (timer) { clearTimeout(timer); timer = null; }
-            };
-            var start = function(ev) {
-              // Ignora pinch-zoom (2+ dedos). Sem isso, o timer dispara
-              // long-press no meio do gesto de pinca e o click subsequente
-              // no pin eh consumido pela flag __longPressFired, fazendo o
-              // detalhe do pet nao abrir ao tocar logo apos dar zoom.
-              try {
-                var touches = (ev && ev.touches) || null;
-                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
-                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
-              } catch (e) {}
-              try {
-                if (ev && ev.stopPropagation) ev.stopPropagation();
-              } catch (e) {}
-              cancel();
-              timer = setTimeout(function() {
-                timer = null;
-                if (pinchActive) { pinchActive = false; return; }
-                send();
-              }, 500);
-            };
-            ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
-              el.addEventListener(evt, start, { capture: true, passive: true });
-            });
-            var onTouchMove = function(ev) {
-              try {
-                if (ev && ev.touches && ev.touches.length > 1) {
-                  pinchActive = true;
-                  cancel();
-                }
-              } catch (e) {}
-            };
-            el.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
-            ['touchend', 'touchcancel',
-             'pointerup', 'pointercancel', 'pointermove',
-             'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
-            });
-            el.addEventListener('contextmenu', function(ev) {
-              try { ev.preventDefault(); } catch (e) {}
-            }, { capture: true });
-          }
-        }
         function addMarker(p, lat, lng){
            // Pet reencontrado fora da janela: não aparece mais no mapa.
            if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
            // Achado já resolvido (match confirmado): some do mapa.
            // achados confirmados permanecem visíveis (anti-fraude)
               var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
-           m.on('click', function(){ if (m.__longPressFired) { m.__longPressFired = false; return; } window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
-           attachLongPress(m, p);
-           window.__petMarkers.push(m);
+              m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+              window.__petMarkers.push(m);
         }
         var groups = {};
         pets.forEach(function(p){
@@ -964,13 +763,6 @@ export const MapLeaflet = ({
               logo: data.logo ?? null,
               visibleFrom: data.visibleFrom ?? null,
               updatedAt: data.updatedAt ?? null,
-            });
-          } else if (data.type === 'petLongPress' && onPetLongPress) {
-            onPetLongPress({
-              petId: data.petId,
-              deviceId: data.deviceId ?? null,
-              phone: data.phone ?? null,
-              contact: data.contact ?? null,
             });
           } else if (data.petId) {
             onMarkerPress(data.petId);

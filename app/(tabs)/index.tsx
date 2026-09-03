@@ -414,11 +414,21 @@ export default function HomeScreen() {
         aiResults={aiResults}
         showSponsorText={showSponsorText}
         setShowSponsorText={setShowSponsorText}
-        onMarkerPress={onMarkerPress}
-        onPetLongPress={(info) => {
-          if (!godMode) return;
-          const p = pets.find((x) => x.id === info.petId);
-          if (p) setModPet(p);
+        onMarkerPress={(petId) => {
+          if (godMode) {
+            // Em godMode, toque no pin abre menu: o moderador escolhe
+            // entre ver o post normalmente ou abrir o modal de moderacao.
+            // Sem godMode, vai direto para onMarkerPress (comportamento padrao).
+            const p = pets.find((x) => x.id === petId);
+            if (!p) return;
+            showAlert("info", "Ações do moderador", "O que você quer fazer com este alerta?", [
+              { text: "Ver detalhes", onPress: () => onMarkerPress(petId) },
+              { text: "Moderar", onPress: () => setModPet(p) },
+              { text: "Cancelar", style: "cancel" },
+            ]);
+          } else {
+            onMarkerPress(petId);
+          }
         }}
         theme={theme}
         toggleTheme={toggleTheme}

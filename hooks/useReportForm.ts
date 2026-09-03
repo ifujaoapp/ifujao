@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { ssSet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
@@ -15,21 +15,7 @@ import { getOrCreateDeviceId } from "@/lib/deviceId";
 import { persistPhotos } from "@/lib/storage";
 import { canCreatePet } from "@/lib/limits";
 import { checkSpeciesMatch } from "@/lib/speciesMatch";
-import { File } from "expo-file-system";
-
-// Le um arquivo local (file://) como base64 (sem prefixo data:). Usado pelo
-// validador de especie para enviar a foto inline ao Gemini.
-const readAsBase64 = async (uri: string): Promise<string> => {
-  const buf = await new File(uri).arrayBuffer();
-  let bin = "";
-  const bytes = new Uint8Array(buf);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)));
-  }
-  // btoa funciona no Hermes/React Native moderno. Fallback: retorna string vazia.
-  try { return globalThis.btoa(bin); } catch { return ""; }
-};
+import { uploadPetPhotos } from "@/lib/photos";
 
 const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 import { type Region } from "react-native-maps";
@@ -105,6 +91,12 @@ export function useReportForm(params: UseReportFormParams) {
   // Data do achado (usada quando postType === 'found').
   const [foundDate, setFoundDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStage, setSubmitStage] = useState<"idle" | "uploading" | "validating">("idle");
+  // Cache da ultima validacao: se (photoLocalUri + species) nao mudou, reusa
+  // o resultado em vez de re-uploar e re-chamar a Edge Function. Limpa quando
+  // o usuario troca a foto ou muda a especie.
+  const lastValidationRef = useRef<{ key: string; mismatch: boolean; score: number } | null>(null);
   const [speciesPickerOpen, setSpeciesPickerOpen] = useState(false);
   const [breedPickerOpen, setBreedPickerOpen] = useState(false);
   const speciesItems = useMemo(
@@ -203,26 +195,54 @@ export function useReportForm(params: UseReportFormParams) {
     ssSet("ifujao_my_phone", ownerPhone).catch(() => {});
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
-    // Valida especie x foto via Edge Function validate-species (Gemini
-    // multimodal embedding no server). Se mismatch E o usuario nao for
-    // moderador, mostra alerta com opcao de voltar (cancelar publicacao,
-    // manter modal aberto para trocar foto) ou postar mesmo assim.
-    let speciesMismatch = false;
-    try {
-      if (storedImages.length > 0 && species) {
-        const photoUri = storedImages[0];
-        const b64 = photoUri.startsWith("http") ? undefined : await readAsBase64(photoUri);
-        console.log('[speciesMatch] DEBUG photoUri=', photoUri, 'http?', photoUri.startsWith("http"), 'b64.length=', b64?.length);
-        const match = await checkSpeciesMatch({
-          imageUrl: photoUri.startsWith("http") ? photoUri : undefined,
-          imageBase64: b64,
-          mimeType: "image/jpeg",
-          chosenSpecies: species,
-        });
-        speciesMismatch = match.mismatch;
+    const firstLocal = storedImages[0] ?? "";
+    const validationKey = `${firstLocal}|${species}`;
+    const cached = lastValidationRef.current;
+    let speciesMismatch: boolean;
+    let finalImages: string[];
+    if (cached && cached.key === validationKey) {
+      // Reusa validacao anterior: mesma foto + mesma especie. Evita re-upload
+      // e chamada a Edge Function (economiza Storage e quota Gemini).
+      speciesMismatch = cached.mismatch;
+      finalImages = storedImages;
+    } else {
+      // Sobe APENAS a foto principal para o Storage. A Edge Function
+      // validate-species so valida a primeira foto, e o embed-pets cuida
+      // de subir as outras depois. Evita 3 uploads desnecessarios por post.
+      setIsSubmitting(true);
+      setSubmitStage("uploading");
+      let deviceIdForUpload = myDeviceId;
+      if (!deviceIdForUpload) {
+        try { deviceIdForUpload = await getOrCreateDeviceId() ?? undefined; } catch {}
       }
-    } catch {
+      const firstLocalUri = storedImages[0];
+      const remoteUrls = (deviceIdForUpload && firstLocalUri)
+        ? await uploadPetPhotos([firstLocalUri], deviceIdForUpload, [])
+        : [];
+      // Valida especie x foto via Edge Function (gemini-embedding-2 multimodal).
+      setSubmitStage("validating");
       speciesMismatch = false;
+      try {
+        const firstRemote = remoteUrls.find((u) => u.startsWith("http"));
+        if (firstRemote && species) {
+          const match = await checkSpeciesMatch({
+            imageUrl: firstRemote,
+            mimeType: "image/jpeg",
+            chosenSpecies: species,
+          });
+          speciesMismatch = match.mismatch;
+          lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
+        }
+      } catch {
+        speciesMismatch = false;
+      }
+      setIsSubmitting(false);
+      setSubmitStage("idle");
+      // Mantem as outras fotos como locais; embed-pets sobe quando rodar.
+      const firstRemote = remoteUrls.find((u) => u.startsWith("http"));
+      finalImages = firstRemote
+        ? [firstRemote, ...storedImages.slice(1)]
+        : storedImages;
     }
     // Mismatch: pergunta antes de commitar. "Voltar" cancela; "Postar mesmo
     // assim" commita com a flag. Moderador (godMode) pula o aviso.
@@ -232,13 +252,20 @@ export function useReportForm(params: UseReportFormParams) {
         "Foto pode não condizer",
         `A foto parece não ser de ${species.toLowerCase()}. Você pode trocar a foto antes de publicar.`,
         [
+          { text: "Postar mesmo assim", onPress: () => { void doCommit(finalImages, latitude, longitude, ownerPhone, myDeviceId, true); } },
           { text: "Voltar", style: "cancel" },
-          { text: "Postar mesmo assim", onPress: () => doCommit(storedImages, latitude, longitude, ownerPhone, myDeviceId, true) },
         ],
       );
       return;
     }
-    await doCommit(storedImages, latitude, longitude, ownerPhone, myDeviceId, speciesMismatch);
+    await doCommit(
+      finalImages,
+      latitude,
+      longitude,
+      ownerPhone,
+      myDeviceId,
+      speciesMismatch,
+    );
   };
 
   // Faz o commit efetivo do post. Chamado apos a validacao e (se mismatch)
@@ -502,6 +529,8 @@ export function useReportForm(params: UseReportFormParams) {
     setLostDate,
     showDatePicker,
     setShowDatePicker,
+    isSubmitting,
+    submitStage,
     postType,
     setPostType,
     postTypeLocked,

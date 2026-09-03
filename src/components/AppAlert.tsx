@@ -71,14 +71,17 @@ export function AppAlertProvider({ children }: { children: React.ReactNode }) {
               <Ionicons name={ICON_MAP[config.type].name} size={44} color={ICON_MAP[config.type].color} style={styles.icon} />
               <Text style={[styles.title, { color: palette.title }]}>{config.title}</Text>
               {config.message ? <Text style={[styles.message, { color: palette.message }]}>{config.message}</Text> : null}
-              <View style={[styles.actions, config.buttons.length > 2 && styles.actionsColumn]}>
+              <View style={styles.actions}>
                 {config.buttons.map((btn, i) => {
                   const color =
                     btn.style === 'destructive' ? palette.destructive : btn.style === 'cancel' ? palette.cancel : palette.default;
+                  // Inverte a ordem: o botao principal (default/destructive) fica
+                  // em cima, o cancelar (Voltar) fica embaixo. Separador hairline
+                  // no topo de cada botao (exceto o primeiro).
                   return (
                     <TouchableOpacity
                       key={`${btn.text}-${i}`}
-                      style={[styles.actionBtn, config.buttons.length > 2 && styles.actionBtnColumn]}
+                      style={[styles.actionBtnColumn, i > 0 && styles.sepTop]}
                       onPress={() => close(btn)}
                       activeOpacity={0.6}
                     >
@@ -137,9 +140,10 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    maxWidth: 320,
+    maxWidth: 360,
     borderRadius: 16,
-    padding: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
     alignItems: 'center',
   },
   icon: {
@@ -158,25 +162,19 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   actions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     width: '100%',
-    borderTopWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
     marginTop: 4,
   },
-  actionsColumn: {
-    flexDirection: 'column',
-  },
-  actionBtn: {
-    flex: 1,
+  actionBtnColumn: {
+    width: '100%',
     paddingVertical: 12,
     alignItems: 'center',
   },
-  actionBtnColumn: {
-    flex: 0,
-    width: '100%',
-    borderTopWidth: 1,
-    borderColor: 'rgba(0,0,0,0.08)',
+  // Separador hairline no topo dos botoes (exceto o primeiro).
+  sepTop: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.15)',
   },
   actionText: {
     fontSize: 16,

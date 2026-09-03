@@ -1139,6 +1139,15 @@ const makeStyles = (c: typeof Colors.light) =>
       fontSize: 16,
       fontWeight: "bold",
     },
+    submitButtonDisabled: {
+      opacity: 0.7,
+    },
+    submitButtonLoadingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+    },
     counterFloat: {
       flexDirection: "row",
       alignItems: "center",

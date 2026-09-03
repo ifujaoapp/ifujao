@@ -88,6 +88,8 @@ export function ReportModal({
     procurarEndereco,
     handlePickLocation,
     usarMeuGps,
+    isSubmitting,
+    submitStage,
   } = form;
   const activeDate = postType === 'found' ? foundDate : lostDate;
   const {
@@ -621,12 +623,22 @@ export function ReportModal({
             </View>
 
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
               onPress={handleAddPet}
+              disabled={isSubmitting}
             >
-              <Text style={styles.submitButtonText}>
-                {postType === 'found' ? 'Publicar Achado' : 'Publicar Alerta'}
-              </Text>
+              {isSubmitting ? (
+                <View style={styles.submitButtonLoadingRow}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.submitButtonText}>
+                    {submitStage === "uploading" ? "Enviando foto..." : "Verificando foto..."}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  {postType === 'found' ? 'Publicar Achado' : 'Publicar Alerta'}
+                </Text>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>

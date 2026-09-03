@@ -2,6 +2,7 @@
   "expo": {
     "name": "iFujao",
     "slug": "ifujao",
+    "owner": "mrollo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo_bg.png",

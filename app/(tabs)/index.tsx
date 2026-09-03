@@ -1,6 +1,7 @@
 import { GodLoginModal } from "@/components/home/GodLoginModal";
 import { MapArea } from "@/components/home/MapArea";
 import { ModerationDetailModal } from "@/components/home/ModerationDetailModal";
+import { HomeHeader } from "@/components/home/HomeHeader";
 import {
   AboutModal,
   PhotoSourceModal,
@@ -367,67 +368,19 @@ export default function HomeScreen() {
   }).length;
 
   return (
-    <View style={styles.container}>
-      <View style={{ paddingTop: insets.top }}>
-        <View
-          style={styles.titleBar}
-          onLayout={(e) => setTitleBarH(e.nativeEvent.layout.height)}
-        >
-          <TouchableOpacity
-            style={styles.clockWrap}
-            activeOpacity={0.7}
-            onPress={handleClockTap}
-          >
-            <Ionicons
-              style={styles.clockIcon}
-              name={isDay ? "sunny" : "moon"}
-              size={22}
-              color={isDay ? "#FFD60A" : "#E6E6FA"}
-            />
-            <View style={styles.clockText}>
-              <Text style={styles.clockTime}>
-                {now.toLocaleTimeString("pt-BR", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </Text>
-              <Text style={styles.clockDate}>
-                {now.toLocaleDateString("pt-BR", {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "short",
-                })}
-              </Text>
-            </View>
-          </TouchableOpacity>
-          {godMode ? (
-            <View style={styles.godBadge}>
-              <Text style={styles.godBadgeText}>⚡ DEUS</Text>
-            </View>
-          ) : null}
-          <TouchableOpacity
-            style={styles.titleInfoBtn}
-            onPress={() => setIsAboutVisible(true)}
-          >
-            <Ionicons
-              name="information-circle"
-              size={24}
-              color={themeColors.text}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.titleInfoBtn}
-            onPress={() => setIsPrivacyVisible(true)}
-          >
-            <Ionicons
-              name="shield-checkmark"
-              size={24}
-              color={themeColors.text}
-            />
-          </TouchableOpacity>
+      <View style={styles.container}>
+        <View style={{ paddingTop: insets.top }}>
+          <HomeHeader
+            now={now}
+            isDay={isDay}
+            godMode={godMode}
+            themeColors={themeColors}
+            onClockTap={handleClockTap}
+            onAboutPress={() => setIsAboutVisible(true)}
+            onPrivacyPress={() => setIsPrivacyVisible(true)}
+            onLayout={(e) => setTitleBarH(e.nativeEvent.layout.height)}
+          />
         </View>
-      </View>
 
       {/* Barra de busca semântica por IA (Gemini) — só aparece ao clicar em
           "Pesquisar"; arrastável pelo pegador (ícone de grip) à esquerda. */}

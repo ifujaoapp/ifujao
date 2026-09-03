@@ -323,10 +323,12 @@ export const MapLeaflet = ({
         // O postMessage tem fired=true para suprimir o click subsequente
         // (abriria o detalhe do pet em paralelo).
         function __attachLongPress(marker, p) {
-          var fired = false;
           var send = function() {
-            if (fired) return;
-            fired = true;
+            // Marca o marker para que o handler de click subsequente saiba
+            // que veio de um long-press e NAO abra o detalhe do pet. O
+            // handler de click do Leaflet (m.on('click', ...)) verifica
+            // marker.__longPressFired antes de chamar onMarkerPress.
+            try { marker.__longPressFired = true; } catch (e) {}
             try {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'petLongPress',
@@ -375,19 +377,13 @@ export const MapLeaflet = ({
              'mouseup', 'mouseleave'].forEach(function(evt) {
               el.addEventListener(evt, cancel, { capture: true, passive: true });
             });
-            // Suprime o click subsequente quando o long-press disparou.
             el.addEventListener('click', function(ev) {
-              if (fired) {
-                fired = false;
-                try {
-                  ev.stopPropagation();
-                  ev.preventDefault();
-                } catch (e) {}
-              }
+              // A supressao real acontece no m.on('click', ...) do Leaflet
+              // (ver __longPressFired). Aqui so impedimos o default do DOM.
+              try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });
-            // Suprime também o contextmenu nativo do navegador no DOM.
+            // Suprime o contextmenu nativo do navegador no DOM.
             el.addEventListener('contextmenu', function(ev) {
-              if (fired) { fired = false; }
               try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });
           }
@@ -442,14 +438,14 @@ export const MapLeaflet = ({
           window.__petMarkers.forEach(function(m){ window.__map.removeLayer(m); });
           window.__petMarkers = [];
            function addMarker(p, lat, lng){
-            // Pet reencontrado fora da janela: não aparece mais no mapa.
-            if (p.foundAt && !withinFoundWindow(p.foundAt)) return;
-            // Achado já resolvido (match confirmado): some do mapa.
-            // achados confirmados permanecem visíveis (anti-fraude)
-             var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
-            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
-            if (typeof __attachLongPress === 'function') __attachLongPress(m, p);
-            window.__petMarkers.push(m);
+             // Pet reencontrado fora da janela: não aparece mais no mapa.
+             if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
+             // Achado já resolvido (match confirmado): some do mapa.
+             // achados confirmados permanecem visíveis (anti-fraude)
+              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+              m.on('click', function(){ if (m.__longPressFired) { m.__longPressFired = false; return; } window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+             if (typeof __attachLongPress === 'function') __attachLongPress(m, p);
+             window.__petMarkers.push(m);
           }
           var groups = {};
           pets.forEach(function(p){
@@ -651,10 +647,8 @@ export const MapLeaflet = ({
         // Mesma estratégia tripla do __attachLongPress (contextmenu via
         // Leaflet + fallback manual no DOM do icon com capture:true).
         function attachLongPress(marker, p) {
-          var fired = false;
           var send = function() {
-            if (fired) return;
-            fired = true;
+            try { marker.__longPressFired = true; } catch (e) {}
             try {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'petLongPress',
@@ -702,16 +696,9 @@ export const MapLeaflet = ({
               el.addEventListener(evt, cancel, { capture: true, passive: true });
             });
             el.addEventListener('click', function(ev) {
-              if (fired) {
-                fired = false;
-                try {
-                  ev.stopPropagation();
-                  ev.preventDefault();
-                } catch (e) {}
-              }
+              try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });
             el.addEventListener('contextmenu', function(ev) {
-              if (fired) { fired = false; }
               try { ev.preventDefault(); } catch (e) {}
             }, { capture: true });
           }
@@ -721,8 +708,8 @@ export const MapLeaflet = ({
            if (p.foundAt && !window.withinFoundWindow(p.foundAt)) return;
            // Achado já resolvido (match confirmado): some do mapa.
            // achados confirmados permanecem visíveis (anti-fraude)
-             var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
-           m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
+              var m = L.marker([lat, lng], { icon: buildPetIcon(p.reported, p.species, p.lostDate, p.foundAt, p.postType, p.foundDate, (function(){var c=0;for(var i=0;i<pets.length;i++){var x=pets[i];if(x.postType!=='found'&&x.matchedPetId===p.id&&x.matchStatus==='pending')c++;}return c;})(), !!p.confirmed), zIndexOffset: 1000, pane: 'petPane' }).addTo(window.__map);
+           m.on('click', function(){ if (m.__longPressFired) { m.__longPressFired = false; return; } window.ReactNativeWebView.postMessage(JSON.stringify({petId:p.id, contact:p.contact})); });
            attachLongPress(m, p);
            window.__petMarkers.push(m);
         }

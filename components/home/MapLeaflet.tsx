@@ -85,12 +85,14 @@ export const MapLeaflet = ({
     <body>
       <div id="map"></div>
       <script>
-        // tap:false desabilita o Map.Tap handler do Leaflet, que intercepta
-        // long-press e converte em click sintetico (impede o contextmenu de
-        // disparar). contextmenu:true habilita o disparo de 'contextmenu'
-        // em markers no toque longo (~500ms) — é o caminho mais confiavel
-        // em Android WebView para detectar long-press.
-        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: false, contextmenu: true, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
+        // tap:true (padrao) mantem o click normal em markers funcionando apos
+        // gestos de pinch-zoom. O long-press nao depende disso: usamos
+        // contextmenu:true (DOM event, independente do tap handler) +
+        // timer manual no DOM do icon como fallback. tap:false quebrava o
+        // click em pins especificamente apos zoom por pinca no Android
+        // WebView, porque desabilita o processamento de click sintetico que
+        // o Leaflet faz apos gestos multi-touch.
+        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: true, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19
@@ -366,26 +368,48 @@ export const MapLeaflet = ({
           try { el = marker.getElement() || marker._icon; } catch (e) {}
           if (el) {
             var timer = null;
+            var pinchActive = false;
             var cancel = function() {
               if (timer) { clearTimeout(timer); timer = null; }
             };
             var start = function(ev) {
+              // Ignora pinch-zoom (2+ dedos). Caso contrario o timer dispara
+              // long-press no meio do gesto de pinca e o proximo tap no pin
+              // eh consumido pela flag __longPressFired sem abrir o detalhe.
+              try {
+                var touches = (ev && ev.touches) || null;
+                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
+                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
+              } catch (e) {}
               try {
                 if (ev && ev.stopPropagation) ev.stopPropagation();
               } catch (e) {}
               cancel();
               timer = setTimeout(function() {
                 timer = null;
+                // Se um pinch foi detectado entre o touchstart e o timeout,
+                // descarta. Garante que o long-press nao dispara apos o zoom.
+                if (pinchActive) { pinchActive = false; return; }
                 send();
               }, 500);
             };
             ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
               el.addEventListener(evt, start, { capture: true, passive: true });
             });
-            ['touchend', 'touchcancel', 'touchmove',
+            // touchmove com 2+ dedos durante o gesto = pinch. Marca e cancela.
+            var onTouchMove = function(ev) {
+              try {
+                if (ev && ev.touches && ev.touches.length > 1) {
+                  pinchActive = true;
+                  cancel();
+                }
+              } catch (e) {}
+            };
+            el.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
+            ['touchend', 'touchcancel',
              'pointerup', 'pointercancel', 'pointermove',
              'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, cancel, { capture: true, passive: true });
+              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
             });
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}
@@ -685,26 +709,46 @@ export const MapLeaflet = ({
           try { el = marker.getElement() || marker._icon; } catch (e) {}
           if (el) {
             var timer = null;
+            var pinchActive = false;
             var cancel = function() {
               if (timer) { clearTimeout(timer); timer = null; }
             };
             var start = function(ev) {
+              // Ignora pinch-zoom (2+ dedos). Sem isso, o timer dispara
+              // long-press no meio do gesto de pinca e o click subsequente
+              // no pin eh consumido pela flag __longPressFired, fazendo o
+              // detalhe do pet nao abrir ao tocar logo apos dar zoom.
+              try {
+                var touches = (ev && ev.touches) || null;
+                if (touches && touches.length > 1) { pinchActive = true; cancel(); return; }
+                if (ev && typeof ev.pointerType === 'touch' && ev.isPrimary === false) { pinchActive = true; cancel(); return; }
+              } catch (e) {}
               try {
                 if (ev && ev.stopPropagation) ev.stopPropagation();
               } catch (e) {}
               cancel();
               timer = setTimeout(function() {
                 timer = null;
+                if (pinchActive) { pinchActive = false; return; }
                 send();
               }, 500);
             };
             ['touchstart', 'pointerdown', 'mousedown'].forEach(function(evt) {
               el.addEventListener(evt, start, { capture: true, passive: true });
             });
-            ['touchend', 'touchcancel', 'touchmove',
+            var onTouchMove = function(ev) {
+              try {
+                if (ev && ev.touches && ev.touches.length > 1) {
+                  pinchActive = true;
+                  cancel();
+                }
+              } catch (e) {}
+            };
+            el.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
+            ['touchend', 'touchcancel',
              'pointerup', 'pointercancel', 'pointermove',
              'mouseup', 'mouseleave'].forEach(function(evt) {
-              el.addEventListener(evt, cancel, { capture: true, passive: true });
+              el.addEventListener(evt, function(){ pinchActive = false; cancel(); }, { capture: true, passive: true });
             });
             el.addEventListener('contextmenu', function(ev) {
               try { ev.preventDefault(); } catch (e) {}

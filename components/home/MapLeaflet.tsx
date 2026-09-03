@@ -92,7 +92,15 @@ export const MapLeaflet = ({
         // click em pins especificamente apos zoom por pinca no Android
         // WebView, porque desabilita o processamento de click sintetico que
         // o Leaflet faz apos gestos multi-touch.
-        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: true, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
+        // inertia:false desabilita a animacao de inercia apos o pan. Sem
+        // isso, o mapa continua deslizando por ~300ms apos o usuario soltar
+        // o dedo. Durante essa janela, o handler Map.Tap do Leaflet
+        // (tap:true) interpreta o gesture como "drag" e descarta o click
+        // seguinte no pin. Resultado: o usuario arrasta o mapa, tenta tocar
+        // num pin em seguida, e o detalhe do pet nao abre.
+        // Marcadores seguem com markerZoomAnimation:true (zoom animado eh OK
+        // porque o usuario nao toca em pins durante o zoom de pinca).
+        var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: true, worldCopyJump: true, inertia: false, markerZoomAnimation: true }).setView([${center.latitude}, ${center.longitude}], 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19

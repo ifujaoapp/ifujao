@@ -2,6 +2,7 @@ import { GodLoginModal } from "@/components/home/GodLoginModal";
 import { MapArea } from "@/components/home/MapArea";
 import { ModerationDetailModal } from "@/components/home/ModerationDetailModal";
 import { HomeHeader } from "@/components/home/HomeHeader";
+import { AiSearchBar } from "@/components/home/AiSearchBar";
 import {
   AboutModal,
   PhotoSourceModal,
@@ -382,53 +383,18 @@ export default function HomeScreen() {
           />
         </View>
 
-      {/* Barra de busca semântica por IA (Gemini) — só aparece ao clicar em
-          "Pesquisar"; arrastável pelo pegador (ícone de grip) à esquerda. */}
-      {aiSearchVisible && (
-        <View style={[styles.aiSearchBar, { top: aiBarXY.y }]}>
-          <View style={styles.aiSearchRow}>
-            <View {...aiPan.panHandlers} style={styles.aiDragHandle}>
-              <Ionicons name="reorder-two" size={18} color="#8E8E93" />
-            </View>
-            <Ionicons name="search" size={16} color="#8E8E93" />
-            <TextInput
-              style={styles.aiSearchInput}
-              placeholder="Buscar pet com IA"
-              placeholderTextColor="#8E8E93"
-              value={aiQuery}
-              onChangeText={setAiQuery}
-              onSubmitEditing={runAiSearch}
-              returnKeyType="search"
-            />
-            {aiSearching ? (
-              <ActivityIndicator
-                size="small"
-                color={themeColors.primaryButton}
-                style={{ marginRight: 8 }}
-              />
-            ) : aiResults ? (
-              <TouchableOpacity
-                style={styles.aiSearchClear}
-                onPress={clearAiSearch}
-              >
-                <Ionicons name="close-circle" size={18} color="#8E8E93" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.aiSearchBtn}
-                onPress={runAiSearch}
-                disabled={!aiQuery.trim()}
-              >
-                <Text style={styles.aiSearchBtnText}>Buscar</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.aiSearchHint}>
-            Descreva a aparência do pet: espécie, cor e marcações. Ex.: gato
-            cinza com manchas brancas
-          </Text>
-        </View>
-      )}
+      <AiSearchBar
+        visible={aiSearchVisible}
+        top={aiBarXY.y}
+        query={aiQuery}
+        onChangeQuery={setAiQuery}
+        onSubmit={runAiSearch}
+        searching={aiSearching}
+        hasResults={!!aiResults}
+        onClear={clearAiSearch}
+        dragHandleProps={aiPan.panHandlers}
+        themeColors={themeColors}
+      />
 
       <MapArea
         insets={insets}

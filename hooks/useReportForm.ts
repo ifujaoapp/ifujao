@@ -204,10 +204,9 @@ export function useReportForm(params: UseReportFormParams) {
     setMyPhone(ownerPhone);
     const storedImages = await persistPhotos(images);
     // Valida especie x foto via Edge Function validate-species (Gemini
-    // multimodal embedding no server). NAO bloqueia o post: se a foto
-    // parecer nao condizer, marca speciesMismatch no payload e mostra
-    // um alerta ao usuario. Falha da Edge Function e ignorada — o post
-    // segue normal (helper retorna mismatch: false em erro).
+    // multimodal embedding no server). Se mismatch E o usuario nao for
+    // moderador, mostra alerta com opcao de voltar (cancelar publicacao,
+    // manter modal aberto para trocar foto) ou postar mesmo assim.
     let speciesMismatch = false;
     try {
       if (storedImages.length > 0 && species) {
@@ -223,7 +222,35 @@ export function useReportForm(params: UseReportFormParams) {
     } catch {
       speciesMismatch = false;
     }
-    let deviceId = myDeviceId;
+    // Mismatch: pergunta antes de commitar. "Voltar" cancela; "Postar mesmo
+    // assim" commita com a flag. Moderador (godMode) pula o aviso.
+    if (speciesMismatch && !godMode) {
+      showAlert(
+        "warning",
+        "Foto pode não condizer",
+        `A foto parece não ser de ${species.toLowerCase()}. Você pode trocar a foto antes de publicar.`,
+        [
+          { text: "Voltar", style: "cancel" },
+          { text: "Postar mesmo assim", onPress: () => doCommit(storedImages, latitude, longitude, ownerPhone, myDeviceId, true) },
+        ],
+      );
+      return;
+    }
+    await doCommit(storedImages, latitude, longitude, ownerPhone, myDeviceId, speciesMismatch);
+  };
+
+  // Faz o commit efetivo do post. Chamado apos a validacao e (se mismatch)
+  // apos o usuario confirmar no alerta. Recebe `withMismatch` para marcar
+  // speciesMismatch no payload quando o usuario optou por postar mesmo assim.
+  const doCommit = async (
+    storedImages: string[],
+    latitude: number,
+    longitude: number,
+    ownerPhone: string,
+    initialDeviceId: string | undefined,
+    withMismatch: boolean,
+  ) => {
+    let deviceId: string | undefined = initialDeviceId;
     if (!deviceId) {
       try {
         deviceId = await getOrCreateDeviceId();
@@ -231,7 +258,7 @@ export function useReportForm(params: UseReportFormParams) {
     }
     // Limite anti-spam (bypass para moderadores em modo deus).
     if (!godMode) {
-      const check = canCreatePet(pets, deviceId);
+      const check = canCreatePet(pets, deviceId ?? "");
       if (!check.ok) {
         showAlert("warning", "Limite atingido", check.message!);
         return;
@@ -258,7 +285,7 @@ export function useReportForm(params: UseReportFormParams) {
         postType === 'lost' && reward.trim()
           ? Number(reward.replace(/\D/g, ""))
           : undefined,
-      speciesMismatch: speciesMismatch || undefined,
+      speciesMismatch: withMismatch || undefined,
       createdAt: new Date().toISOString(),
       dirty: true,
     };
@@ -279,16 +306,7 @@ export function useReportForm(params: UseReportFormParams) {
     setPostType('lost');
     setIsCameraOpen(false);
     setReportModalVisible(false);
-    if (speciesMismatch) {
-      // NAO bloqueia: o alerta foi publicado. Apenas avisa o usuario.
-      showAlert(
-        "warning",
-        "Foto pode não condizer",
-        `A foto parece não ser de ${species.toLowerCase()}. Seu alerta foi publicado, mas a comunidade pode denunciá-lo se a foto não condizer com o animal.`,
-      );
-    } else {
-      showAlert("success", "Sucesso!", "Alerta publicado!");
-    }
+    showAlert("success", "Sucesso!", "Alerta publicado!");
   };
 
   const openReport = async (type?: 'lost' | 'found') => {

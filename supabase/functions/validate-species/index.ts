@@ -14,9 +14,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const EMBED_MODEL = "gemini-embedding-2";
 const EMBED_DIM = 3072;
 // Threshold de similaridade (dot product de vetores normalizados).
-// Abaixo disso = mismatch provavel. Conservador para evitar falso
-// positivo (gato vs cachorro da score ~0.5-0.6).
-const MISMATCH_THRESHOLD = 0.55;
+// Abaixo disso = mismatch provavel. Calibrado em 0.45: cachorro vs "Cachorro"
+// tipicamente ~0.65-0.75, gato vs "Gato" ~0.65-0.75, cachorro vs "Gato" ~0.40.
+// 0.45 fica entre os dois, dando margem para variacoes de raca/idade/angulo.
+const MISMATCH_THRESHOLD = 0.45;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -131,6 +132,7 @@ Deno.serve(async (req) => {
     const textEmb = await embed(geminiKey, [{ text: chosenSpecies }]);
     // 3) Compara.
     const score = dot(photoEmb, textEmb);
+    console.log(`[validate-species] species=${chosenSpecies} score=${score} mismatch=${score < MISMATCH_THRESHOLD}`);
     return json(
       { mismatch: score < MISMATCH_THRESHOLD, score },
       200

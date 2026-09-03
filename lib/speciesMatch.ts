@@ -42,6 +42,8 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
       return { mismatch: false, score: 0 };
     }
     const result = data as SpeciesMatchResult;
+    // TEMP: log para diagnosticar threshold.
+    console.log('[speciesMatch] species=', args.chosenSpecies, 'score=', result.score, 'mismatch=', result.mismatch);
     return {
       mismatch: !!result.mismatch,
       score: typeof result.score === 'number' ? result.score : 0,

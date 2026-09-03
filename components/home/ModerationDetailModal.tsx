@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useThemeMode } from "@/hooks/use-theme-mode";
 import { Colors } from "@/constants/theme";
 import { type PetRecord } from "@/lib/storage";
-import { banUser, checkBanStatus, unbanUser } from "@/lib/bans";
+import { banUser, checkBanStatus, getContactByPetId, unbanUser } from "@/lib/bans";
 
 export type ModerationDetailModalProps = {
   visible: boolean;
@@ -61,22 +61,30 @@ export function ModerationDetailModal({
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
   const [banned, setBanned] = useState(false);
+  const [phone, setPhone] = useState<string>("");
 
   // Reset + checagem no BACKEND (Edge Function ban-user action=status)
   // ao trocar de pet. Sem isso, o modal sempre mostraria "Banir usuario"
   // mesmo se o device/phone ja estivesse banido no servidor (o state
   // local `banned` so muda apos o usuario clicar no botao).
+  //
+  // Tambem busca o phone do dono via Edge Function get-contact. O
+  // phone NAO esta no payload publico de `pets` (privacidade), entao
+  // so o moderador (godMode) consegue visualizar.
   useEffect(() => {
     setBanned(false);
     setBusy(false);
+    setPhone("");
     if (!pet) return;
     let cancelled = false;
     (async () => {
-      const { banned: isBanned } = await checkBanStatus(
-        pet.ownerDeviceId,
-        pet.ownerPhone,
-      );
-      if (!cancelled && isBanned) setBanned(true);
+      const [banRes, contact] = await Promise.all([
+        checkBanStatus(pet.ownerDeviceId, pet.ownerPhone),
+        getContactByPetId(pet.id),
+      ]);
+      if (cancelled) return;
+      if (banRes.banned) setBanned(true);
+      if (contact.phone) setPhone(contact.phone);
     })();
     return () => {
       cancelled = true;
@@ -205,7 +213,7 @@ export function ModerationDetailModal({
           <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: 24 }}>
             <Text style={[styles.section, { color: c.icon }]}>DADOS DO DISPOSITIVO</Text>
             <Field label="Device ID" value={pet.ownerDeviceId ?? ""} mono />
-            <Field label="Telefone" value={pet.ownerPhone ?? ""} mono />
+            <Field label="Telefone" value={phone} mono />
             <Field label="Contato (do post)" value={pet.contact ?? ""} mono />
             <Field label="Postado em" value={formatDate(pet.createdAt)} />
             <Field label="Atualizado em" value={formatDate(pet.updatedAt)} />

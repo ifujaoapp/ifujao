@@ -208,6 +208,51 @@ export const readBanCache = async (
   }
 };
 
+// Busca o phone/contact de um pet via Edge Function get-contact. Usado
+// pelo modal de moderacao (godMode) para exibir o telefone do dono
+// (que NAO esta no payload publico de `pets` por privacidade). Em
+// caso de 401 (token expirado), re-autentica uma vez.
+export const getContactByPetId = async (
+  petId: string,
+): Promise<{ phone: string | null; contact: string | null }> => {
+  if (!isSupabaseConfigured || !URL || !ANON || !petId) {
+    return { phone: null, contact: null };
+  }
+  const call = async () => {
+    const t = await getFreshGodToken();
+    if (!t) return null;
+    const res = await fetch(`${URL}/functions/v1/get-contact`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${t}`,
+        apikey: ANON,
+      },
+      body: JSON.stringify({ petId }),
+    });
+    if (res.status === 401) return "unauthorized" as const;
+    if (!res.ok) return null;
+    const data = (await res.json().catch(() => ({}))) as {
+      phone?: string | null;
+      contact?: string | null;
+    };
+    return { phone: data.phone ?? null, contact: data.contact ?? null };
+  };
+  try {
+    const r1 = await call();
+    if (r1 && r1 !== "unauthorized") return r1;
+    // 401: tenta reauth forcado.
+    if (r1 === "unauthorized") {
+      const r2 = await call();
+      if (r2 && r2 !== "unauthorized") return r2;
+    }
+    return { phone: null, contact: null };
+  } catch (e) {
+    console.warn("[bans] getContactByPetId exception:", e);
+    return { phone: null, contact: null };
+  }
+};
+
 export const writeBanCache = async (
   deviceId: string,
   phone: string,

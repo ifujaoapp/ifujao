@@ -38,11 +38,12 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
       },
     });
     if (error || !data) {
-      console.warn('[speciesMatch] falhou:', error?.message);
+      console.warn('[speciesMatch] falhou:', error?.message, '| data:', JSON.stringify(data));
       return { mismatch: false, score: 0 };
     }
-    const result = data as { mismatch?: boolean; confidence?: number; detected?: string | null };
+    const result = data as { mismatch?: boolean; confidence?: number; detected?: string | null; error?: string };
     // TEMP: log para diagnosticar.
+    console.log('[speciesMatch] RAW data=', JSON.stringify(data));
     console.log('[speciesMatch] species=', args.chosenSpecies, 'detected=', result.detected, 'confidence=', result.confidence, 'mismatch=', result.mismatch);
     return {
       mismatch: !!result.mismatch,

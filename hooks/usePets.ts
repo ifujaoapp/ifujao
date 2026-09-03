@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Share } from "react-native";
+import { AppState, Share } from "react-native";
 import { ssGet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
 import { getOrCreateDeviceId } from "@/lib/deviceId";
@@ -38,16 +38,28 @@ export function usePets() {
   const shareCardRef = useRef<any>(null);
 
   // Modo deus (moderação): habilita editar/apagar pets de outros usuários.
+  // Inicializa lendo o token do storage (caso o usuario ja estivesse logado
+  // em uma sessao anterior). Tambem re-checa no AppState 'active' para o
+  // caso do token ter sido setado em outra tela ou apos o hook montar.
   const [godMode, setGodMode] = useState(false);
   useEffect(() => {
-    (async () => {
+    let mounted = true;
+    const refresh = async () => {
       try {
         const t = await ssGet("ifujao_god_token");
-        if (t) setGodMode(true);
+        if (mounted) setGodMode(!!t);
       } catch (e) {
-        console.warn("[usePets] erro:", e);
+        console.warn("[usePets] godMode refresh erro:", e);
       }
-    })();
+    };
+    refresh();
+    const sub = AppState.addEventListener("change", (s) => {
+      if (s === "active") refresh();
+    });
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
   }, []);
 
   // Solicita permissão de notificação (barra do sistema) uma vez no boot.

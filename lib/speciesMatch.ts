@@ -15,11 +15,12 @@ import { ensureSession } from './supabase';
 export type SpeciesMatchResult = {
   mismatch: boolean;
   score: number;
+  detectedSpecies?: string;
 };
 
 export type CheckArgs = {
-  // URL publica (https://) da foto no Storage. Obrigatorio.
-  imageUrl: string;
+  imageUrl?: string;
+  imageBase64?: string;
   mimeType: string;
   chosenSpecies: string;
 };
@@ -28,23 +29,32 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
   const sb = await ensureSession();
   if (!sb) return { mismatch: false, score: 0 };
   try {
-    const { data, error } = await sb.functions.invoke('validate-species', {
-      body: {
-        imageUrl: args.imageUrl,
-        mimeType: args.mimeType,
-        chosenSpecies: args.chosenSpecies,
-      },
-    });
+    const timeoutMs = 60000;
+    const result = await Promise.race([
+      sb.functions.invoke('validate-species', {
+        body: {
+          ...(args.imageUrl ? { imageUrl: args.imageUrl } : {}),
+          ...(args.imageBase64 ? { imageBase64: args.imageBase64 } : {}),
+          mimeType: args.mimeType,
+          chosenSpecies: args.chosenSpecies,
+        },
+      }),
+      new Promise<{ error: { message: string }; data: null }>((resolve) =>
+        setTimeout(() => resolve({ error: { message: 'timeout' }, data: null }), timeoutMs)
+      ),
+    ]);
+    const { data, error } = result;
     if (error || !data) {
       console.warn('[speciesMatch] falhou:', error?.message, 'raw=', JSON.stringify(data));
       return { mismatch: false, score: 0 };
     }
-    const result = data as { mismatch?: boolean; score?: number };
-    console.log('[speciesMatch] RAW response=', JSON.stringify(result), 'species=', args.chosenSpecies);
-    console.log('[speciesMatch] species=', args.chosenSpecies, 'score=', result.score, 'mismatch=', result.mismatch);
+    const matchResult = data as { mismatch?: boolean; score?: number; detectedSpecies?: string };
+    console.log('[speciesMatch] RAW response=', JSON.stringify(matchResult), 'species=', args.chosenSpecies);
+    console.log('[speciesMatch] species=', args.chosenSpecies, 'score=', matchResult.score, 'mismatch=', matchResult.mismatch);
     return {
-      mismatch: !!result.mismatch,
-      score: typeof result.score === 'number' ? result.score : 0,
+      mismatch: !!matchResult.mismatch,
+      score: typeof matchResult.score === 'number' ? matchResult.score : 0,
+      detectedSpecies: matchResult.detectedSpecies,
     };
   } catch (e) {
     console.warn('[speciesMatch] erro:', e);

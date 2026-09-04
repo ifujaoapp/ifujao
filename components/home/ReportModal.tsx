@@ -631,7 +631,7 @@ export function ReportModal({
                 <View style={styles.submitButtonLoadingRow}>
                   <ActivityIndicator color="#fff" />
                   <Text style={styles.submitButtonText}>
-                    {submitStage === "uploading" ? "Enviando foto..." : "Verificando foto..."}
+                    {submitStage === "uploading" ? "Enviando foto..." : "Publicando..."}
                   </Text>
                 </View>
               ) : (

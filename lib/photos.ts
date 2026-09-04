@@ -1,4 +1,5 @@
 import { File } from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { ensureSession, getSupabase } from './supabase';
 
 const BUCKET = 'pet-photos';
@@ -6,6 +7,22 @@ const BUCKET = 'pet-photos';
 const safeExtOf = (uri: string): string => {
   const ext = uri.includes('.') ? uri.split('.').pop()!.split('?')[0] : 'jpg';
   return /^[a-z0-9]+$/i.test(ext) ? ext : 'jpg';
+};
+
+// Comprime a imagem local antes do upload: max 512px no lado maior,
+// qualidade 0.7 JPEG. Resulta em arquivo ~30-80KB, suficiente para
+// visualização no app e rápido de enviar para o Gemini.
+const compressImage = async (uri: string): Promise<{ uri: string; base64?: string }> => {
+  const result = await ImageManipulator.manipulateAsync(
+    uri,
+    [{ resize: { width: 512 } }],
+    {
+      compress: 0.7,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true,
+    }
+  );
+  return result;
 };
 
 // Faz upload das imagens locais (file://) que ainda não foram enviadas e retorna
@@ -25,13 +42,15 @@ export const uploadPetPhotos = async (
       continue;
     }
     try {
-      const ext = safeExtOf(uri);
+      const compressed = await compressImage(uri);
+      const compressedUri = compressed.uri;
+      const ext = 'jpg';
       const fileName = `${deviceId}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
-      const arrayBuffer = await new File(uri).arrayBuffer();
+      const arrayBuffer = await new File(compressedUri).arrayBuffer();
       const { error } = await sb.storage
         .from(BUCKET)
         .upload(fileName, arrayBuffer, {
-          contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+          contentType: 'image/jpeg',
           upsert: false,
           cacheControl: '3600',
         });

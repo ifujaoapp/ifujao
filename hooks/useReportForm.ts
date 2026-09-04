@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
+import * as ImageManipulator from "expo-image-manipulator";
 import { ssSet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
 import { getTermsAccepted, setTermsAccepted } from "@/lib/terms";
@@ -92,7 +93,7 @@ export function useReportForm(params: UseReportFormParams) {
   const [foundDate, setFoundDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStage, setSubmitStage] = useState<"idle" | "uploading" | "validating">("idle");
+  const [submitStage, setSubmitStage] = useState<"idle" | "uploading">("idle");
   // Cache da ultima validacao: se (photoLocalUri + species) nao mudou, reusa
   // o resultado em vez de re-uploar e re-chamar a Edge Function. Limpa quando
   // o usuario troca a foto ou muda a especie.
@@ -198,17 +199,47 @@ export function useReportForm(params: UseReportFormParams) {
     const firstLocal = storedImages[0] ?? "";
     const validationKey = `${firstLocal}|${species}`;
     const cached = lastValidationRef.current;
-    let speciesMismatch: boolean;
     let finalImages: string[];
+    let firstRemoteUrl: string | null = null;
+
+    // 0) Validacao PRE-UPLOAD com imagem local comprimida em base64.
+    // Roda em paralelo com o upload, mas retorna muito mais rapido porque
+    // nao depende do Storage. Se mismatch, mostra toast em 3-8s.
+    if (!cached || cached.key !== validationKey) {
+      if (firstLocal && species) {
+        try {
+          const compressed = await ImageManipulator.manipulateAsync(
+            firstLocal,
+            [{ resize: { width: 512 } }],
+            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          );
+          const base64 = compressed.base64 ?? "";
+          if (base64) {
+            checkSpeciesMatch({
+              imageBase64: base64,
+              mimeType: "image/jpeg",
+              chosenSpecies: species,
+            }).then((match) => {
+              lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
+              if (match.mismatch) {
+                showAlert(
+                  "warning",
+                  "Verificação de espécie",
+                  `A foto parece não ser de ${species.toLowerCase()}. Verifique se a espécie está correta.`,
+                  [{ text: "OK" }],
+                );
+              }
+            }).catch(() => {});
+          }
+        } catch {
+          // Silencioso: se a compressão falhar, a validação pós-upload ainda vai rodar.
+        }
+      }
+    }
+
     if (cached && cached.key === validationKey) {
-      // Reusa validacao anterior: mesma foto + mesma especie. Evita re-upload
-      // e chamada a Edge Function (economiza Storage e quota Gemini).
-      speciesMismatch = cached.mismatch;
       finalImages = storedImages;
     } else {
-      // Sobe APENAS a foto principal para o Storage. A Edge Function
-      // validate-species so valida a primeira foto, e o embed-pets cuida
-      // de subir as outras depois. Evita 3 uploads desnecessarios por post.
       setIsSubmitting(true);
       setSubmitStage("uploading");
       let deviceIdForUpload = myDeviceId;
@@ -219,65 +250,54 @@ export function useReportForm(params: UseReportFormParams) {
       const remoteUrls = (deviceIdForUpload && firstLocalUri)
         ? await uploadPetPhotos([firstLocalUri], deviceIdForUpload, [])
         : [];
-      // Valida especie x foto via Edge Function (gemini-embedding-2 multimodal).
-      setSubmitStage("validating");
-      speciesMismatch = false;
-      try {
-        const firstRemote = remoteUrls.find((u) => u.startsWith("http"));
-        if (firstRemote && species) {
-          const match = await checkSpeciesMatch({
-            imageUrl: firstRemote,
-            mimeType: "image/jpeg",
-            chosenSpecies: species,
-          });
-          speciesMismatch = match.mismatch;
-          lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
-        }
-      } catch {
-        speciesMismatch = false;
-      }
       setIsSubmitting(false);
       setSubmitStage("idle");
-      // Mantem as outras fotos como locais; embed-pets sobe quando rodar.
-      const firstRemote = remoteUrls.find((u) => u.startsWith("http"));
-      finalImages = firstRemote
-        ? [firstRemote, ...storedImages.slice(1)]
+      firstRemoteUrl = remoteUrls.find((u) => u.startsWith("http")) ?? null;
+      finalImages = firstRemoteUrl
+        ? [firstRemoteUrl, ...storedImages.slice(1)]
         : storedImages;
     }
-    // Mismatch: pergunta antes de commitar. "Voltar" cancela; "Postar mesmo
-    // assim" commita com a flag. Moderador (godMode) pula o aviso.
-    if (speciesMismatch && !godMode) {
-      showAlert(
-        "warning",
-        "Foto pode não condizer",
-        `A foto parece não ser de ${species.toLowerCase()}. Você pode trocar a foto antes de publicar.`,
-        [
-          { text: "Postar mesmo assim", onPress: () => { void doCommit(finalImages, latitude, longitude, ownerPhone, myDeviceId, true); } },
-          { text: "Voltar", style: "cancel" },
-        ],
-      );
-      return;
-    }
+    // 1) Commit imediato — nao espera validacao. Usuario posta em 2s.
     await doCommit(
       finalImages,
       latitude,
       longitude,
       ownerPhone,
       myDeviceId,
-      speciesMismatch,
     );
+
+    // 2) Validacao assincrona em background (fire-and-forget).
+    // Se mismatch, mostra toast discreto. Nao mexe no post nem nos cards.
+    if (!cached || cached.key !== validationKey) {
+      const remoteUrl = firstRemoteUrl ?? finalImages.find((u) => u.startsWith("http")) ?? null;
+      if (remoteUrl && species) {
+        checkSpeciesMatch({
+          imageUrl: remoteUrl,
+          mimeType: "image/jpeg",
+          chosenSpecies: species,
+        }).then((match) => {
+          lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
+          if (match.mismatch) {
+            showAlert(
+              "warning",
+              "Verificação de espécie",
+              `A foto parece não ser de ${species.toLowerCase()}. Verifique se a espécie está correta.`,
+              [{ text: "OK" }],
+            );
+          }
+        }).catch(() => {});
+      }
+    }
   };
 
-  // Faz o commit efetivo do post. Chamado apos a validacao e (se mismatch)
-  // apos o usuario confirmar no alerta. Recebe `withMismatch` para marcar
-  // speciesMismatch no payload quando o usuario optou por postar mesmo assim.
+  // Faz o commit efetivo do post. A validacao de especie agora e assincrona
+  // (pos-post), entao nao recebe mais withMismatch.
   const doCommit = async (
     storedImages: string[],
     latitude: number,
     longitude: number,
     ownerPhone: string,
     initialDeviceId: string | undefined,
-    withMismatch: boolean,
   ) => {
     let deviceId: string | undefined = initialDeviceId;
     if (!deviceId) {
@@ -314,7 +334,6 @@ export function useReportForm(params: UseReportFormParams) {
         postType === 'lost' && reward.trim()
           ? Number(reward.replace(/\D/g, ""))
           : undefined,
-      speciesMismatch: withMismatch || undefined,
       createdAt: new Date().toISOString(),
       dirty: true,
     };

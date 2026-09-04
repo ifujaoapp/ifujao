@@ -80,6 +80,7 @@
 - Componente `components/home/FireworksLottie.tsx` com animação Lottie via WebView + `lottie-web`.
 - Som via `expo-audio` (`assets/sounds/fireworks.mp3`), sincronizado com evento `DOMLoaded` do Lottie via `postMessage`.
 - Trigger: quando o dono/moderador confirma um pet encontrado em `PetFoundModal` (`confirmMatch` → `onMatchConfirmed`) ou quando o dono marca como encontrado em `PetLostModal` (`buildFoundMarkAction` → `onFireworks`).
+- **Não é disparado ao publicar um pet encontrado no `ReportModal`** (`handleAddPet` removido em `08512b0`).
 - Posicionado na coordenada do pet no mapa (`latitude`/`longitude` + `mapRegion`).
 - Loop: executa 2x (1ª imediata, 2ª após 3s).
 - `app.json` atualizado com plugin `expo-audio` para Expo Dev Client.
@@ -106,6 +107,7 @@
 | `9de2e07` | fix(map): adiciona User-Agent nas requisições de tiles do OpenStreetMap |
 | `7a15632` | feat: fireworks overlay on pet found confirmation + OSM User-Agent + expo-audio plugin |
 | `a741278` | feat: fireworks Lottie via WebView + expo-audio sync via postMessage |
+| `08512b0` | fix: remove fireworks trigger from report pet found flow |
 
 ### Edge Functions deployed
 | Função | Status |

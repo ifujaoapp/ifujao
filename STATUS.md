@@ -77,10 +77,11 @@
 - Ainda não é hora de publicar — faltam testes e ajustes.
 
 ### Fireworks na confirmação de pet encontrado
-- Componente `components/home/FireworksOverlay.tsx` com animação de partículas via React Native Animated.
-- Som via `expo-audio` (substituto do `expo-av` no SDK 54).
-- Trigger: quando o dono/moderador confirma um pet encontrado em `PetFoundModal` (`confirmMatch` → `onMatchConfirmed`).
-- Overlay central na tela, `pointerEvents="none"`, duração ~3.2s.
+- Componente `components/home/FireworksLottie.tsx` com animação Lottie via WebView + `lottie-web`.
+- Som via `expo-audio` (`assets/sounds/fireworks.mp3`), sincronizado com evento `DOMLoaded` do Lottie via `postMessage`.
+- Trigger: quando o dono/moderador confirma um pet encontrado em `PetFoundModal` (`confirmMatch` → `onMatchConfirmed`) ou quando o dono marca como encontrado em `PetLostModal` (`buildFoundMarkAction` → `onFireworks`).
+- Posicionado na coordenada do pet no mapa (`latitude`/`longitude` + `mapRegion`).
+- Loop: executa 2x (1ª imediata, 2ª após 3s).
 - `app.json` atualizado com plugin `expo-audio` para Expo Dev Client.
 - Requer rebuild do Dev Client após alterações no plugin.
 
@@ -104,6 +105,7 @@
 | `aabde8c` | feat: validação assíncrona com gemini-embedding-2 + alerta apagar/refazer |
 | `9de2e07` | fix(map): adiciona User-Agent nas requisições de tiles do OpenStreetMap |
 | `7a15632` | feat: fireworks overlay on pet found confirmation + OSM User-Agent + expo-audio plugin |
+| `a741278` | feat: fireworks Lottie via WebView + expo-audio sync via postMessage |
 
 ### Edge Functions deployed
 | Função | Status |

@@ -1,5 +1,5 @@
 import { GodLoginModal } from "@/components/home/GodLoginModal";
-import { FireworksOverlay } from "@/components/home/FireworksOverlay";
+import { FireworksLottie } from "@/components/home/FireworksLottie";
 import { MapArea } from "@/components/home/MapArea";
 import { ModerationDetailModal } from "@/components/home/ModerationDetailModal";
 import { HomeHeader } from "@/components/home/HomeHeader";
@@ -547,6 +547,7 @@ export default function HomeScreen() {
           showDescriptionModal={showDescriptionModal}
           shareCardRef={shareCardRef}
           onMatchConfirmed={() => setShowFireworks(true)}
+          onFireworks={() => setShowFireworks(true)}
         />
       ) : selectedPet?.postType === "lost" ? (
         <PetLostModal
@@ -570,6 +571,7 @@ export default function HomeScreen() {
           setShowDescriptionModal={setShowDescriptionModal}
           showDescriptionModal={showDescriptionModal}
           shareCardRef={shareCardRef}
+          onFireworks={() => setShowFireworks(true)}
         />
       ) : null}
 
@@ -606,7 +608,25 @@ export default function HomeScreen() {
           else setLostDate(selected);
         }}
         />
-      <FireworksOverlay visible={showFireworks} />
+      <FireworksLottie
+        visible={showFireworks}
+        onFinish={() => setShowFireworks(false)}
+        petLat={selectedPet?.latitude}
+        petLng={selectedPet?.longitude}
+        mapCenter={
+          mapRegion
+            ? { latitude: mapRegion.latitude, longitude: mapRegion.longitude }
+            : undefined
+        }
+        mapDelta={
+          mapRegion
+            ? {
+                latitudeDelta: mapRegion.latitudeDelta,
+                longitudeDelta: mapRegion.longitudeDelta,
+              }
+            : undefined
+        }
+      />
     </View>
   );
 }

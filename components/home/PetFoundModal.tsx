@@ -28,7 +28,7 @@ import { computeMatchCompat } from "@/lib/matchScore";
 import { confirmMatch } from "@/lib/confirmMatch";
 import { type PetRecord } from "@/lib/storage";
 
-export function PetFoundModal(props: PetModalProps & { onMatchConfirmed?: () => void }) {
+export function PetFoundModal(props: PetModalProps & { onMatchConfirmed?: () => void; onFireworks?: () => void }) {
   const {
     selectedPet,
     setSelectedPet,
@@ -51,6 +51,7 @@ export function PetFoundModal(props: PetModalProps & { onMatchConfirmed?: () => 
     showDescriptionModal,
     shareCardRef,
     onMatchConfirmed,
+    onFireworks,
   } = props;
 
   const { height: windowHeight } = useWindowDimensions();
@@ -592,6 +593,7 @@ const formatDisappearedWhen = (date?: string): string => {
     sharePetCard,
     deletePet,
     handleContact,
+    onFireworks,
   };
 
   const contact = buildContactAction(

@@ -14,7 +14,7 @@ import {
   type PetActionCtx,
 } from "./petModalActions";
 
-export function PetLostModal(props: PetModalProps) {
+export function PetLostModal(props: PetModalProps & { onFireworks?: () => void }) {
   const {
     selectedPet,
     setSelectedPet,
@@ -36,6 +36,7 @@ export function PetLostModal(props: PetModalProps) {
     setShowDescriptionModal,
     showDescriptionModal,
     shareCardRef,
+    onFireworks,
   } = props;
 
   const { height: windowHeight } = useWindowDimensions();
@@ -68,6 +69,7 @@ export function PetLostModal(props: PetModalProps) {
     sharePetCard,
     deletePet,
     handleContact,
+    onFireworks,
   };
 
   const contact = buildContactAction(ctx, "Contatar tutor", false);

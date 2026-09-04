@@ -13,6 +13,7 @@ export interface PetActionCtx {
   sharePetCard: (p: PetRecord) => void;
   deletePet: (id: string) => void;
   handleContact: (p: PetRecord) => void;
+  onFireworks?: () => void;
 }
 
 export const buildShareAction = (ctx: PetActionCtx): BarAction => ({
@@ -145,6 +146,7 @@ export const buildFoundMarkAction = (
           p.id === id ? { ...p, foundAt: new Date().toISOString(), dirty: true } : p,
         ),
       );
+      ctx.onFireworks?.();
       ctx.setSelectedPet(null);
     },
   };

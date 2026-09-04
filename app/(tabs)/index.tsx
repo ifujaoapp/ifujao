@@ -166,6 +166,7 @@ export default function HomeScreen() {
     images: camera.images,
     setImages: camera.setImages,
     commitPets,
+    deletePet,
     myDeviceId,
     myPhone,
     setMyPhone,

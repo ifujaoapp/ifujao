@@ -285,7 +285,42 @@ export function usePets() {
     );
   };
 
-  const deletePet = (petId: string) => {
+  const deletePet = (petId: string, skipConfirm = false) => {
+    const doDelete = async () => {
+      const pet = pets.find((p) => p.id === petId);
+      const next = pets.filter((p) => p.id !== petId);
+      if (godMode) {
+        const ok = await moderatorSoftDelete(petId);
+        if (!ok) {
+          showAlert("error", "Erro", "Não foi possível remover o post no servidor.");
+        } else {
+          commitPets(next);
+          triggerSync(true);
+        }
+      } else {
+        await addPendingDelete(petId);
+        commitPets(next);
+        if (
+          pet &&
+          isSupabaseConfigured &&
+          isOwner(pet, myDeviceId, myPhone)
+        ) {
+          const urls = pet.remoteImageUrls ?? [];
+          if (urls.length > 0) {
+            deletePetPhotos(urls, myDeviceId).catch((e) => {
+              console.warn("[index] delete fotos:", e);
+            });
+          }
+        }
+      }
+      setSelectedPet(null);
+    };
+
+    if (skipConfirm) {
+      void doDelete();
+      return;
+    }
+
     showAlert(
       "trash",
       "Apagar alerta",
@@ -297,39 +332,7 @@ export function usePets() {
         {
           text: "Apagar",
           style: "destructive",
-          onPress: async () => {
-            const pet = pets.find((p) => p.id === petId);
-            const next = pets.filter((p) => p.id !== petId);
-            if (godMode) {
-              const ok = await moderatorSoftDelete(petId);
-              if (!ok) {
-                showAlert(
-                  "error",
-                  "Erro",
-                  "Não foi possível remover o post no servidor.",
-                );
-              } else {
-                commitPets(next);
-                triggerSync(true);
-              }
-            } else {
-              await addPendingDelete(petId);
-              commitPets(next);
-              if (
-                pet &&
-                isSupabaseConfigured &&
-                isOwner(pet, myDeviceId, myPhone)
-              ) {
-                const urls = pet.remoteImageUrls ?? [];
-                if (urls.length > 0) {
-                  deletePetPhotos(urls, myDeviceId).catch((e) => {
-                    console.warn("[index] delete fotos:", e);
-                  });
-                }
-              }
-            }
-            setSelectedPet(null);
-          },
+          onPress: doDelete,
         },
       ],
     );

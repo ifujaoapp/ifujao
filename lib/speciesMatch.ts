@@ -15,12 +15,10 @@ import { ensureSession } from './supabase';
 export type SpeciesMatchResult = {
   mismatch: boolean;
   score: number;
-  detectedSpecies?: string;
 };
 
 export type CheckArgs = {
-  imageUrl?: string;
-  imageBase64?: string;
+  imageUrl: string;
   mimeType: string;
   chosenSpecies: string;
 };
@@ -33,8 +31,7 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
     const result = await Promise.race([
       sb.functions.invoke('validate-species', {
         body: {
-          ...(args.imageUrl ? { imageUrl: args.imageUrl } : {}),
-          ...(args.imageBase64 ? { imageBase64: args.imageBase64 } : {}),
+          imageUrl: args.imageUrl,
           mimeType: args.mimeType,
           chosenSpecies: args.chosenSpecies,
         },
@@ -45,16 +42,20 @@ export const checkSpeciesMatch = async (args: CheckArgs): Promise<SpeciesMatchRe
     ]);
     const { data, error } = result;
     if (error || !data) {
-      console.warn('[speciesMatch] falhou:', error?.message, 'raw=', JSON.stringify(data));
+      const status = typeof error === 'object' && error && 'status' in error ? (error as any).status : 'unknown';
+      console.warn('[speciesMatch] falhou:', error?.message, 'status:', status, 'raw=', JSON.stringify(data));
       return { mismatch: false, score: 0 };
     }
-    const matchResult = data as { mismatch?: boolean; score?: number; detectedSpecies?: string };
+    const matchResult = data as { mismatch?: boolean; score?: number; quotaExceeded?: boolean };
+    if (matchResult.quotaExceeded) {
+      console.warn('[speciesMatch] quota do Gemini excedida, pulando validacao.');
+      return { mismatch: false, score: 0 };
+    }
     console.log('[speciesMatch] RAW response=', JSON.stringify(matchResult), 'species=', args.chosenSpecies);
     console.log('[speciesMatch] species=', args.chosenSpecies, 'score=', matchResult.score, 'mismatch=', matchResult.mismatch);
     return {
       mismatch: !!matchResult.mismatch,
       score: typeof matchResult.score === 'number' ? matchResult.score : 0,
-      detectedSpecies: matchResult.detectedSpecies,
     };
   } catch (e) {
     console.warn('[speciesMatch] erro:', e);

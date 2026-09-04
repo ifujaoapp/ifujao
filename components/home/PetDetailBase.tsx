@@ -40,7 +40,7 @@ export interface PetModalProps {
   sharePetCard: (p: PetRecord) => void;
   commitPets: (pets: PetRecord[]) => void;
   pets: PetRecord[];
-  deletePet: (id: string) => void;
+  deletePet: (id: string, skipConfirm?: boolean) => void;
   godMode: boolean;
   setShowDescriptionModal: (v: boolean) => void;
   showDescriptionModal: boolean;

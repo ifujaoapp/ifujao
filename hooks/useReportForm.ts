@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
-import * as ImageManipulator from "expo-image-manipulator";
 import { ssSet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
 import { getTermsAccepted, setTermsAccepted } from "@/lib/terms";
@@ -28,6 +27,7 @@ export type UseReportFormParams = {
   images: string[];
   setImages: (value: React.SetStateAction<string[]>) => void;
   commitPets: (next: PetPost[]) => void;
+  deletePet: (id: string, skipConfirm?: boolean) => void;
   myDeviceId: string;
   myPhone: string;
   setMyPhone: (value: string) => void;
@@ -53,6 +53,7 @@ export function useReportForm(params: UseReportFormParams) {
     images,
     setImages,
     commitPets,
+    deletePet,
     myDeviceId,
     myPhone,
     setMyPhone,
@@ -202,41 +203,6 @@ export function useReportForm(params: UseReportFormParams) {
     let finalImages: string[];
     let firstRemoteUrl: string | null = null;
 
-    // 0) Validacao PRE-UPLOAD com imagem local comprimida em base64.
-    // Roda em paralelo com o upload, mas retorna muito mais rapido porque
-    // nao depende do Storage. Se mismatch, mostra toast em 3-8s.
-    if (!cached || cached.key !== validationKey) {
-      if (firstLocal && species) {
-        try {
-          const compressed = await ImageManipulator.manipulateAsync(
-            firstLocal,
-            [{ resize: { width: 512 } }],
-            { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-          );
-          const base64 = compressed.base64 ?? "";
-          if (base64) {
-            checkSpeciesMatch({
-              imageBase64: base64,
-              mimeType: "image/jpeg",
-              chosenSpecies: species,
-            }).then((match) => {
-              lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
-              if (match.mismatch) {
-                showAlert(
-                  "warning",
-                  "Verificação de espécie",
-                  `A foto parece não ser de ${species.toLowerCase()}. Verifique se a espécie está correta.`,
-                  [{ text: "OK" }],
-                );
-              }
-            }).catch(() => {});
-          }
-        } catch {
-          // Silencioso: se a compressão falhar, a validação pós-upload ainda vai rodar.
-        }
-      }
-    }
-
     if (cached && cached.key === validationKey) {
       finalImages = storedImages;
     } else {
@@ -258,7 +224,7 @@ export function useReportForm(params: UseReportFormParams) {
         : storedImages;
     }
     // 1) Commit imediato — nao espera validacao. Usuario posta em 2s.
-    await doCommit(
+    const commitResult = await doCommit(
       finalImages,
       latitude,
       longitude,
@@ -266,8 +232,8 @@ export function useReportForm(params: UseReportFormParams) {
       myDeviceId,
     );
 
-    // 2) Validacao assincrona em background (fire-and-forget).
-    // Se mismatch, mostra toast discreto. Nao mexe no post nem nos cards.
+    // 2) Validacao assincrona em background (fire-and-forget, apenas pos-upload).
+    // Usa a URL remota que ja foi testada e funcionou. Se mismatch, mostra toast.
     if (!cached || cached.key !== validationKey) {
       const remoteUrl = firstRemoteUrl ?? finalImages.find((u) => u.startsWith("http")) ?? null;
       if (remoteUrl && species) {
@@ -277,12 +243,24 @@ export function useReportForm(params: UseReportFormParams) {
           chosenSpecies: species,
         }).then((match) => {
           lastValidationRef.current = { key: validationKey, mismatch: match.mismatch, score: match.score };
-          if (match.mismatch) {
+          if (match.mismatch && commitResult) {
             showAlert(
               "warning",
               "Verificação de espécie",
-              `A foto parece não ser de ${species.toLowerCase()}. Verifique se a espécie está correta.`,
-              [{ text: "OK" }],
+              `A foto enviada parece não ser de ${species.toLowerCase()}. Deseja manter ou apagar o post?`,
+              [
+                    {
+                      text: "Apagar e refazer",
+                      style: "destructive",
+                      onPress: () => {
+                        deletePet(commitResult.id, true);
+                        setImages([]);
+                        setPostType(commitResult.postType);
+                        setReportModalVisible(true);
+                      },
+                    },
+                { text: "Manter publicação", style: "cancel" },
+              ],
             );
           }
         }).catch(() => {});
@@ -298,23 +276,23 @@ export function useReportForm(params: UseReportFormParams) {
     longitude: number,
     ownerPhone: string,
     initialDeviceId: string | undefined,
-  ) => {
+  ): Promise<{ id: string; postType: 'lost' | 'found' } | null> => {
     let deviceId: string | undefined = initialDeviceId;
     if (!deviceId) {
       try {
         deviceId = await getOrCreateDeviceId();
       } catch {}
     }
-    // Limite anti-spam (bypass para moderadores em modo deus).
     if (!godMode) {
       const check = canCreatePet(pets, deviceId ?? "");
       if (!check.ok) {
         showAlert("warning", "Limite atingido", check.message!);
-        return;
+        return null;
       }
     }
+    const newPetId = Date.now().toString();
     const newPet: PetPost = {
-      id: Date.now().toString(),
+      id: newPetId,
       species,
       name: name.trim() || undefined,
       location,
@@ -355,6 +333,7 @@ export function useReportForm(params: UseReportFormParams) {
     setIsCameraOpen(false);
     setReportModalVisible(false);
     showAlert("success", "Sucesso!", "Alerta publicado!");
+    return { id: newPetId, postType };
   };
 
   const openReport = async (type?: 'lost' | 'found') => {

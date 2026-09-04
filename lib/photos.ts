@@ -9,15 +9,15 @@ const safeExtOf = (uri: string): string => {
   return /^[a-z0-9]+$/i.test(ext) ? ext : 'jpg';
 };
 
-// Comprime a imagem local antes do upload: max 512px no lado maior,
-// qualidade 0.7 JPEG. Resulta em arquivo ~30-80KB, suficiente para
-// visualização no app e rápido de enviar para o Gemini.
+// Comprime a imagem local antes do upload: max 256px no lado maior,
+// qualidade 0.6 JPEG. Resulta em arquivo ~15-40KB, economiza tokens
+// no Gemini e reduz dados no Storage.
 const compressImage = async (uri: string): Promise<{ uri: string; base64?: string }> => {
   const result = await ImageManipulator.manipulateAsync(
     uri,
-    [{ resize: { width: 512 } }],
+    [{ resize: { width: 256 } }],
     {
-      compress: 0.7,
+      compress: 0.6,
       format: ImageManipulator.SaveFormat.JPEG,
       base64: true,
     }

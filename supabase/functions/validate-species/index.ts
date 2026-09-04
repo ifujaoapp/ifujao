@@ -1,12 +1,11 @@
 // Edge Function: validate-species (moderação).
-// Usa gemini-3.6-flash para CLASSIFICAÇÃO DIRETA da imagem: pede ao modelo
-// que identifique a espécie do animal na foto, comparando com a lista válida.
-// Sem embeddings, sem threshold instável.
-//
-// Retorna { mismatch, detectedSpecies, score }.
-// mismatch=true quando a espécie detectada NÃO bate com a escolhida pelo usuário.
+// Usa gemini-embedding-2 multimodal para comparar a foto com o texto da espécie.
+// Retorna { mismatch, score } baseado em dot product dos embeddings.
+// Threshold: 0.35 (ajustado após testes).
 
-const GEMINI_MODEL = "gemini-3.6-flash";
+const EMBED_MODEL = "gemini-embedding-2";
+const EMBED_DIM = 3072;
+const MISMATCH_THRESHOLD = 0.35;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,32 +20,36 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const SPECIES_LIST = [
-  "Cachorro",
-  "Gato",
-  "Calopsita",
-  "Passaro",
-  "Coelho",
-  "Hamster",
-  "Peixe",
-  "Tartaruga",
-  "Cobra",
-  "Lagarto",
-  "Cavalo",
-  "Cabra",
-  "Ovelha",
-  "Porco",
-  "Galinha",
-  "Pato",
-  "Coala",
-  "Panda",
-  "Urso",
-  "Leao",
-  "Tigre",
-  "Elefante",
-  "Macaco",
-  "Sapo",
-];
+const embed = async (apiKey: string, parts: any[]): Promise<number[]> => {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        content: { parts },
+        outputDimensionality: EMBED_DIM,
+      }),
+    }
+  );
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`gemini embed falhou: ${res.status} ${txt}`);
+  }
+  const j = await res.json();
+  const vals = j?.embedding?.values;
+  if (!Array.isArray(vals) || vals.length === 0) {
+    throw new Error("gemini embed retornou vazio");
+  }
+  return vals as number[];
+};
+
+const dot = (a: number[], b: number[]): number => {
+  let s = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) s += a[i] * b[i];
+  return s;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -83,7 +86,6 @@ Deno.serve(async (req) => {
     if (!chosenSpecies) return json({ error: "chosenSpecies required" }, 400);
     if (!imageUrl && !imageBase64) return json({ error: "imageUrl or imageBase64 required" }, 400);
 
-    // 1) Gera base64 da imagem: de URL (fetch) ou direto do payload.
     let base64: string;
     if (imageBase64) {
       base64 = imageBase64;
@@ -102,80 +104,28 @@ Deno.serve(async (req) => {
       base64 = btoa(bin);
     }
 
-    // 2) Prompt de classificação direta: pede APENAS o nome da espécie.
-    const prompt = `Identifique o animal principal nesta imagem. Escolha APENAS UMA espécie da lista abaixo (exatamente como escrita). Se não for nenhum destes, responda DESCONHECIDO.
+    try {
+      const [photoEmb, textEmb] = await Promise.all([
+        embed(geminiKey, [{ inline_data: { mime_type: mimeType, data: base64 } }]),
+        embed(geminiKey, [{ text: chosenSpecies }]),
+      ]);
 
-Lista: ${SPECIES_LIST.join(", ")}
+      const score = dot(photoEmb, textEmb);
+      const mismatch = score < MISMATCH_THRESHOLD;
 
-Responda apenas o nome da espécie, sem texto adicional.`;
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  inline_data: {
-                    mime_type: mimeType,
-                    data: base64,
-                  },
-                },
-                { text: prompt },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.1,
-            maxOutputTokens: 200,
-            responseMimeType: "text/plain",
-          },
-        }),
+      console.log(
+        `[validate-species] species=${chosenSpecies} score=${score.toFixed(4)} mismatch=${mismatch}`
+      );
+      return json({ mismatch, score }, 200);
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes("429") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED")) {
+        console.warn("[validate-species] quota excedida, retornando match=false silencioso");
+        return json({ mismatch: false, score: 0, quotaExceeded: true }, 200);
       }
-    );
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => "");
-      console.error("[validate-species] gemini classify falhou:", res.status, txt);
-      return json({ error: "gemini classify failed" }, 502);
+      console.error("[validate-species] erro:", e);
+      return json({ error: msg }, 500);
     }
-
-    const j = await res.json();
-    console.log("[validate-species] gemini RAW response:", JSON.stringify(j).slice(0, 2000));
-
-    // Tenta extrair o texto de vários lugares possíveis na resposta do Gemini.
-    const rawText =
-      (j?.candidates?.[0]?.content?.parts?.[0]?.text ?? "").trim() ||
-      (j?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join(" ") ?? "").trim() ||
-      (Array.isArray(j?.candidates) ? j.candidates.map((c: any) => c?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join(" ")).filter(Boolean).join(" ") : "").trim() ||
-      (j?.response?.text ?? "").trim();
-
-    console.log("[validate-species] gemini rawText:", JSON.stringify(rawText));
-
-    if (!rawText) {
-      console.warn("[validate-species] gemini retornou texto vazio, tratando como mismatch");
-      return json({ mismatch: true, score: 0, detectedSpecies: "" }, 200);
-    }
-
-    const normalizedDetected = rawText
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ");
-    const normalizedChosen = chosenSpecies
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/\s+/g, " ");
-
-    const mismatch = normalizedDetected !== normalizedChosen;
-    const confidence = mismatch ? 0 : 1;
-
-    console.log(
-      `[validate-species] chosen=${chosenSpecies} detected=${rawText} mismatch=${mismatch}`
-    );
-    return json({ mismatch, score: confidence, detectedSpecies: rawText }, 200);
   } catch (e) {
     console.error("[validate-species] erro:", e);
     return json({ error: String(e) }, 500);

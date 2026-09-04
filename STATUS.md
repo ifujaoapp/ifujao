@@ -54,6 +54,11 @@
 - `scripts/reset-storage.ts`: limpa buckets `pet-photos` e `match-proofs` via Supabase JS client.
 - Para usar: rodar SQL no Supabase Dashboard + `npx tsx scripts/reset-storage.ts`.
 
+### OpenStreetMap User-Agent
+- Corrigido header `User-Agent` nas requisições de tiles do OSM em `MapLeaflet.tsx`, `MapPicker.tsx` e `SponsorMap.tsx`.
+- Valor: `iFujao/1.0 (https://github.com/ifujaoapp/ifujao)`.
+- Evita bloqueio por parte dos servidores do OSM em produção.
+
 ### Política de privacidade (GitHub Pages)
 - Repo: https://github.com/ifujaoapp/ifujao-privacidade
 - URL pública: https://ifujaoapp.github.io/ifujao-privacidade/

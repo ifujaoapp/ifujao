@@ -335,9 +335,6 @@ export function useReportForm(params: UseReportFormParams) {
     setIsCameraOpen(false);
     setReportModalVisible(false);
     showAlert("success", "Sucesso!", "Alerta publicado!");
-    if (postType === 'found') {
-      onFireworks?.();
-    }
     return { id: newPetId, postType };
   };
 

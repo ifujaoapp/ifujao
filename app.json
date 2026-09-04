@@ -2,20 +2,17 @@
   "expo": {
     "name": "iFujao",
     "slug": "ifujao",
-    "owner": "mrollo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo_bg.png",
     "scheme": "ifujao",
     "platforms": ["ios", "android"],
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ifujao.app"
     },
     "android": {
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.ifujao.app",
       "permissions": [

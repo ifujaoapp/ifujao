@@ -76,6 +76,19 @@
 - Registro do `com.ifujao.app` em andamento no Play Console (verificação de propriedade por APK assinado).
 - Ainda não é hora de publicar — faltam testes e ajustes.
 
+### Fireworks na confirmação de pet encontrado
+- Componente `components/home/FireworksOverlay.tsx` com animação de partículas via React Native Animated.
+- Som via `expo-audio` (substituto do `expo-av` no SDK 54).
+- Trigger: quando o dono/moderador confirma um pet encontrado em `PetFoundModal` (`confirmMatch` → `onMatchConfirmed`).
+- Overlay central na tela, `pointerEvents="none"`, duração ~3.2s.
+- `app.json` atualizado com plugin `expo-audio` para Expo Dev Client.
+- Requer rebuild do Dev Client após alterações no plugin.
+
+### OpenStreetMap User-Agent
+- Corrigido header `User-Agent` nas requisições de tiles do OSM em `MapLeaflet.tsx`, `MapPicker.tsx` e `SponsorMap.tsx`.
+- Valor: `iFujao/1.0.0 (ifujaoapp@gmail.com)`.
+- Evita bloqueio por parte dos servidores do OSM em produção.
+
 ### Visual (`AppAlert`)
 - Botões sempre em **coluna** (1 por linha), separador hairline entre eles.
 
@@ -89,6 +102,8 @@
 | `aeb6eec` | feat: validação assíncrona de espécie com Gemini + compressão de imagem |
 | `31da76b` | chore: atualiza app.json e dependências (dotenv) |
 | `aabde8c` | feat: validação assíncrona com gemini-embedding-2 + alerta apagar/refazer |
+| `9de2e07` | fix(map): adiciona User-Agent nas requisições de tiles do OpenStreetMap |
+| `7a15632` | feat: fireworks overlay on pet found confirmation + OSM User-Agent + expo-audio plugin |
 
 ### Edge Functions deployed
 | Função | Status |

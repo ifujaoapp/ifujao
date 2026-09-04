@@ -1,4 +1,5 @@
 import { GodLoginModal } from "@/components/home/GodLoginModal";
+import { FireworksOverlay } from "@/components/home/FireworksOverlay";
 import { MapArea } from "@/components/home/MapArea";
 import { ModerationDetailModal } from "@/components/home/ModerationDetailModal";
 import { HomeHeader } from "@/components/home/HomeHeader";
@@ -56,6 +57,7 @@ export default function HomeScreen() {
 
   // "Aa": liga/desliga o rótulo de texto do patrocinador no mapa (evita poluir).
   const [showSponsorText, setShowSponsorText] = useState(false);
+  const [showFireworks, setShowFireworks] = useState(false);
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [isAboutVisible, setIsAboutVisible] = useState(false);
   const [isPrivacyVisible, setIsPrivacyVisible] = useState(false);
@@ -185,6 +187,7 @@ export default function HomeScreen() {
     setIsCameraOpen: camera.setIsCameraOpen,
     godMode,
     onNeedAcceptTerms: () => setIsTermsVisible(true),
+    onFireworks: () => setShowFireworks(true),
   });
   const {
     openReport,
@@ -543,6 +546,7 @@ export default function HomeScreen() {
           setShowDescriptionModal={setShowDescriptionModal}
           showDescriptionModal={showDescriptionModal}
           shareCardRef={shareCardRef}
+          onMatchConfirmed={() => setShowFireworks(true)}
         />
       ) : selectedPet?.postType === "lost" ? (
         <PetLostModal
@@ -601,7 +605,8 @@ export default function HomeScreen() {
           if (postType === "found") setFoundDate(selected);
           else setLostDate(selected);
         }}
-      />
+        />
+      <FireworksOverlay visible={showFireworks} />
     </View>
   );
 }

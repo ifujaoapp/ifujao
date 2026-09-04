@@ -96,7 +96,7 @@ export const MapLeaflet = ({
           maxZoom: 19,
           fetchOptions: {
             headers: {
-              'User-Agent': 'iFujao/1.0 (https://github.com/ifujaoapp/ifujao)',
+              'User-Agent': 'iFujao/1.0.0 (ifujaoapp@gmail.com)',
             },
           },
         }).addTo(map);

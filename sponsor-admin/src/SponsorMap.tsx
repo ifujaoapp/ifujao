@@ -89,11 +89,6 @@ export default function SponsorMap({
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
-        fetchOptions={{
-          headers: {
-            'User-Agent': 'iFujao/1.0 (https://github.com/ifujaoapp/ifujao)',
-          },
-        }}
       />
       <ResizeFix />
       <ClickHandler onPick={onPick} />

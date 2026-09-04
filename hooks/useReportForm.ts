@@ -46,6 +46,7 @@ export type UseReportFormParams = {
   setIsCameraOpen: (value: boolean) => void;
   godMode?: boolean;
   onNeedAcceptTerms?: () => void;
+  onFireworks?: () => void;
 };
 
 export function useReportForm(params: UseReportFormParams) {
@@ -72,6 +73,7 @@ export function useReportForm(params: UseReportFormParams) {
     setIsCameraOpen,
     godMode,
     onNeedAcceptTerms,
+    onFireworks,
   } = params;
 
   const [species, setSpecies] = useState("");
@@ -333,6 +335,9 @@ export function useReportForm(params: UseReportFormParams) {
     setIsCameraOpen(false);
     setReportModalVisible(false);
     showAlert("success", "Sucesso!", "Alerta publicado!");
+    if (postType === 'found') {
+      onFireworks?.();
+    }
     return { id: newPetId, postType };
   };
 

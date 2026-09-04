@@ -28,7 +28,7 @@ import { computeMatchCompat } from "@/lib/matchScore";
 import { confirmMatch } from "@/lib/confirmMatch";
 import { type PetRecord } from "@/lib/storage";
 
-export function PetFoundModal(props: PetModalProps) {
+export function PetFoundModal(props: PetModalProps & { onMatchConfirmed?: () => void }) {
   const {
     selectedPet,
     setSelectedPet,
@@ -50,6 +50,7 @@ export function PetFoundModal(props: PetModalProps) {
     setShowDescriptionModal,
     showDescriptionModal,
     shareCardRef,
+    onMatchConfirmed,
   } = props;
 
   const { height: windowHeight } = useWindowDimensions();
@@ -166,7 +167,9 @@ export function PetFoundModal(props: PetModalProps) {
     // Disputa os outros claimants (proof)
     otherClaimants.forEach((c) => disputeClaimant(c));
     // Chama Edge Function para confirmar ambos os pets no servidor
-    confirmMatch(selectedPet.id, claimant.id).catch((e) =>
+    confirmMatch(selectedPet.id, claimant.id).then(() => {
+      onMatchConfirmed?.();
+    }).catch((e) =>
       console.warn("[confirmMatch] falhou:", e),
     );
   };

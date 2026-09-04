@@ -6,7 +6,10 @@
     "orientation": "portrait",
     "icon": "./assets/images/logo_bg.png",
     "scheme": "ifujao",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
@@ -44,7 +47,8 @@
         {
           "color": "#34C759"
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true,

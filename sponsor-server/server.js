@@ -92,7 +92,7 @@ const server = http.createServer(async (req, res) => {
       for (const c of candidates) {
         const r = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(c)}`,
-          { headers: { "User-Agent": "iFujaoSponsor/1.0", Accept: "application/json" } },
+          { headers: { "User-Agent": "iFujao/1.0.0 (ifujaoapp@gmail.com)", Accept: "application/json" } },
         );
         if (!r.ok) continue;
         const d = await r.json();

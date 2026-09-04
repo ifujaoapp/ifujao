@@ -93,7 +93,12 @@ export const MapLeaflet = ({
         var map = L.map('map', { attributionControl: false, zoomControl: false, tap: true, contextmenu: false, worldCopyJump: true }).setView([${center.latitude}, ${center.longitude}], 13);
         L.control.zoom({ position: 'bottomright' }).addTo(map);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19
+          maxZoom: 19,
+          fetchOptions: {
+            headers: {
+              'User-Agent': 'iFujao/1.0 (https://github.com/ifujaoapp/ifujao)',
+            },
+          },
         }).addTo(map);
 
         // Corrige mapa preto/cinza quando o container ainda está com tamanho 0

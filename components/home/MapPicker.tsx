@@ -40,7 +40,7 @@ export function MapPicker({
       <div id="map"></div>
       <script>
         var map = L.map('map', { attributionControl: false, tap: true, dragging: true, scrollWheelZoom: true, doubleClickZoom: true, zoomControl: true, inertia: true }).setView([${start.latitude}, ${start.longitude}], 15);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, fetchOptions: { headers: { 'User-Agent': 'iFujao/1.0 (https://github.com/ifujaoapp/ifujao)' } } }).addTo(map);
         var marker = L.marker([${start.latitude}, ${start.longitude}], { draggable: true }).addTo(map);
         map.on('click', function(e){ marker.setLatLng(e.latlng); window.ReactNativeWebView.postMessage(JSON.stringify({ lat: e.latlng.lat, lng: e.latlng.lng })); });
         marker.on('dragend', function(){ var p = marker.getLatLng(); window.ReactNativeWebView.postMessage(''+JSON.stringify({ lat: p.lat, lng: p.lng })); });

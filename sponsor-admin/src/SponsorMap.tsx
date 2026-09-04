@@ -86,7 +86,15 @@ export default function SponsorMap({
       zoom={13}
       style={{ height: 180, width: "100%", borderRadius: 12, display: "block" }}
     >
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution="&copy; OpenStreetMap contributors"
+        fetchOptions={{
+          headers: {
+            'User-Agent': 'iFujao/1.0 (https://github.com/ifujaoapp/ifujao)',
+          },
+        }}
+      />
       <ResizeFix />
       <ClickHandler onPick={onPick} />
       <Recenter lat={lat} lng={lng} focus={focus ? { lat: focus.lat, lng: focus.lng } : null} />

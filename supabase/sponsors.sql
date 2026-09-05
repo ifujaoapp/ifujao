@@ -15,6 +15,7 @@ create table if not exists public.sponsors (
   name text not null,
   latitude double precision not null,
   longitude double precision not null,
+  map_url text,
   address text,
   link text,
   phone text,
@@ -52,6 +53,7 @@ alter table public.sponsors add column if not exists phone text;
 alter table public.sponsors add column if not exists instagram text;
 alter table public.sponsors add column if not exists facebook text;
 alter table public.sponsors add column if not exists logo text;
+alter table public.sponsors add column if not exists map_url text;
 
 -- Bucket de logos dos patrocinadores (imagem real, sob nosso controle).
 -- O app exibe a URL pública estável do Storage (não uma URL externa que

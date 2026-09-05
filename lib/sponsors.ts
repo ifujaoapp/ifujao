@@ -48,6 +48,7 @@ export type SponsorPin = {
   name: string;
   latitude: number;
   longitude: number;
+  mapUrl: string | null;
   address: string | null;
   link: string | null;
   phone: string | null;
@@ -87,6 +88,7 @@ const mapRow = (s: Record<string, unknown>): SponsorPin => ({
   name: String(s.name ?? ""),
   latitude: Number(s.latitude),
   longitude: Number(s.longitude),
+  mapUrl: (s.map_url as string | null) ?? null,
   address: (s.address as string | null) ?? null,
   link: (s.link as string | null) ?? null,
   phone: (s.phone as string | null) ?? null,
@@ -103,7 +105,7 @@ export const fetchSponsors = async (): Promise<SponsorPin[]> => {
   const { data, error } = await sb
     .from("sponsors")
     .select(
-      "id, name, latitude, longitude, address, link, phone, instagram, facebook, logo, visible_from, updated_at",
+      "id, name, latitude, longitude, map_url, address, link, phone, instagram, facebook, logo, visible_from, updated_at",
     )
     .eq("active", true);
   if (error) {
@@ -133,7 +135,7 @@ export const fetchSponsorsDelta = async (since: string): Promise<SponsorDelta> =
       sb
         .from("sponsors")
         .select(
-          "id, name, latitude, longitude, address, link, phone, instagram, facebook, logo, visible_from, updated_at",
+          "id, name, latitude, longitude, map_url, address, link, phone, instagram, facebook, logo, visible_from, updated_at",
         )
         .eq("active", true)
         .gt("updated_at", since),

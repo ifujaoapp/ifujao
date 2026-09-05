@@ -234,6 +234,7 @@ export function SponsorInfoModal({
   const facebook = s.facebook;
   const link = s.link;
   const logo = s.logo;
+  const mapUrl = s.mapUrl;
   const toUrl = (v: string) =>
     /^https?:\/\//i.test(v) ? v : "https://" + v;
   const igUrl = instagram
@@ -350,21 +351,21 @@ export function SponsorInfoModal({
             >
               <Text style={styles.siBtnPrimaryText}>🔗 Abrir link</Text>
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.siBtnPrimary}
-              onPress={() =>
-                Linking.openURL(
+          ) : null}
+          <TouchableOpacity
+            style={styles.siBtnPrimary}
+            onPress={() =>
+              Linking.openURL(
+                mapUrl ||
                   "https://maps.google.com/?q=" +
                     s.latitude +
                     "," +
                     s.longitude,
-                )
-              }
-            >
-              <Text style={styles.siBtnPrimaryText}>📍 Ver no mapa</Text>
-            </TouchableOpacity>
-          )}
+              )
+            }
+          >
+            <Text style={styles.siBtnPrimaryText}>📍 Ver no mapa</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.siClose} onPress={onClose}>
             <Text style={styles.siCloseText}>Fechar</Text>
           </TouchableOpacity>

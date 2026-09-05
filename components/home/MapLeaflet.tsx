@@ -344,7 +344,7 @@ export const MapLeaflet = ({
               popupAnchor: [0, -30],
             });
             var m = L.marker([s.latitude, s.longitude], { icon: icon, zIndexOffset: 1 }).addTo(window.__map);
-            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, logo: s.logo, latitude: s.latitude, longitude: s.longitude })); });
+            m.on('click', function(){ window.ReactNativeWebView.postMessage(JSON.stringify({ sponsorId: s.id, name: s.name, link: s.link, address: s.address, phone: s.phone, instagram: s.instagram, facebook: s.facebook, logo: s.logo, latitude: s.latitude, longitude: s.longitude, mapUrl: s.mapUrl })); });
             window.__sponsorMarkers.push(m);
           });
         };
@@ -764,6 +764,7 @@ export const MapLeaflet = ({
               name: data.name ?? "",
               latitude: Number(data.latitude),
               longitude: Number(data.longitude),
+              mapUrl: data.mapUrl ?? null,
               address: data.address ?? null,
               link: data.link ?? null,
               phone: data.phone ?? null,

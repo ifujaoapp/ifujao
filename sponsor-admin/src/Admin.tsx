@@ -55,6 +55,7 @@ function emptyForm(): SponsorInput {
     name: "",
     latitude: DEFAULT_CENTER.lat,
     longitude: DEFAULT_CENTER.lng,
+    mapUrl: "",
     address: "",
     link: "",
     phone: "",
@@ -96,7 +97,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
     const { data, error } = await supabase
       .from("sponsors")
       .select(
-        "id, name, latitude, longitude, address, link, phone, instagram, facebook, logo, active, visible_from, created_at, updated_at",
+        "id, name, latitude, longitude, map_url, address, link, phone, instagram, facebook, logo, active, visible_from, created_at, updated_at",
       )
       .order("created_at", { ascending: false });
     setLoading(false);
@@ -126,6 +127,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       name: s.name,
       latitude: s.latitude,
       longitude: s.longitude,
+      mapUrl: s.map_url ?? "",
       address: s.address ?? "",
       link: s.link ?? "",
       phone: s.phone ?? "",
@@ -256,6 +258,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
       name: form.name,
       latitude: form.latitude,
       longitude: form.longitude,
+      map_url: form.mapUrl?.trim() || null,
       address: form.address?.trim() || null,
       link: form.link?.trim() || null,
       phone: form.phone?.trim() || null,
@@ -401,6 +404,12 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
               }}
             />
           ) : null}
+          <input
+            style={input}
+            placeholder="Mapa (URL HTTPS, ex.: Google Maps)"
+            value={form.mapUrl ?? ""}
+            onChange={(e) => setForm({ ...form, mapUrl: e.target.value })}
+          />
           <div className="form-grid-2">
             <input
               style={input}
@@ -568,6 +577,7 @@ export default function Admin({ onLogout }: { onLogout: () => void }) {
                       {s.address ||
                         `${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}`}
                       {s.visible_from ? ` · exibe até ${s.visible_from}` : ""}
+                      {s.map_url ? ` · <a href="${s.map_url}" target="_blank" rel="noopener">mapa</a>` : ""}
                     </div>
                   </div>
                 </div>

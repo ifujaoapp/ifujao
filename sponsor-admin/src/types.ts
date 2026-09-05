@@ -3,6 +3,7 @@ export type Sponsor = {
   name: string;
   latitude: number;
   longitude: number;
+  map_url: string | null;
   address: string | null;
   link: string | null;
   phone: string | null;
@@ -19,6 +20,7 @@ export type SponsorInput = {
   name: string;
   latitude: number;
   longitude: number;
+  mapUrl: string | null;
   address: string | null;
   link: string | null;
   phone: string | null;

@@ -1,10 +1,9 @@
-import React, { memo, useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
+import React, { useEffect, useState } from "react";
+import { AppState, StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
 
 export type HomeHeaderProps = {
-  isDay: boolean;
   godMode: boolean;
   themeColors: typeof Colors.light;
   onClockTap: () => void;
@@ -14,7 +13,6 @@ export type HomeHeaderProps = {
 };
 
 function HomeHeaderImpl({
-  isDay,
   godMode,
   themeColors,
   onClockTap,
@@ -22,13 +20,28 @@ function HomeHeaderImpl({
   onPrivacyPress,
   onLayout,
 }: HomeHeaderProps) {
-  // Timer isolado aqui: atualiza só este componente a cada 1s, sem
-  // forçar re-render de HomeScreen (que re-renderiza cascata de filhos).
   const [now, setNow] = useState(() => new Date());
+  const isDay = now.getHours() >= 6 && now.getHours() < 18;
+  const [appState, setAppState] = useState(AppState.currentState);
+
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      setAppState(nextState);
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    if (appState === "active") {
+      setNow(new Date());
+    }
+  }, [appState]);
+
   const styles = React.useMemo(() => makeStyles(themeColors), [themeColors]);
   return (
     <View style={styles.titleBar} onLayout={onLayout}>
@@ -83,7 +96,7 @@ function HomeHeaderImpl({
   );
 }
 
-export const HomeHeader = memo(HomeHeaderImpl);
+export const HomeHeader = HomeHeaderImpl;
 
 const makeStyles = (c: typeof Colors.light) =>
   StyleSheet.create({

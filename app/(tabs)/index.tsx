@@ -151,7 +151,6 @@ export default function HomeScreen() {
     recenterNonce,
     initialCenterRef,
     locationEnabled,
-    isDay,
     selectedCity,
     canReport,
     centerOnUserGps,
@@ -364,7 +363,6 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <View style={{ paddingTop: insets.top }}>
           <HomeHeader
-            isDay={isDay}
             godMode={godMode}
             themeColors={themeColors}
             onClockTap={handleClockTap}

@@ -90,7 +90,7 @@ export function ModerationDetailModal({
     return () => {
       cancelled = true;
     };
-  }, [pet?.id, pet?.ownerDeviceId, pet?.ownerPhone]);
+  }, [pet]);
 
   if (!pet) return null;
 

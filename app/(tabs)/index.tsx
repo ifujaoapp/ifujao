@@ -28,17 +28,12 @@ import { setTermsAccepted } from "@/lib/terms";
 import { showAlert } from "@/src/components/AppAlert";
 import { DatePickerCalendar } from "@/src/components/DatePickerCalendar";
 import { ImageViewerModal } from "@/src/components/ImageViewerModal";
-import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
-  ActivityIndicator,
   Animated,
   Linking,
   Platform,
   StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import {
@@ -156,8 +151,6 @@ export default function HomeScreen() {
     recenterNonce,
     initialCenterRef,
     locationEnabled,
-    now,
-    setNow,
     isDay,
     selectedCity,
     canReport,
@@ -253,11 +246,6 @@ export default function HomeScreen() {
       );
     }
   }, [selectedPet, menuProgress]);
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, [setNow]);
-
   const fecharModal = () => {
     setIsCameraOpen(false);
     setReportModalVisible(false);
@@ -376,7 +364,6 @@ export default function HomeScreen() {
       <View style={styles.container}>
         <View style={{ paddingTop: insets.top }}>
           <HomeHeader
-            now={now}
             isDay={isDay}
             godMode={godMode}
             themeColors={themeColors}

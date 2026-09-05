@@ -1,10 +1,9 @@
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View, type LayoutChangeEvent } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
 
 export type HomeHeaderProps = {
-  now: Date;
   isDay: boolean;
   godMode: boolean;
   themeColors: typeof Colors.light;
@@ -15,7 +14,6 @@ export type HomeHeaderProps = {
 };
 
 function HomeHeaderImpl({
-  now,
   isDay,
   godMode,
   themeColors,
@@ -24,6 +22,13 @@ function HomeHeaderImpl({
   onPrivacyPress,
   onLayout,
 }: HomeHeaderProps) {
+  // Timer isolado aqui: atualiza só este componente a cada 1s, sem
+  // forçar re-render de HomeScreen (que re-renderiza cascata de filhos).
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const styles = React.useMemo(() => makeStyles(themeColors), [themeColors]);
   return (
     <View style={styles.titleBar} onLayout={onLayout}>

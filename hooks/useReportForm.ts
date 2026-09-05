@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import * as Location from "expo-location";
 import { ssSet } from "@/lib/secureStoreSafe";
 import { showAlert } from "@/src/components/AppAlert";
-import { getTermsAccepted, setTermsAccepted } from "@/lib/terms";
+import { getTermsAccepted } from "@/lib/terms";
 import {
   NO_BREEDS,
   SPECIES_BREEDS,
@@ -16,10 +16,10 @@ import { persistPhotos } from "@/lib/storage";
 import { canCreatePet } from "@/lib/limits";
 import { checkSpeciesMatch } from "@/lib/speciesMatch";
 import { uploadPetPhotos } from "@/lib/photos";
-
-const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 import { type Region } from "react-native-maps";
 import type { City } from "@/constants/cities";
+
+const toLocalISOString = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString();
 
 type Coords = { latitude: number; longitude: number };
 
@@ -73,7 +73,6 @@ export function useReportForm(params: UseReportFormParams) {
     setIsCameraOpen,
     godMode,
     onNeedAcceptTerms,
-    onFireworks,
   } = params;
 
   const [species, setSpecies] = useState("");

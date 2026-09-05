@@ -1,11 +1,11 @@
+import { FOUND_WINDOW_HOURS } from "@/constants/breeds";
+import { distanceMeters, type City } from "@/constants/cities";
+import { pickNearestSponsors, type SponsorPin } from "@/lib/sponsors";
+import { type PetRecord } from "@/lib/storage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet } from "react-native";
-import { WebView } from "react-native-webview";
 import { type Region } from "react-native-maps";
-import { distanceMeters, type City } from "@/constants/cities";
-import { type SponsorPin, pickNearestSponsors } from "@/lib/sponsors";
-import { type PetRecord } from "@/lib/storage";
-import { FOUND_WINDOW_HOURS } from "@/constants/breeds";
+import { WebView } from "react-native-webview";
 import birdAnimationData from "../../assets/sponsor-bird.json";
 export const MapLeaflet = ({
   initialCenter,
@@ -65,10 +65,7 @@ export const MapLeaflet = ({
     : "";
   // Serializa a animação Lottie do pássaro uma vez (no mount) para injetar
   // no HTML do mapa e carregar via lottie-web.
-  const birdDataJson = useMemo(
-    () => JSON.stringify(birdAnimationData),
-    [],
-  );
+  const birdDataJson = useMemo(() => JSON.stringify(birdAnimationData), []);
   const html = useMemo(
     () => `
   <!DOCTYPE html>
@@ -78,7 +75,7 @@ export const MapLeaflet = ({
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
-      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} .leaflet-control-zoom{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 16px) !important;margin-right:4px !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;z-index:3;} .pet-pin-label .pet-text{display:block;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.85),0 0 2px rgba(0,0,0,0.85);white-space:nowrap;} .pet-pin-label .pet-text-status{font-size:7px;opacity:0.95;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;} .bird-banner{animation:bannerShimmer 3.6s linear infinite;} @keyframes bannerShimmer{0%{background-position:100% 0;}100%{background-position:-100% 0;}} @media (prefers-reduced-motion: reduce){.bird-banner{animation:none;}}</style>
+      <style>html,body,#map{height:100%;margin:0;padding:0;touch-action:none;} .leaflet-control-attribution{display:none !important;} .leaflet-control-zoom{margin-bottom:calc(env(safe-area-inset-bottom,0px) + 16px) !important;margin-right:4px !important;} #map{${mapFilter}} .paw-pin{filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));} .paw-pin svg{display:block;} .paw-pin .paw-emoji{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:16px;line-height:1;z-index:2;} .sponsor-pin-wrap{background:transparent;border:none;overflow:visible;} .sponsor-star{box-sizing:border-box;width:38px;height:38px;margin:0 auto;position:relative;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 5px rgba(255,149,0,0.35),0 6px 14px rgba(0,0,0,0.45);} .sponsor-label{display:block;text-align:center;margin-top:3px;max-width:150px;margin-left:auto;margin-right:auto;} .sponsor-label span{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:rgba(0,0,0,0.6);padding:2px 7px;border-radius:8px;white-space:normal;word-break:break-word;line-height:1.2;} .sponsor-ad-badge{position:absolute;top:-5px;right:-5px;font-size:7px;font-weight:700;line-height:1;color:#fff;background:#007AFF;border-radius:4px;padding:1px 3px;box-shadow:0 1px 2px rgba(0,0,0,0.4);z-index:3;} .pet-pin-label{position:absolute;top:42px;left:0;right:0;text-align:center;pointer-events:none;z-index:3;} .pet-pin-label .pet-text{display:block;font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.85),0 0 2px rgba(0,0,0,0.85);white-space:nowrap;} .pet-pin-label .pet-text-status{font-size:7px;opacity:0.95;} .leaflet-container.hide-pet-labels .pet-pin-label{display:none;} .map-legend{position:absolute;right:10px;bottom:10px;z-index:1000;pointer-events:none;display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.92);padding:6px 10px;border-radius:10px;font-size:12px;font-weight:700;color:#333;box-shadow:0 2px 6px rgba(0,0,0,0.3);} .map-legend .legend-dot{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 50% 35%, #ffb347 0%, #ff9500 70%);border:2px solid #fff;border-radius:50%;} .bird-banner{animation:bannerShimmer 3.6s linear infinite;} @keyframes bannerShimmer{0%{background-position:100% 0;}100%{background-position:-100% 0;}} @media (prefers-reduced-motion: reduce){.bird-banner{animation:none;}}@keyframes pin-bounce-lost{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}@keyframes pin-float-found{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}@keyframes pin-pulse-report{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.85;transform:scale(0.95);}}.pin-anim-lost{animation:pin-bounce-lost 1s ease-in-out infinite;}.pin-anim-found{animation:pin-float-found 2.2s ease-in-out infinite;}.pin-anim-report{animation:pin-pulse-report 3s ease-in-out infinite;}.pin-anim-confirmed{animation:pin-float-found 3s ease-in-out infinite;}@media(prefers-reduced-motion:reduce){.pin-anim-lost,.pin-anim-found,.pin-anim-report,.pin-anim-confirmed{animation:none;}}</style>
     </head>
     <body>
       <div id="map"></div>
@@ -202,7 +199,7 @@ export const MapLeaflet = ({
             return L.divIcon({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
-                '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                '<div class="pin-anim-report" style="position:absolute;left:17px;top:0;width:30px;height:40px;transform-origin:center bottom;">' +
                 '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#FF3B30" stroke="#FFFFFF" stroke-width="2"/>' +
@@ -215,7 +212,7 @@ export const MapLeaflet = ({
               popupAnchor: [0, -44],
             });
           }
-          // Pet REENCONTRADO (dono marcou o próprio caso): gota verde + ✓.
+// Pet REENCONTRADO (dono marcou o próprio caso): gota verde + ✓.
           if (foundAt && withinFoundWindow(foundAt)) {
             var fEmoji = speciesEmoji(__esc(label)) || '🐾';
             var badge = confirmed
@@ -224,7 +221,7 @@ export const MapLeaflet = ({
             return L.divIcon({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
-                '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                '<div class="pin-anim-confirmed" style="position:absolute;left:17px;top:0;width:30px;height:40px;transform-origin:center bottom;">' +
                 '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
@@ -239,7 +236,7 @@ export const MapLeaflet = ({
               popupAnchor: [0, -44],
             });
           }
-          // Post de ACHADO (terceiro encontrou um pet): espelha o pino de
+// Post de ACHADO (terceiro encontrou um pet): espelha o pino de
           // reencontro (gota verde + emoji da espécie), mas usa selo azul 🔍
           // (em vez do ✓) para diferenciar "achado ativo" de "reencontrado".
           // Sem rótulo de texto embaixo (mantém consistência com os pins perdidos).
@@ -251,16 +248,16 @@ export const MapLeaflet = ({
               return L.divIcon({
                 className: 'paw-pin',
                 html: '<div style="position:relative;width:64px;height:58px;">' +
-                  '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                  '<div class="pin-anim-found" style="position:absolute;left:17px;top:0;width:30px;height:40px;transform-origin:center bottom;">' +
                 '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
-                  '</svg>' +
-                  '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
-                  '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
-                  '</div>' +
-                  '<div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#34C759;color:#FFFFFF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:6;">🏠</div>' +
-                  '</div>',
+                '</svg>' +
+                '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
+                '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#34C759;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">✓</div>' +
+                '</div>' +
+                '<div style="position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:#34C759;color:#FFFFFF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);z-index:6;">🏠</div>' +
+                '</div>',
                 iconSize: [64, 58],
                 iconAnchor: [32, 40],
                 popupAnchor: [0, -44],
@@ -269,15 +266,15 @@ export const MapLeaflet = ({
             return L.divIcon({
               className: 'paw-pin',
               html: '<div style="position:relative;width:64px;height:58px;">' +
-                '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+                '<div class="pin-anim-found" style="position:absolute;left:17px;top:0;width:30px;height:40px;transform-origin:center bottom;">' +
                 '<div></div>' +
                 '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
                 '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#34C759" stroke="#FFFFFF" stroke-width="2"/>' +
                 '</svg>' +
                  '<div class="paw-emoji" style="color:#FFFFFF;">' + fEmoji + '</div>' +
-                 '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#0A84FF;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">🔍</div>' +
-                 (claims > 0 ? '<div style="position:absolute;top:40px;left:6px;width:18px;height:18px;border-radius:9px;background:#FF9500;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:5;">' + claims + '</div>' : '') +
-                 '</div>' +
+                '<div style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:9px;background:#0A84FF;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:4;">🔍</div>' +
+                (claims > 0 ? '<div style="position:absolute;top:40px;left:6px;width:18px;height:18px;border-radius:9px;background:#FF9500;border:2px solid #FFFFFF;display:flex;align-items:center;justify-content:center;color:#FFFFFF;font-size:11px;font-weight:bold;box-shadow:0 1px 3px rgba(0,0,0,0.4);z-index:5;">' + claims + '</div>' : '') +
+                '</div>' +
                 (relText ? '<div class="pet-pin-label"><span class="pet-text">' + relText + '</span></div>' : '') +
                 '</div>',
               iconSize: [64, 58],
@@ -292,7 +289,7 @@ export const MapLeaflet = ({
           return L.divIcon({
             className: 'paw-pin',
             html: '<div style="position:relative;width:64px;height:58px;">' +
-              '<div style="position:absolute;left:17px;top:0;width:30px;height:40px;">' +
+              '<div class="pin-anim-lost" style="position:absolute;left:17px;top:0;width:30px;height:40px;transform-origin:center bottom;">' +
               '<div></div>' +
               '<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://www.w3.org/2000/svg" style="position:relative;z-index:2;">' +
               '<path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 13.2 22.6 13.9 23.3.5.5 1.3.5 1.8 0C16.4 37.6 30 25.5 30 15 30 6.7 23.3 0 15 0z" fill="#ffffff" stroke="' + stroke + '" stroke-width="2"/>' +

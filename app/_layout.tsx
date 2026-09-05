@@ -4,13 +4,14 @@ import { StatusBar } from 'expo-status-bar';
 import * as NavigationBar from 'expo-navigation-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ThemeProvider as AppThemeProvider, useThemeMode } from '@/hooks/use-theme-mode';
 import AppLock from '@/src/components/AppLock';
 import { AppAlertProvider } from '@/src/components/AppAlert';
 import { BanProvider, useBanContext } from '@/src/components/BanProvider';
 import { BannedScreen } from '@/src/components/BannedScreen';
+import SplashScreen from '@/components/SplashScreen';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -54,11 +55,16 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
+  const [isSplashFinished, setIsSplashFinished] = useState(false);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
         <BanProvider>
           <AppAlertProvider>
+            {!isSplashFinished && (
+              <SplashScreen onFinish={() => setIsSplashFinished(true)} />
+            )}
             <RootLayoutNav />
           </AppAlertProvider>
         </BanProvider>

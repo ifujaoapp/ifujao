@@ -97,6 +97,17 @@
 ### Validação
 - `npm run lint` passa (0 erros, 6 warnings pré-existentes).
 
+### Animações nos pins do mapa
+- Pins de pets animados via CSS `@keyframes` no `MapLeaflet.tsx` (dentro do `<style>` do WebView).
+- Diferenciação por status:
+  - **Perdido** (`lost`): bounce 6px, 1s `ease-in-out` — `pin-bounce-lost`
+  - **Encontrado** (`found`): float 4px, 2.2s — `pin-float-found`
+  - **Denúncia** (`reported`): pulse scale/opacity, 3s — `pin-pulse-report`
+  - **Reencontro confirmado**: float 4px, 3s — `pin-anim-confirmed`
+- Animações aplicadas no **inner div** do `L.divIcon` com `transform-origin: center bottom`, mantendo `iconAnchor` fixo na coordenada GPS.
+- Respeita `prefers-reduced-motion` (desabilita se configurado no SO).
+- Classe `.pin-anim-*` aplicada ao wrapper interno do pin; outer div mantém `className: 'paw-pin'` para sombras e posicionamento do Leaflet.
+
 ### Commits dessa sessão (já no `origin/main`)
 | Hash | Descrição |
 |---|---|
@@ -108,6 +119,7 @@
 | `7a15632` | feat: fireworks overlay on pet found confirmation + OSM User-Agent + expo-audio plugin |
 | `a741278` | feat: fireworks Lottie via WebView + expo-audio sync via postMessage |
 | `08512b0` | fix: remove fireworks trigger from report pet found flow |
+| `50d0dc0` | feat(map): add smooth bounce/pulse animations to pet pins by status |
 
 ### Edge Functions deployed
 | Função | Status |

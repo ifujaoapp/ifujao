@@ -48,7 +48,7 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { theme, toggleTheme } = useThemeMode();
   const themeColors = Colors[theme];
-  const styles = makeStyles(themeColors);
+  const styles = useMemo(() => makeStyles(themeColors), [themeColors]);
 
   // "Aa": liga/desliga o rótulo de texto do patrocinador no mapa (evita poluir).
   const [showSponsorText, setShowSponsorText] = useState(false);

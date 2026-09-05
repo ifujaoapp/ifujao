@@ -108,6 +108,24 @@
 - Respeita `prefers-reduced-motion` (desabilita se configurado no SO).
 - Classe `.pin-anim-*` aplicada ao wrapper interno do pin; outer div mantém `className: 'paw-pin'` para sombras e posicionamento do Leaflet.
 
+### Splash screen customizada
+- Componente `components/SplashScreen.tsx` com logo + animação Lottie heart via WebView + `lottie-web`.
+- Duração: 3s (overlay absoluto com `zIndex: 9999`).
+- Integrado em `app/_layout.tsx` como overlay antes do `RootLayoutNav`.
+- `app.json` configurado com `splash` nativo + plugin `expo-splash-screen`.
+
+### Logo / ícone do app
+- `assets/images/logo_bg.png` redimensionado para 1024×1024px com margem segura de 20% para Android adaptive icon.
+- `app.json` com `adaptiveIcon.foregroundImage` apontando para `logo_bg.png`.
+
+### Performance (HomeScreen / index.tsx)
+- `useMapLocation`: removido timer de 1s de `HomeScreen`; `isDay` calculado inline no hook.
+- `HomeHeader`: timer de 1s isolado no próprio componente + `AppState` para pausar em background + `isDay` calculado localmente.
+- `enrichedPets`: O(n²) → O(n) usando `Set` para lookup de `confirmed`.
+- `visiblePetsOnMap`, `petsDenunciados`, `totalPetsNoMapa`, `pendingMatches`: envolvidos em `useMemo`.
+- `makeStyles(themeColors)`: memoizado com `useMemo`.
+- `onMarkerPress`: extraído para `useCallback` + lookup O(1) com `Map` (`petsById`).
+
 ### Commits dessa sessão (já no `origin/main`)
 | Hash | Descrição |
 |---|---|
@@ -120,6 +138,16 @@
 | `a741278` | feat: fireworks Lottie via WebView + expo-audio sync via postMessage |
 | `08512b0` | fix: remove fireworks trigger from report pet found flow |
 | `50d0dc0` | feat(map): add smooth bounce/pulse animations to pet pins by status |
+| `ff45de3` | refactor: move clock timer to HomeHeader + remove unused imports + fix lint |
+| `45b7992` | refactor(HomeHeader): own timer + AppState pause + remove isDay prop |
+| `0eb50aa` | perf(index): memoize visiblePetsOnMap/pendingMatches + optimize enrichedPets |
+| `a718468` | perf(index): memoize makeStyles(themeColors) with useMemo |
+| `1277d78` | perf(index): memoize onMarkerPress + O(1) pet lookup |
+| `3268216` | chore: resize logo_bg.png to 1024x1024 for Android adaptive icon |
+| `5b1726f` | fix: add transparent padding to logo_bg.png for Android adaptive icon safe zone |
+| `a61e309` | fix: add 20% safe zone margin to logo_bg.png for Android adaptive icon |
+| `c12ad59` | feat(splash): add animated splash screen (iFood style) |
+| `8559f6a` | feat(splash): add custom splash screen with logo + Lottie heart overlay |
 
 ### Edge Functions deployed
 | Função | Status |

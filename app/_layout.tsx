@@ -26,7 +26,6 @@ function RootLayoutNav() {
     NavigationBar.setButtonStyleAsync(isDark ? 'light' : 'dark').catch(() => {});
   }, [isDark]);
 
-  // Bloqueio total: usuario banido nao tem acesso a nenhuma rota.
   if (isBanned) {
     return (
       <>
@@ -57,14 +56,25 @@ function RootLayoutNav() {
 export default function RootLayout() {
   const [isSplashFinished, setIsSplashFinished] = useState(false);
 
+  if (!isSplashFinished) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <AppThemeProvider>
+          <BanProvider>
+            <AppAlertProvider>
+              <SplashScreen onFinish={() => setIsSplashFinished(true)} />
+            </AppAlertProvider>
+          </BanProvider>
+        </AppThemeProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AppThemeProvider>
         <BanProvider>
           <AppAlertProvider>
-            {!isSplashFinished && (
-              <SplashScreen onFinish={() => setIsSplashFinished(true)} />
-            )}
             <RootLayoutNav />
           </AppAlertProvider>
         </BanProvider>

@@ -308,12 +308,15 @@ export default function HomeScreen() {
   // Calcula confirmed ANTES de filtrar para não perder o estado ao alternar
   // entre "meus/todos" (o pet confirmado pode pertencer a outro usuário).
   const enrichedPets = useMemo(() => {
+    const confirmedFoundIds = new Set(
+      pets
+        .filter((x) => x.postType !== 'found' && x.matchStatus === 'confirmed')
+        .map((x) => x.matchedPetId)
+        .filter(Boolean),
+    );
     return pets.map((p) => {
       if (p.postType !== 'found') return p;
-      const isConfirmed = pets.some(
-        (x) => x.postType !== 'found' && x.matchedPetId === p.id && x.matchStatus === 'confirmed',
-      );
-      return { ...p, confirmed: isConfirmed };
+      return { ...p, confirmed: confirmedFoundIds.has(p.id) };
     });
   }, [pets]);
   const visiblePets = useMemo(() => {
@@ -324,40 +327,36 @@ export default function HomeScreen() {
       const ids = new Set(aiResults.map((r) => r.id));
       base = base.filter((p) => ids.has(p.id));
     }
-    // Filtro perdido/achado (manual matching): 'all' mostra tudo; 'loss' só
-    // posts de perda; 'found' só posts de quem encontrou um pet.
     if (postTypeFilter !== "all") {
       base = base.filter((p) => (p.postType ?? "lost") === postTypeFilter);
     }
-    // Achados NÃO são ocultados ao confirmar um match: um "reencontro" falso não
-    // pode esconder o post (anti-fraude). O pin permanece visível (marcado como
-    // resolvido) até moderação/disputa.
     return base;
   }, [showOnlyMine, enrichedPets, myDeviceId, myPhone, aiResults, postTypeFilter]);
-  // Pets reencontrados fora da janela somem do mapa (alinhamento com o filtro
-  // withinFoundWindow do MapLeaflet) e portanto não devem contar no total do mapa.
-  const visiblePetsOnMap = visiblePets.filter(
-    (p) => !p.foundAt || Date.now() - new Date(p.foundAt).getTime() <= 48 * 3600 * 1000,
-  );
-  const petsDenunciados = visiblePetsOnMap.filter((p) => p.reported);
-  const totalPetsNoMapa = visiblePetsOnMap.length;
-  // Matches pendentes que envolvem este device (aguardando sua confirmação ou
-  // a do outro lado) — usado no indicador in-app. Conta tanto o pet que eu
-  // iniciei quanto o pet alheio que aponta para um meu pet como pendente.
-  const pendingMatches = visiblePets.filter((p) => {
-    if (p.matchStatus === "pending" && isOwner(p, myDeviceId, myPhone))
-      return true;
-    if (p.matchedPetId) {
-      const mine = pets.find((x) => x.id === p.matchedPetId);
-      if (
-        mine &&
-        isOwner(mine, myDeviceId, myPhone) &&
-        p.matchStatus === "pending"
-      )
+  const { petsDenunciados, totalPetsNoMapa } = useMemo(() => {
+    const onMap = visiblePets.filter(
+      (p) => !p.foundAt || Date.now() - new Date(p.foundAt).getTime() <= 48 * 3600 * 1000,
+    );
+    return {
+      petsDenunciados: onMap.filter((p) => p.reported),
+      totalPetsNoMapa: onMap.length,
+    };
+  }, [visiblePets]);
+  const pendingMatches = useMemo(() => {
+    return visiblePets.filter((p) => {
+      if (p.matchStatus === "pending" && isOwner(p, myDeviceId, myPhone))
         return true;
-    }
-    return false;
-  }).length;
+      if (p.matchedPetId) {
+        const mine = pets.find((x) => x.id === p.matchedPetId);
+        if (
+          mine &&
+          isOwner(mine, myDeviceId, myPhone) &&
+          p.matchStatus === "pending"
+        )
+          return true;
+      }
+      return false;
+    }).length;
+  }, [visiblePets, pets, myDeviceId, myPhone]);
 
   return (
       <View style={styles.container}>

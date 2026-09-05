@@ -1,71 +1,80 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Image } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  runOnJS,
-  Easing,
-} from 'react-native-reanimated';
-import * as SplashScreen from 'expo-splash-screen';
-
-SplashScreen.preventAutoHideAsync();
+import { WebView } from 'react-native-webview';
 
 export default function SplashScreenComponent({ onFinish }: { onFinish: () => void }) {
-  const [isAppReady, setIsAppReady] = useState(false);
-  const [isAnimationFinished, setIsAnimationFinished] = useState(false);
-
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(1);
+  const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    async function prepare() {
-      try {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (e) {
-        console.warn(e);
-      } finally {
-        setIsAppReady(true);
-        await SplashScreen.hideAsync();
-      }
-    }
+    const timer = setTimeout(() => {
+      setVisible(false);
+      onFinish();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [onFinish]);
 
-    prepare();
-  }, []);
+  if (!visible) return null;
 
-  useEffect(() => {
-    if (isAppReady) {
-      scale.value = withTiming(1.2, { duration: 400, easing: Easing.inOut(Easing.ease) }, () => {
-        scale.value = withTiming(25, { duration: 600, easing: Easing.bezier(0.25, 1, 0.5, 1) }, (finished) => {
-          if (finished) {
-            runOnJS(setIsAnimationFinished)(true);
-            runOnJS(onFinish)();
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <style>
+          html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
           }
-        });
-      });
+          #lottie {
+            width: 200px;
+            height: 200px;
+          }
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+      </head>
+      <body>
+        <div id="lottie"></div>
+        <script>
+          var animData = ${JSON.stringify(require('../assets/heart.json'))};
+          var anim = lottie.loadAnimation({
+            container: document.getElementById('lottie'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            animationData: animData
+          });
+        </script>
+      </body>
+    </html>
+  `;
 
-      opacity.value = withTiming(0, { duration: 800 });
-    }
-  }, [isAppReady, onFinish, scale, opacity]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  if (isAnimationFinished) {
-    return null;
-  }
-
-  return (
+return (
     <View style={styles.container}>
-      <Animated.View style={[styles.logoContainer, animatedStyle]}>
+      <View style={styles.logoWrapper}>
         <Image
-          source={require('../../assets/images/logo_bg.png')}
+          source={require('../assets/images/logo_bg.png')}
           style={styles.logo}
-          contentFit="contain"
+          resizeMode="contain"
         />
-      </Animated.View>
+        <View style={styles.lottieOverlay}>
+          <WebView
+            originWhitelist={['*']}
+            source={{ html }}
+            style={styles.webview}
+            scrollEnabled={false}
+            onError={() => {}}
+            onHttpError={() => {}}
+          />
+        </View>
+      </View>
     </View>
   );
 }
@@ -76,13 +85,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9999,
   },
-  logoContainer: {
+  logoWrapper: {
+    width: 280,
+    height: 280,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logo: {
-    width: 200,
-    height: 200,
+    position: 'absolute',
+    width: 280,
+    height: 280,
+  },
+  lottieOverlay: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webview: {
+    width: 280,
+    height: 280,
+    backgroundColor: 'transparent',
   },
 });

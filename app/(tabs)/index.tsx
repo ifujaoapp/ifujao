@@ -28,7 +28,7 @@ import { setTermsAccepted } from "@/lib/terms";
 import { showAlert } from "@/src/components/AppAlert";
 import { DatePickerCalendar } from "@/src/components/DatePickerCalendar";
 import { ImageViewerModal } from "@/src/components/ImageViewerModal";
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   Linking,
@@ -358,6 +358,26 @@ export default function HomeScreen() {
     }).length;
   }, [visiblePets, pets, myDeviceId, myPhone]);
 
+  const petsById = useMemo(() => {
+    const map = new Map<string, PetRecord>();
+    pets.forEach((p) => map.set(p.id, p));
+    return map;
+  }, [pets]);
+
+  const handleMapMarkerPress = useCallback((petId: string) => {
+    if (godMode) {
+      const p = petsById.get(petId);
+      if (!p) return;
+      showAlert("info", "Ações do moderador", "O que você quer fazer com este alerta?", [
+        { text: "Ver detalhes", onPress: () => onMarkerPress(petId) },
+        { text: "Moderar", onPress: () => setModPet(p) },
+        { text: "Cancelar", style: "cancel" },
+      ]);
+    } else {
+      onMarkerPress(petId);
+    }
+  }, [godMode, petsById, onMarkerPress]);
+
   return (
       <View style={styles.container}>
         <View style={{ paddingTop: insets.top }}>
@@ -402,22 +422,7 @@ export default function HomeScreen() {
         aiResults={aiResults}
         showSponsorText={showSponsorText}
         setShowSponsorText={setShowSponsorText}
-        onMarkerPress={(petId) => {
-          if (godMode) {
-            // Em godMode, toque no pin abre menu: o moderador escolhe
-            // entre ver o post normalmente ou abrir o modal de moderacao.
-            // Sem godMode, vai direto para onMarkerPress (comportamento padrao).
-            const p = pets.find((x) => x.id === petId);
-            if (!p) return;
-            showAlert("info", "Ações do moderador", "O que você quer fazer com este alerta?", [
-              { text: "Ver detalhes", onPress: () => onMarkerPress(petId) },
-              { text: "Moderar", onPress: () => setModPet(p) },
-              { text: "Cancelar", style: "cancel" },
-            ]);
-          } else {
-            onMarkerPress(petId);
-          }
-        }}
+        onMarkerPress={handleMapMarkerPress}
         theme={theme}
         toggleTheme={toggleTheme}
         selectedCity={selectedCity}
